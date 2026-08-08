@@ -72,14 +72,6 @@ export type SessionState = {
   missionSent: boolean;
   /** 글자 크기 배율 (1 / 1.15 / 1.3) — NFR-A11Y-003 */
   textScale: number;
-  /**
-   * 처음 안내 카드를 닫았는지.
-   *
-   * 화면을 덮는 코치마크 대신 홈에 놓이는 카드다. 공용 태블릿이라 누가
-   * 집든 첫 실행이 될 수 있고, 어르신 앞에서 검은 화면이 덮이면 곤란하다.
-   * 그래서 진행을 막지 않고, 닫으면 다시 뜨지 않는다.
-   */
-  guideDismissed: boolean;
 };
 
 function seedState(): SessionState {
@@ -113,7 +105,6 @@ function seedState(): SessionState {
     missionBody: '',
     missionSent: false,
     textScale: 1,
-    guideDismissed: false,
   };
 }
 

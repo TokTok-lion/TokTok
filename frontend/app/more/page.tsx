@@ -128,25 +128,6 @@ export default function MorePage() {
 
       <h2 className="mt-6 text-[1.1875rem] font-extrabold text-ink-900">안내</h2>
       <ul className="mt-3 space-y-3">
-        {/* the 처음이신가요? card on 오늘 is dismissible, so it needs a way back */}
-        <li>
-          <button
-            type="button"
-            onClick={() => set('guideDismissed', false)}
-            className="flex min-h-[72px] w-full items-center gap-3.5 rounded-[20px] bg-surface px-4 text-left shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
-          >
-            <Art name="ui_bulb" size={34} alt="" className="shrink-0" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[1.125rem] font-extrabold text-ink-900">
-                처음 안내 다시 보기
-              </span>
-              <span className="block text-[0.875rem] text-ink-500">
-                오늘 화면에 안내 카드를 다시 띄워요
-              </span>
-            </span>
-            <Chevron />
-          </button>
-        </li>
         <li>
           <Link
             href="/guide"

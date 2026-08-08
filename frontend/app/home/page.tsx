@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Art, ArtBox } from '@/components/Art';
-import { InstallGate } from '@/components/InstallGate';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, IconCircle, PrimaryButton } from '@/components/ui';
 import {
@@ -69,65 +68,6 @@ export default function TodayPage() {
         </PrimaryButton>
       }
     >
-      {/* 홈 화면 설치 안내 — 인앱 브라우저면 브라우저로 넘기고, 아니면 설치 */}
-      <InstallGate />
-
-      {/*
-        처음 안내.
-
-        A dark full-screen coach mark was considered and rejected: this runs on
-        a shared tablet used beside an elder, so an overlay can land at the
-        worst possible moment, and it inverts the contrast system the rest of
-        the app is built on. This card teaches the same thing without blocking
-        anything, and stays gone once dismissed.
-      */}
-      {!s.guideDismissed ? (
-        <div
-          // Transient: links in here are one-off prompts, not menu entries.
-          // 오늘 never becomes a second home for a screen that lives elsewhere.
-          data-transient="처음 안내"
-          className="mb-4 rounded-[20px] border-2 border-brand-200 bg-brand-50 p-4"
-        >
-          <div className="flex items-start gap-3">
-            <Art name="ui_bulb" size={34} alt="" className="mt-0.5 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[1.0625rem] font-extrabold text-ink-900">
-                처음이신가요?
-              </p>
-              <p className="mt-1 text-[0.9375rem] leading-relaxed text-ink-700">
-                아래 <strong>주황색 버튼</strong>만 누르시면 다음 할 일로
-                이어져요. 한 회기는 준비부터 마무리까지 9단계입니다.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Link
-                  href="/guide"
-                  className="inline-flex min-h-[44px] items-center rounded-[12px] bg-brand-700 px-4 text-[0.9375rem] font-bold text-white"
-                >
-                  이용 안내 보기
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => set('guideDismissed', true)}
-                  className="inline-flex min-h-[44px] items-center rounded-[12px] border border-brand-300 bg-surface-strong px-4 text-[0.9375rem] font-bold text-brand-800"
-                >
-                  다시 보지 않기
-                </button>
-              </div>
-            </div>
-            <button
-              type="button"
-              aria-label="처음 안내 닫기"
-              onClick={() => set('guideDismissed', true)}
-              className="-mr-1 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-500"
-            >
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {/* 지금 할 일 — 화면에서 가장 큰 한 가지 */}
       <Card className="p-4">
         <div className="flex items-center gap-3">

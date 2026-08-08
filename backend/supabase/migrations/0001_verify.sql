@@ -9,6 +9,8 @@
 begin;
 
 create temporary table _checks (n text, what text) on commit drop;
+-- 아래에서 authenticated 롤로 바꿔 검사하므로, 그 롤도 결과를 적을 수 있어야 한다
+grant insert, select on _checks to public;
 
 -- ── 1. public 의 모든 테이블에 RLS 가 켜져 있는가 (NFR-SEC-001)
 do $$

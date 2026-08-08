@@ -70,13 +70,23 @@ export function detectInstallEnv(): InstallEnv {
 }
 
 /**
- * 카카오톡 등 인앱 브라우저에서 크롬으로 넘기는 링크.
+ * 카카오톡 등 인앱 브라우저에서 크롬으로 넘기는 주소.
  *
- * Android understands an intent: URL and will open Chrome directly. iOS has no
- * equivalent that works from inside an in-app browser, so there the user is
- * told to use the app's own "다른 브라우저로 열기" menu instead.
+ * Android: intent: URL. Chrome이 없으면 아무 일도 일어나지 않는다.
+ * iOS: googlechromes: 스킴. 크롬이 깔려 있으면 열리고, 없으면 조용히 실패한다.
+ *
+ * 두 경우 다 "무조건 열린다"고 보장할 수는 없다 — 크롬이 없을 수도 있고,
+ * 인앱 브라우저가 외부 스킴을 막아 둘 수도 있다. 그래서 자동 이동을 시도하되
+ * 화면에는 항상 직접 누를 수 있는 버튼과 주소 복사를 함께 남긴다.
  */
-export function chromeIntentUrl(href: string): string {
+export function chromeUrl(href: string, platform: Platform): string | null {
   const stripped = href.replace(/^https?:\/\//, '');
-  return `intent://${stripped}#Intent;scheme=https;package=com.android.chrome;end`;
+  if (platform === 'android') {
+    return `intent://${stripped}#Intent;scheme=https;package=com.android.chrome;end`;
+  }
+  if (platform === 'ios') {
+    // googlechromes = https, googlechrome = http
+    return `${href.startsWith('https') ? 'googlechromes' : 'googlechrome'}://${stripped}`;
+  }
+  return null;
 }

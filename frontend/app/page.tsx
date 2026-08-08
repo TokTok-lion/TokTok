@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Logo } from '@/components/Shell';
 import { PrimaryButton, Chevron } from '@/components/ui';
+import { LaunchPopup } from '@/components/LaunchPopup';
 
 /** 스플래시 · 시작 (deck p.1) */
 export default function SplashPage() {
@@ -23,6 +24,10 @@ export default function SplashPage() {
           <path d="M0 158c92-46 156 22 244-4s136-46 196-18v124H0Z" fill="#fcd699" opacity=".85" />
         </svg>
       </div>
+
+      {/* 인앱 브라우저면 크롬으로 넘기고, 아니면 홈 화면 설치를 권한다.
+          X로 닫으면 첫 화면을 그대로 쓸 수 있다. */}
+      <LaunchPopup />
 
       <main id="main" className="flex flex-1 flex-col items-center px-6 pb-8 pt-14">
         <Logo size="lg" />

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { SessionProvider } from '@/lib/store';
+import { ServiceWorker } from '@/components/ServiceWorker';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -42,6 +43,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           본문으로 건너뛰기
         </a>
         <SessionProvider>{children}</SessionProvider>
+        {/* 어느 화면으로 들어오든 한 번은 등록되도록 레이아웃에 둔다 */}
+        <ServiceWorker />
       </body>
     </html>
   );

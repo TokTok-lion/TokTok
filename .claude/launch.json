@@ -4,7 +4,7 @@
     {
       "name": "toktok",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "3013"],
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--port", "3013"],
       "port": 3013
     }
   ]
