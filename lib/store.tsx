@@ -1,0 +1,260 @@
+'use client';
+
+import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import {
+  DEFAULT_CONSENTS,
+  type Consents,
+  type ConsentKind,
+  type Elder,
+  type FamilyContribution,
+  type FamilyMissionKind,
+  type MusicStyleId,
+  type QuestionLevel,
+  type ReactionId,
+  type SongStatus,
+  type StoryItem,
+  type StoryStatus,
+} from './domain';
+import {
+  SEED_ELDER,
+  SEED_FAMILY_REPLIES,
+  SEED_FAMILY_STORIES,
+  SEED_LOG_DRAFT,
+  SEED_STORY,
+  SEED_TRANSCRIPT,
+} from './seed';
+
+/* ------------------------------------------------------------------ *
+ * Session state.
+ *
+ * Everything lives on the device. No life story, recording, or family
+ * message leaves the browser in this build — which is also the default the
+ * spec asks for (원음성·전사 비공개). The seams that would call STT / LLM /
+ * music vendors sit behind lib/services.ts, so a real backend can be added
+ * without touching a single screen.
+ *
+ * localStorage is an external system, so it is wired through
+ * useSyncExternalStore rather than an effect: the server renders the seed,
+ * the client swaps in the saved session on hydration, and no render
+ * cascades.
+ * ------------------------------------------------------------------ */
+
+const KEY = 'toktok.session.v1';
+
+export type SessionState = {
+  elder: Elder;
+  /** 오늘 회기 주제 */
+  topic: string;
+  memoryCard: string | null;
+  questionLevel: QuestionLevel;
+  checklist: Record<string, boolean>;
+  transcript: { id: string; text: string; at: number }[];
+  transcriptConfirmed: boolean;
+  story: StoryItem[];
+  lyricsApproved: boolean;
+  style: MusicStyleId | null;
+  songStatus: SongStatus;
+  previewChoice: 'A' | 'B' | 'C' | null;
+  reactions: ReactionId[];
+  reactionNote: string;
+  logDraft: string;
+  logSaved: boolean;
+  nextTopic: string;
+  wrapNote: string;
+  familyStories: FamilyContribution[];
+  familyReplies: FamilyContribution[];
+  missionKind: FamilyMissionKind;
+  missionBody: string;
+  missionSent: boolean;
+  /** 글자 크기 배율 (1 / 1.15 / 1.3) — NFR-A11Y-003 */
+  textScale: number;
+};
+
+function seedState(): SessionState {
+  return {
+    elder: SEED_ELDER,
+    topic: '첫 직장과 첫 월급',
+    // the deck opens with 놀이 and 따뜻한 발라드 already chosen
+    memoryCard: 'play',
+    questionLevel: 1,
+    checklist: { elder: true, cards: true, familyNote: true, mic: false },
+    transcript: SEED_TRANSCRIPT,
+    transcriptConfirmed: false,
+    story: SEED_STORY,
+    lyricsApproved: false,
+    style: 'ballad',
+    songStatus: 'draft',
+    previewChoice: 'B',
+    reactions: ['speak', 'smile', 'clap'],
+    reactionNote: '',
+    logDraft: SEED_LOG_DRAFT,
+    logSaved: false,
+    nextTopic: '가장 자랑스러운 순간',
+    wrapNote: '어머니께 선물을 드린 기억을 따뜻하게 회상하심',
+    familyStories: SEED_FAMILY_STORIES,
+    familyReplies: SEED_FAMILY_REPLIES,
+    missionKind: 'photo',
+    missionBody: '',
+    missionSent: false,
+    textScale: 1,
+  };
+}
+
+/* ---------------------------------------------------------- the store */
+
+const SERVER_SNAPSHOT = seedState();
+let state: SessionState = SERVER_SNAPSHOT;
+let hydrated = false;
+const listeners = new Set<() => void>();
+
+function load(): SessionState {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return seedState();
+    const saved = JSON.parse(raw) as Partial<SessionState>;
+    const base = seedState();
+    return { ...base, ...saved, elder: { ...base.elder, ...saved.elder } };
+  } catch {
+    // corrupt or unavailable storage: fall back to the seed rather than crash
+    return seedState();
+  }
+}
+
+function persist() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch {
+    // storage full or blocked — the session keeps working in memory
+  }
+}
+
+function emit() {
+  for (const l of listeners) l();
+}
+
+function subscribe(listener: () => void) {
+  // First subscriber triggers hydration from disk. Doing it here (rather than
+  // in an effect) keeps the snapshot stable for the rest of the render pass.
+  if (!hydrated) {
+    hydrated = true;
+    state = load();
+    applyTextScale();
+  }
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+const getSnapshot = () => state;
+const getServerSnapshot = () => SERVER_SNAPSHOT;
+
+function applyTextScale() {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty('--text-scale', String(state.textScale));
+}
+
+function update(next: SessionState) {
+  const scaleChanged = next.textScale !== state.textScale;
+  state = next;
+  if (scaleChanged) applyTextScale();
+  persist();
+  emit();
+}
+
+/* --------------------------------------------------------- public API */
+
+export function SessionProvider({ children }: { children: ReactNode }) {
+  // Kept as a component so screens can stay agnostic about how state is held;
+  // the store itself is module-level, so there is no context value to thread.
+  return <>{children}</>;
+}
+
+export function useSession() {
+  const s = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  const set = useCallback(
+    <K extends keyof SessionState>(key: K, value: SessionState[K]) => {
+      update({ ...state, [key]: value });
+    },
+    [],
+  );
+
+  const setStoryStatus = useCallback((id: string, status: StoryStatus) => {
+    update({
+      ...state,
+      story: state.story.map((i) => (i.id === id ? { ...i, status } : i)),
+    });
+  }, []);
+
+  const setConsent = useCallback((kind: ConsentKind, granted: boolean) => {
+    const consents: Consents = {
+      ...DEFAULT_CONSENTS,
+      ...state.elder.consents,
+      [kind]: granted ? 'granted' : 'withdrawn',
+    };
+    update({ ...state, elder: { ...state.elder, consents } });
+  }, []);
+
+  const toggleReaction = useCallback((id: ReactionId) => {
+    update({
+      ...state,
+      reactions: state.reactions.includes(id)
+        ? state.reactions.filter((r) => r !== id)
+        : [...state.reactions, id],
+    });
+  }, []);
+
+  const setContributionState = useCallback(
+    (
+      bucket: 'familyStories' | 'familyReplies',
+      id: string,
+      contributionState: FamilyContribution['state'],
+    ) => {
+      update({
+        ...state,
+        [bucket]: state[bucket].map((c) =>
+          c.id === id ? { ...c, state: contributionState } : c,
+        ),
+      });
+    },
+    [],
+  );
+
+  const toggleChecklist = useCallback((key: string) => {
+    update({
+      ...state,
+      checklist: { ...state.checklist, [key]: !state.checklist[key] },
+    });
+  }, []);
+
+  const reset = useCallback(() => {
+    try {
+      localStorage.removeItem(KEY);
+    } catch {
+      /* ignore */
+    }
+    update(seedState());
+  }, []);
+
+  return useMemo(
+    () => ({
+      s,
+      set,
+      setStoryStatus,
+      setConsent,
+      toggleReaction,
+      setContributionState,
+      toggleChecklist,
+      reset,
+    }),
+    [
+      s,
+      set,
+      setStoryStatus,
+      setConsent,
+      toggleReaction,
+      setContributionState,
+      toggleChecklist,
+      reset,
+    ],
+  );
+}

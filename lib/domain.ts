@@ -1,0 +1,301 @@
+/**
+ * Domain model for 똑똑 TokTok · 생애여정 음악지도.
+ *
+ * The types and guards here encode the product invariants that the
+ * functional spec (v1.6) marks P0 — the ones that must hold before any
+ * feature is allowed to work:
+ *
+ *   원칙 2 · 검증된 사실만 생성  every fact carries a source
+ *   원칙 3 · 사람 검수 필수      AI output is a draft until a human approves
+ *   원칙 1 · 본인 최종 통제      the elder decides what is true and what is shared
+ *   원칙 4 · 목적별 분리 동의    consent is per-purpose, never bundled
+ *   NFR-AI-003                  UNVERIFIED/CONFLICT/EXCLUDED never reach lyrics
+ */
+
+// ---------------------------------------------------------------- consent
+
+/** The five consents the spec requires to be collected independently. */
+export type ConsentKind =
+  | 'recording' // 녹음·전사
+  | 'externalAi' // 외부 AI 전송
+  | 'facilityPlay' // 시설 재생
+  | 'familyShare' // 가족 공유
+  | 'promotion'; // 홍보 공개
+
+export type ConsentState = 'granted' | 'denied' | 'withdrawn' | 'unset';
+
+export const CONSENT_LABELS: Record<ConsentKind, string> = {
+  recording: '녹음·전사',
+  externalAi: '외부 AI 전송',
+  facilityPlay: '시설 재생',
+  familyShare: '가족 공유',
+  promotion: '홍보 공개',
+};
+
+export type Consents = Record<ConsentKind, ConsentState>;
+
+export const DEFAULT_CONSENTS: Consents = {
+  recording: 'unset',
+  externalAi: 'unset',
+  facilityPlay: 'unset',
+  familyShare: 'unset',
+  promotion: 'unset',
+};
+
+export function hasConsent(c: Consents, kind: ConsentKind): boolean {
+  return c[kind] === 'granted';
+}
+
+/**
+ * 원칙 4 + F-SW-CONS-009: refusing a consent must never dead-end the user.
+ * Each denial has a documented alternative path.
+ */
+export const CONSENT_FALLBACK: Record<ConsentKind, string> = {
+  recording: '녹음 없이 복지사가 어르신 말씀을 받아 적어 기록할 수 있어요.',
+  externalAi: '자동 정리 없이 복지사가 직접 이야기와 가사를 작성할 수 있어요.',
+  facilityPlay: '어르신 개인 감상으로만 들을 수 있어요.',
+  familyShare: '가족 공유 없이 어르신과 복지사만 확인할 수 있어요.',
+  promotion: '외부 공개 없이 서비스 안에서만 사용해요.',
+};
+
+// ----------------------------------------------------------------- source
+
+/** Where a recorded fact came from. 출처 없는 사실은 존재할 수 없다. */
+export type SourceKind =
+  | 'voice' // 어르신 음성 (타임스탬프 포함)
+  | 'card' // 기억 카드 응답
+  | 'staffNote' // 녹음 거부 시 복지사 수기 기록
+  | 'family'; // 가족 제보
+
+export type Source = {
+  kind: SourceKind;
+  /** 음성 출처의 재생 위치(초). voice 일 때만 존재. */
+  at?: number;
+  /** 사람이 읽을 수 있는 출처 설명 — 화면에 그대로 노출된다. */
+  label: string;
+};
+
+export const SOURCE_LABELS: Record<SourceKind, string> = {
+  voice: '어르신 음성',
+  card: '기억 카드',
+  staffNote: '복지사 기록',
+  family: '가족 제보',
+};
+
+// ------------------------------------------------------------------ story
+
+/**
+ * 이야기 정리(SW-STORY) 화면의 세 갈래.
+ * VERIFIED 만 가사 생성 입력으로 넘어간다.
+ */
+export type StoryStatus =
+  | 'verified' // 확인된 이야기 — 어르신이 맞다고 확인
+  | 'unverified' // 확인 필요 — 되물어야 하는 항목
+  | 'excluded'; // 이번 곡에서 제외 — 어르신이 빼달라고 함
+
+export type StoryItem = {
+  id: string;
+  text: string;
+  status: StoryStatus;
+  /** 비어 있을 수 없다. assertStoryIntegrity 가 강제한다. */
+  sources: Source[];
+  /** unverified 인 경우 어르신에게 되물을 질문. */
+  followUp?: string;
+};
+
+export const STORY_STATUS_LABELS: Record<StoryStatus, string> = {
+  verified: '확인된 이야기',
+  unverified: '확인 필요',
+  excluded: '이번 곡에서 제외',
+};
+
+/**
+ * NFR-AI-002 (출처 완전성) + NFR-AI-003 (미확인 차단).
+ * 가사 생성 입력을 만드는 유일한 통로. 여기를 거치지 않고는
+ * 어떤 문장도 가사로 갈 수 없다.
+ */
+export function lyricInputs(items: StoryItem[]): StoryItem[] {
+  return items.filter((i) => i.status === 'verified' && i.sources.length > 0);
+}
+
+/** 개발 중 출처 없는 항목이 새어 들어오는 것을 잡는 가드. */
+export function assertStoryIntegrity(items: StoryItem[]): void {
+  const orphan = items.find((i) => i.sources.length === 0);
+  if (orphan) {
+    throw new Error(
+      `출처 없는 이야기 항목이 있습니다 (id=${orphan.id}). ` +
+        '모든 사실에는 음성·카드·복지사 기록·가족 제보 중 하나가 연결되어야 합니다.',
+    );
+  }
+}
+
+// ----------------------------------------------------------------- lyrics
+
+/** 원칙 3: AI 결과는 초안이며, 사람이 승인해야 확정된다. */
+export type ReviewState = 'draft' | 'approved';
+
+export type LyricSection = {
+  /** 1절 · 후렴 처럼 화면에 그대로 보이는 라벨 */
+  label: string;
+  tone: 'verse' | 'chorus';
+  lines: string[];
+};
+
+export type Lyrics = {
+  sections: LyricSection[];
+  state: ReviewState;
+  /** 이 가사가 어떤 이야기에서 나왔는지 — 화면에 근거로 표시된다. */
+  basedOn: string[];
+};
+
+// ------------------------------------------------------------------ music
+
+export type MusicStyleId = 'folkTrad' | 'folkBright' | 'ballad' | 'trot';
+
+export type MusicStyle = {
+  id: MusicStyleId;
+  name: string;
+  description: string;
+  art: string;
+};
+
+/**
+ * 제품 경계: 특정 실존 가수·곡 모사는 스타일 목록에 존재하지 않는다.
+ * (원칙 14 · NFR-AI-007)
+ */
+export const MUSIC_STYLES: MusicStyle[] = [
+  {
+    id: 'folkTrad',
+    name: '민요풍',
+    description: '정겹고 구수한\n전통 민요 스타일',
+    art: 'style_folk_trad',
+  },
+  {
+    id: 'folkBright',
+    name: '밝은 포크풍',
+    description: '따뜻하고 경쾌한\n포크 음악 스타일',
+    art: 'style_folk_bright',
+  },
+  {
+    id: 'ballad',
+    name: '따뜻한 발라드',
+    description: '부드럽고 감성적인\n발라드 스타일',
+    art: 'style_ballad',
+  },
+  {
+    id: 'trot',
+    name: '느린 트로트',
+    description: '애절하고 정감 있는\n트로트 스타일',
+    art: 'style_trot',
+  },
+];
+
+export type SongStatus =
+  | 'draft' // 기억 카드까지만 진행
+  | 'lyricsReview' // 가사 검수 중
+  | 'generating' // 곡 생성 중
+  | 'ready' // 미리듣기 대기
+  | 'complete'; // 확정된 곡
+
+export const SONG_STATUS_LABELS: Record<SongStatus, string> = {
+  draft: '노래 생성 전',
+  lyricsReview: '가사 검수 중',
+  generating: '곡 생성 중',
+  ready: '들어보기 준비됨',
+  complete: '완료',
+};
+
+// ------------------------------------------------------- family & session
+
+export type FamilyMissionKind = 'photo' | 'note' | 'voice';
+
+export const FAMILY_MISSION_LABELS: Record<FamilyMissionKind, string> = {
+  photo: '고향 사진 보내기',
+  note: '짧은 응원 글 남기기',
+  voice: '축하 음성 보내기',
+};
+
+/** 가족 제보는 자동으로 사실이 되지 않는다 (원칙 2, F-SW-FAM). */
+export type FamilyContributionState = 'pending' | 'accepted' | 'held';
+
+export type FamilyContribution = {
+  id: string;
+  kind: FamilyMissionKind | 'quote';
+  from: string;
+  title: string;
+  body?: string;
+  art?: string;
+  durationSec?: number;
+  state: FamilyContributionState;
+};
+
+/**
+ * 관찰 반응(F-SW-RPT). 복지사가 눈으로 본 행동만 기록한다 —
+ * 정서·인지 상태를 추정하는 항목은 의도적으로 존재하지 않는다 (원칙 7).
+ */
+export type ReactionId =
+  | 'speak'
+  | 'smile'
+  | 'eyeContact'
+  | 'singAlong'
+  | 'clap'
+  | 'rest';
+
+export const REACTIONS: { id: ReactionId; label: string; art: string }[] = [
+  { id: 'speak', label: '자발적 답변', art: 'react_speak' },
+  { id: 'smile', label: '미소', art: 'react_smile' },
+  { id: 'eyeContact', label: '눈맞춤', art: 'react_eye_contact' },
+  { id: 'singAlong', label: '노래 따라부름', art: 'react_sing_along' },
+  { id: 'clap', label: '손동작 참여', art: 'react_clap' },
+  { id: 'rest', label: '쉬고 싶음', art: 'react_rest' },
+];
+
+/** 질문 단계 — 말문이 트이지 않을 때 선택형부터 시작한다. */
+export type QuestionLevel = 1 | 2 | 3;
+
+export const QUESTION_LEVELS: {
+  level: QuestionLevel;
+  name: string;
+  example: string;
+  recommended?: boolean;
+}[] = [
+  {
+    level: 1,
+    name: '선택형',
+    example: '산과 바다 중 어디가 더 기억나세요?',
+    recommended: true,
+  },
+  { level: 2, name: '단답형', example: '그 장소는 어디였나요?' },
+  { level: 3, name: '회상형', example: '그곳에서 있었던 일을 이야기해 주세요.' },
+];
+
+// ------------------------------------------------------------------ elder
+
+export type Elder = {
+  id: string;
+  /** 화면에는 항상 가명 표기 (김○○). 최소수집 원칙. */
+  displayName: string;
+  honorific: string;
+  avatar: string;
+  stage: number;
+  nextTopic: string;
+  communication: string[];
+  musicPreferences: string[];
+  /** 질문·가사 생성에서 제외할 주제 (F-SW-PTC-009). */
+  avoidTopics: string[];
+  consents: Consents;
+};
+
+// ------------------------------------------------------------- formatting
+
+export function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+export function formatDate(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`;
+}

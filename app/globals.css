@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ *
+ * 똑똑 TokTok · 생애여정 음악지도 — design tokens
+ *
+ * Colours were sampled directly from the design deck (똑똑 2차.pdf) and
+ * then adjusted only where the sampled value failed WCAG 2.2 AA, which
+ * NFR-A11Y-004 makes mandatory. The vivid brand orange is kept for fills
+ * and icons; a darker tint is used wherever orange carries text.
+ * ------------------------------------------------------------------ */
+
+@theme {
+  /* brand orange — sampled #FE7627 on primary CTAs */
+  --color-brand-50: #fff6ef;
+  --color-brand-100: #fdecd8;
+  --color-brand-200: #fbd7b3;
+  --color-brand-300: #f9b781;
+  --color-brand-400: #fb9250;
+  --color-brand-500: #fb7328; /* fills, icons, decorative only */
+  --color-brand-600: #e55e0b; /* CTA gradient end; white large text 3.5:1 */
+  --color-brand-700: #c2410c; /* orange TEXT on cream — 4.7:1 */
+  --color-brand-800: #b23c09; /* orange text on tinted chips — 5.1:1 */
+
+  /* leaf green — sampled #819745 / #395409 */
+  --color-leaf-50: #f5f7ea;
+  --color-leaf-100: #edefd9;
+  --color-leaf-200: #dbe2ba;
+  --color-leaf-300: #c2cf93;
+  --color-leaf-400: #9aae5c;
+  --color-leaf-500: #7a9042; /* fills, icons */
+  --color-leaf-600: #5f7a2a; /* white on it — 4.9:1 */
+  --color-leaf-700: #4f6b22; /* green TEXT — 5.5:1 */
+  --color-leaf-800: #3f5a12;
+
+  /* amber — sampled #FAB244. Never carries white text. */
+  --color-amber-100: #fdf0d3;
+  --color-amber-300: #fbc76e;
+  --color-amber-400: #fab244;
+  --color-amber-700: #92590a; /* amber TEXT — 5.4:1 */
+
+  /* warm ink */
+  --color-ink-900: #2a1608; /* headings — 15.7:1 */
+  --color-ink-700: #4a3524; /* body — 10.9:1 */
+  --color-ink-500: #7a6450; /* muted / inactive tab — 5.1:1 */
+  --color-ink-300: #b6a08a; /* decorative dividers only */
+
+  /* surfaces */
+  --color-page: #fdf3e7;
+  --color-page-top: #fef7ee;
+  --color-page-warm: #fdeedb;
+  --color-surface: #fdf8f2;
+  --color-surface-strong: #fffbf7;
+  --color-surface-sunk: #fbf1e4;
+  --color-track: #f7e6d2;
+  --color-hairline: #f0e2d0;
+
+  --color-danger-600: #c02f14;
+
+  /* type — Pretendard is the de-facto Korean UI face; system fallbacks
+     keep the app readable before the webfont lands. */
+  --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
+    "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+
+  --radius-card: 20px;
+  --radius-cta: 16px;
+
+  --shadow-card: 0 2px 10px rgba(122, 84, 46, 0.06);
+  --shadow-raised: 0 6px 20px rgba(122, 84, 46, 0.1);
+  --shadow-cta: 0 6px 16px rgba(216, 88, 12, 0.28);
+}
+
+/* Text scale. `--text-scale` is driven by the in-app 글자 크기 control.
+   Every type size in the app is expressed in rem, so raising the root font
+   size enlarges all of it at once — without touching box metrics, which stay
+   in px so the layout keeps its proportions (NFR-A11Y-003). Using 100% rather
+   than a hard 16px also respects the reader's own browser font setting. */
+:root {
+  --text-scale: 1;
+  --tab-h: 72px;
+}
+
+html {
+  font-size: calc(100% * var(--text-scale));
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-ink-700);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.55;
+  word-break: keep-all; /* Korean: break on word, never mid-syllable-block */
+  overflow-wrap: anywhere;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible focus everywhere — WCAG 2.2 focus-appearance (NFR-A11Y-005). */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 3px solid var(--color-brand-800);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@utility tk-page-bg {
+  /* the warm sunrise wash used on every screen of the deck */
+  background:
+    radial-gradient(
+      120% 55% at 8% 0%,
+      rgba(253, 214, 150, 0.5) 0%,
+      rgba(253, 214, 150, 0) 60%
+    ),
+    radial-gradient(
+      90% 40% at 100% 6%,
+      rgba(251, 226, 190, 0.45) 0%,
+      rgba(251, 226, 190, 0) 65%
+    ),
+    linear-gradient(180deg, #fef7ee 0%, #fdf3e7 42%, #fdeedb 100%);
+  background-attachment: local;
+}
+
+@utility tk-cta {
+  background: linear-gradient(180deg, #f0681a 0%, #df5a07 100%);
+  box-shadow: var(--shadow-cta);
+}
+
+/* Korean headings look cramped at default tracking. */
+@utility tk-h1 {
+  font-size: 1.875rem; /* 30px */
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-ink-900);
+}
+
+@utility tk-h2 {
+  font-size: 1.25rem; /* 20px */
+  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--color-ink-900);
+}
