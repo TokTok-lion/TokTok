@@ -1,12 +1,13 @@
 'use client';
 
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Chevron, Chip, PrimaryButton } from '@/components/ui';
 import { IconBulb, IconClock, IconDoc, IconPlus, IconChat } from '@/components/icons';
 import { SEED_RESUME } from '@/lib/seed';
+import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
 const FILTERS = ['전체', '진행 중', '완료'] as const;
@@ -20,10 +21,22 @@ const STATUS_ICON = {
 /** 이전 회기 이어보기 (deck p.28) — 홈 */
 export default function HomePage() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('전체');
+  const { set } = useSession();
+  const router = useRouter();
 
   const cards = SEED_RESUME.filter((c) =>
     filter === '전체' ? true : filter === '완료' ? c.done : !c.done,
   );
+
+  /**
+   * Resuming a session makes its story the active topic, which is what every
+   * downstream screen keys off — including the artwork on 노래 만드는 중 and
+   * 노래 완성 (lib/scenes.ts).
+   */
+  const resume = (title: string, href: string) => {
+    set('topic', title);
+    router.push(href);
+  };
 
   return (
     <Screen
@@ -109,20 +122,22 @@ export default function HomePage() {
 
               <div className="-mt-1 flex justify-end">
                 {c.cta === '이어하기' ? (
-                  <Link
-                    href="/session/checklist"
+                  <button
+                    type="button"
+                    onClick={() => resume(c.title, '/session/checklist')}
                     className="tk-cta flex min-h-[44px] items-center gap-1 rounded-full px-5 text-[1.1875rem] font-extrabold text-white"
                   >
                     이어하기
                     <Chevron className="text-white" />
-                  </Link>
+                  </button>
                 ) : (
-                  <Link
-                    href="/session/wrap"
+                  <button
+                    type="button"
+                    onClick={() => resume(c.title, '/session/wrap')}
                     className="flex min-h-[44px] items-center rounded-full border-2 border-brand-300 bg-surface-strong px-6 text-[1rem] font-bold text-brand-700"
                   >
                     보기
-                  </Link>
+                  </button>
                 )}
               </div>
             </li>

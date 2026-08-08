@@ -6,24 +6,20 @@ import { ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card } from '@/components/ui';
 import { IconHeart, IconMusicNote } from '@/components/icons';
+import { sceneForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
-import type { ArtKey } from '@/lib/art';
 
 /**
  * 노래 만드는 중 (deck p.8)
  *
- * The deck pairs the progress ring with a life-scene illustration that
- * "completes" while the song renders (spec v1.5, 생애 장면 일러스트).
+ * The deck draws this frame four times, once per story topic, each with its
+ * own illustration (spec v1.5, 생애 장면 일러스트). The picture is therefore
+ * chosen from what the elder actually talked about — see lib/scenes.ts — and
+ * is not a slideshow.
+ *
  * Music generation is asynchronous by requirement (NFR-PERF-004), so this
  * screen owns progress, and offers no dead-end: the step trail stays visible.
  */
-const SCENES: ArtKey[] = [
-  'scene_paycheck_shop',
-  'scene_couple_reading',
-  'scene_family_phone',
-  'scene_first_paycheck',
-];
-
 const STEPS = [
   { label: '이야기\n확인 완료', done: true },
   { label: '음악 스타일\n선택 완료', done: true },
@@ -31,24 +27,17 @@ const STEPS = [
 ];
 
 export default function GeneratingPage() {
-  const { set } = useSession();
+  const { s, set } = useSession();
   const router = useRouter();
   const [pct, setPct] = useState(81);
-  const [scene, setScene] = useState(0);
+  const scene = sceneForTopic(s.topic);
 
   useEffect(() => {
     set('songStatus', 'generating');
     const t = setInterval(() => {
-      setPct((p) => {
-        if (p >= 100) return 100;
-        return p + 1;
-      });
+      setPct((p) => (p >= 100 ? 100 : p + 1));
     }, 400);
-    const sc = setInterval(() => setScene((i) => (i + 1) % SCENES.length), 3200);
-    return () => {
-      clearInterval(t);
-      clearInterval(sc);
-    };
+    return () => clearInterval(t);
   }, [set]);
 
   useEffect(() => {
@@ -78,13 +67,17 @@ export default function GeneratingPage() {
     >
       <Card className="flex justify-center overflow-hidden p-3">
         <ArtBox
-          name={SCENES[scene]}
-          alt="어르신의 이야기를 담은 장면 그림이 완성되고 있어요"
-          className="h-[214px] w-auto object-contain transition-opacity duration-500"
+          key={scene.id}
+          name={scene.art}
+          alt={`${s.topic} — ${scene.alt}`}
+          className="h-[214px] w-auto object-contain"
           fit="contain"
           priority
         />
       </Card>
+      <p className="mt-2 text-center text-[0.875rem] font-semibold text-ink-500">
+        {s.topic} 이야기로 그림을 그리고 있어요
+      </p>
 
       <div
         className="mt-5 flex justify-center"

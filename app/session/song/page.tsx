@@ -5,12 +5,20 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, NoteBar, PrimaryButton, Waveform } from '@/components/ui';
 import { IconDoc, IconPlay, IconRefresh, IconShield } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
+import { sceneForTopic, songTitleForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 
-/** 노래 완성 (deck p.26) */
+/**
+ * 노래 완성 (deck p.26)
+ *
+ * The deck draws this frame once per topic with matching album art, so both
+ * the artwork and the title come from the session topic (lib/scenes.ts).
+ */
 export default function SongPage() {
   const { s } = useSession();
   const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '따뜻한 발라드';
+  const scene = sceneForTopic(s.topic);
+  const title = songTitleForTopic(s.topic);
 
   const actions = [
     { key: 'save', art: 'icon_save_box' as const, label: '저장하기' },
@@ -33,14 +41,15 @@ export default function SongPage() {
       <Card className="p-4">
         <div className="flex items-center gap-4">
           <ArtBox
-            name="scene_first_paycheck"
-            alt="첫 월급 이야기 앨범 그림"
+            key={scene.id}
+            name={scene.art}
+            alt={`${title} 앨범 그림 — ${scene.alt}`}
             className="h-[112px] w-[112px] shrink-0 rounded-[16px] object-cover"
             priority
           />
           <div className="min-w-0 flex-1">
             <h2 className="text-[1.4375rem] font-extrabold leading-tight text-ink-900">
-              첫 월급 이야기
+              {title}
             </h2>
             <p className="mt-2 flex items-center gap-1.5 text-[1rem] font-bold text-leaf-700">
               {style}
