@@ -87,3 +87,24 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+/* 알림을 눌렀을 때 앱으로 돌아오기.
+   이미 열린 창이 있으면 그 창을 쓰고, 없으면 새로 연다 — 회기 중에 창이
+   여러 개 뜨면 어느 것이 지금 회기인지 알 수 없게 된다. */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/home';
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((list) => {
+        for (const client of list) {
+          if ('focus' in client) {
+            if ('navigate' in client) client.navigate(url).catch(() => {});
+            return client.focus();
+          }
+        }
+        return self.clients.openWindow(url);
+      }),
+  );
+});

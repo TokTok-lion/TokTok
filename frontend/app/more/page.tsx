@@ -13,6 +13,7 @@ import {
 } from '@/lib/domain';
 import { useSession } from '@/lib/store';
 import { useAccount } from '@/lib/auth';
+import { NotifySettings } from '@/components/NotifySettings';
 
 const ORDER: ConsentKind[] = [
   'recording',
@@ -127,6 +128,8 @@ export default function MorePage() {
           ))}
         </div>
       </Card>
+
+      <NotifySettings />
 
       <h2 className="mt-6 text-[1.1875rem] font-extrabold text-ink-900">안내</h2>
       <ul className="mt-3 space-y-3">
