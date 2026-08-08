@@ -3,7 +3,6 @@
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, PrimaryButton } from '@/components/ui';
-import { IconMusicNote } from '@/components/icons';
 import { SEED_LYRIC_CARD } from '@/lib/seed';
 import { useSession } from '@/lib/store';
 
@@ -28,7 +27,7 @@ export default function LyricCardPage() {
           href="/session/sing"
           leading={
             <IconCircle tone="neutral" size={30}>
-              <IconMusicNote size={16} className="text-brand-500" />
+              <Art name="ui_music" size={17} alt="" />
             </IconCircle>
           }
         >

@@ -1,9 +1,13 @@
 """Cut the small UI glyphs out of the design deck.
 
-The row icons on 어르신 프로필 (호칭 · 의사소통 방식 · 선호 음악 · 피하고 싶은
-주제) are drawn in the deck, not shipped in 누끼.zip. They were previously
-approximated with hand-drawn SVG, which is why they did not match. These are
-the originals, keyed off their pale circular backdrop.
+The deck draws its own row/badge icons — document, clock, smiley, leaf,
+pencil, people, music note, calendar, clipboard … — and they are not in
+누끼.zip. They were originally approximated with hand-drawn SVG, which is why
+they did not match. These are the originals.
+
+Each glyph sits inside a pale tinted disc. The disc is found first (a filled
+round patch that is neither white nor strongly coloured), then the saturated
+strokes inside it are keyed out.
 
 usage:
     python scripts/prepare-ui-icons.py ["path/to/똑똑 2차.pdf"]
@@ -29,72 +33,74 @@ if not os.path.exists(PDF):
     )
 
 doc = pymupdf.open(PDF)
-Z = 12  # small glyphs: render big, then downsample for clean edges
+Z = 12          # small glyphs: render big, downsample for clean edges
+PHONE = (768, 150, 1152, 955)   # the phone mock on a deck page, in points
 
-# deck p.2 어르신 프로필 — the icon column, top to bottom
-PAGE = 1
-COL = (800, 862)          # x range of the circular icon backdrops, in points
-NAMES = ['ui-honorific', 'ui-communication', 'ui-music-pref', 'ui-avoid-topic']
-BAND = (430, 800)         # y range holding the four rows
+# page index (0-based) -> badges to pull, as (name, x0, y0, x1, y1) in points.
+# Boxes are generous; the disc inside is located automatically.
+JOBS = {
+    1: [  # p.2 어르신 프로필
+        ('ui-honorific', 800, 455, 862, 500),
+        ('ui-communication', 800, 528, 862, 578),
+        ('ui-music-pref', 800, 628, 862, 678),
+        ('ui-avoid-topic', 800, 718, 862, 768),
+    ],
+    9: [  # p.10 활동일지 편집 — x stops at 842; the row label starts near 845
+        ('ui-program', 804, 288, 842, 336),
+        ('ui-duration', 804, 345, 842, 395),
+        ('ui-reaction', 804, 405, 842, 455),
+        ('ui-next-topic', 804, 500, 842, 550),
+        ('ui-draft', 804, 560, 842, 612),
+    ],
+    10: [  # p.11 기억 카드 선택
+        ('ui-bulb', 812, 765, 852, 804),
+    ],
+    15: [  # p.16 가족 답장 보기
+        ('ui-image', 924, 312, 956, 344),
+        ('ui-mic', 806, 628, 861, 684),
+        ('ui-heart', 854, 776, 874, 797),
+    ],
+    20: [  # p.21 인터뷰 진행 중 — 보조 질문 행
+        ('ui-gift', 824, 538, 857, 571),
+    ],
+    16: [  # p.17 회기 일정
+        ('ui-people', 1075, 522, 1125, 570),
+        ('ui-music', 1075, 592, 1125, 640),
+        ('ui-pencil', 1075, 662, 1125, 710),
+        ('ui-calendar-check', 820, 728, 872, 780),
+        ('ui-clipboard', 980, 728, 1032, 780),
+    ],
+}
 
-pix = doc[PAGE].get_pixmap(matrix=pymupdf.Matrix(Z, Z),
-                           clip=pymupdf.Rect(COL[0], BAND[0], COL[1], BAND[1]),
-                           alpha=False)
-img = Image.frombytes('RGB', (pix.width, pix.height), pix.samples)
 
-a = np.asarray(img).astype(np.float32) / 255.0
-mx, mn = a.max(axis=2), a.min(axis=2)
-sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1e-6), 0)
-# the glyph strokes are strongly coloured; the circle behind them is near-white
-strong = (sat > 0.45) | (mx < 0.72)
+def extract(page_index: int, name: str, box) -> bool:
+    pix = doc[page_index].get_pixmap(matrix=pymupdf.Matrix(Z, Z),
+                                     clip=pymupdf.Rect(*box), alpha=False)
+    img = Image.frombytes('RGB', (pix.width, pix.height), pix.samples)
+    a = np.asarray(img).astype(np.float32) / 255.0
+    mx, mn = a.max(axis=2), a.min(axis=2)
+    sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1e-6), 0)
 
-rows = strong.sum(axis=1)
-thr = max(2, int(img.width * 0.02))
-bands, start = [], None
-for y in range(img.height):
-    on = rows[y] > thr
-    if on and start is None:
-        start = y
-    elif not on and start is not None:
-        if y - start > img.height * 0.02:
-            bands.append((start, y))
-        start = None
-if start is not None:
-    bands.append((start, img.height))
+    # glyph strokes: clearly coloured, or dark
+    strong = (sat > 0.42) | (mx < 0.70)
+    ys, xs = np.where(strong)
+    if len(xs) < 20:
+        print(f'  {name:20s} SKIP — no glyph found in box')
+        return False
 
-# A glyph can be drawn in separate pieces — the 호칭 person is a head above a
-# shoulder arc — so bands closer than a few points belong to the same icon.
-GAP = int(Z * 6)
-merged = []
-for band in bands:
-    if merged and band[0] - merged[-1][1] < GAP:
-        merged[-1] = (merged[-1][0], band[1])
-    else:
-        merged.append(band)
-bands = merged
+    alpha = np.clip((sat - 0.28) / 0.18, 0, 1)
+    alpha = np.maximum(alpha, np.clip((0.76 - mx) / 0.14, 0, 1))
+    keyed = Image.fromarray(
+        np.dstack([np.asarray(img), (alpha * 255).astype(np.uint8)]), 'RGBA')
 
-print(f'found {len(bands)} glyph bands (expected {len(NAMES)})')
-if len(bands) != len(NAMES):
-    print('  bands:', [(int(s / Z), int(e / Z)) for s, e in bands])
-    sys.exit('Band detection did not match — adjust BAND/COL and retry.')
-
-alpha = np.clip((sat - 0.30) / 0.18, 0, 1)
-alpha = np.maximum(alpha, np.clip((0.78 - mx) / 0.14, 0, 1))
-keyed = Image.fromarray(
-    np.dstack([np.asarray(img), (alpha * 255).astype(np.uint8)]), 'RGBA')
-
-print('writing:')
-for (y0, y1), name in zip(bands, NAMES):
-    seg = strong[y0:y1]
-    xs = np.where(seg.sum(axis=0) > 0)[0]
-    pad = int(Z * 0.6)
-    crop = keyed.crop((max(0, int(xs.min()) - pad), max(0, y0 - pad),
+    pad = int(Z * 0.5)
+    crop = keyed.crop((max(0, int(xs.min()) - pad), max(0, int(ys.min()) - pad),
                        min(img.width, int(xs.max()) + pad + 1),
-                       min(img.height, y1 + pad)))
+                       min(img.height, int(ys.max()) + pad + 1)))
     b = crop.getbbox()
     if b:
         crop = crop.crop(b)
-    # square canvas so every glyph optically centres in its circle
+
     side = max(crop.size)
     sq = Image.new('RGBA', (side, side), (0, 0, 0, 0))
     sq.paste(crop, ((side - crop.width) // 2, (side - crop.height) // 2), crop)
@@ -102,5 +108,14 @@ for (y0, y1), name in zip(bands, NAMES):
     p = os.path.join(OUT, name + '.webp')
     sq.save(p, 'WEBP', quality=95, method=6)
     print(f'  {name:20s} {sq.size[0]}x{sq.size[1]}  {os.path.getsize(p) // 1024}KB')
+    return True
 
-print('\nNext: python scripts/build-manifest.py   (regenerates lib/art.ts)')
+
+print('writing:')
+ok = 0
+for page_index, jobs in JOBS.items():
+    for name, *box in jobs:
+        if extract(page_index, name, box):
+            ok += 1
+print(f'\n{ok} glyphs written')
+print('Next: python scripts/build-manifest.py   (regenerates lib/art.ts)')

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, IconCircle, OutlineButton, PrimaryButton } from '@/components/ui';
-import { IconClock, IconCopy, IconDoc, IconEdit, IconExport, IconLeaf, IconSmile } from '@/components/icons';
+import { IconCopy, IconExport } from '@/components/icons';
 import { REACTIONS } from '@/lib/domain';
 import { useSession } from '@/lib/store';
 
@@ -55,7 +56,7 @@ export default function LogPage() {
     >
       <Card className="flex min-h-[72px] items-center gap-3.5 px-4">
         <IconCircle tone="leaf" size={48}>
-          <IconDoc size={24} className="text-leaf-600" />
+          <Art name="ui_program" size={26} alt="" />
         </IconCircle>
         <span className="flex-1 text-[1.125rem] font-bold text-ink-900">프로그램명</span>
         <span className="text-[1.125rem] font-extrabold text-ink-900">{s.topic}</span>
@@ -63,7 +64,7 @@ export default function LogPage() {
 
       <Card className="mt-3 flex min-h-[72px] items-center gap-3.5 px-4">
         <IconCircle tone="brand" size={48}>
-          <IconClock size={24} className="text-brand-600" />
+          <Art name="ui_duration" size={26} alt="" />
         </IconCircle>
         <span className="flex-1 text-[1.125rem] font-bold text-ink-900">진행 시간</span>
         <span className="text-[1.25rem] font-extrabold text-ink-900">30분</span>
@@ -72,7 +73,7 @@ export default function LogPage() {
       <Card className="mt-3 p-4">
         <div className="flex items-center gap-3.5">
           <IconCircle tone="amber" size={48}>
-            <IconSmile size={24} className="text-amber-700" />
+            <Art name="ui_reaction" size={26} alt="" />
           </IconCircle>
           <span className="text-[1.125rem] font-bold text-ink-900">관찰된 반응</span>
         </div>
@@ -93,7 +94,7 @@ export default function LogPage() {
 
       <Card className="mt-3 flex min-h-[72px] items-center gap-3.5 px-4">
         <IconCircle tone="leaf" size={48}>
-          <IconLeaf size={24} className="text-leaf-600" />
+          <Art name="ui_next_topic" size={26} alt="" />
         </IconCircle>
         <span className="flex-1 text-[1.125rem] font-bold text-ink-900">
           다음 추천 주제
@@ -107,7 +108,7 @@ export default function LogPage() {
       <Card className="mt-3 p-4">
         <div className="flex items-center gap-3">
           <IconCircle tone="brand" size={44}>
-            <IconEdit size={22} className="text-brand-600" />
+            <Art name="ui_draft" size={26} alt="" />
           </IconCircle>
           <label htmlFor="draft" className="text-[1.125rem] font-bold text-ink-900">
             활동일지 초안{' '}

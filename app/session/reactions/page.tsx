@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, IconCircle, PrimaryButton } from '@/components/ui';
-import { IconEdit, IconInfo, IconLeaf } from '@/components/icons';
+import { IconEdit, IconInfo } from '@/components/icons';
 import { REACTIONS } from '@/lib/domain';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
@@ -111,7 +111,7 @@ export default function ReactionsPage() {
         className="mt-4 flex min-h-[76px] items-center gap-3.5 rounded-[16px] bg-leaf-50 px-4"
       >
         <IconCircle tone="leaf" size={50}>
-          <IconLeaf size={24} className="text-leaf-600" />
+          <Art name="ui_next_topic" size={26} alt="" />
         </IconCircle>
         <span className="flex-1">
           <span className="block text-[0.9375rem] font-bold text-leaf-700">

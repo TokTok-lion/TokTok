@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Divider, IconCircle, NoteBar, PrimaryButton } from '@/components/ui';
-import { IconBell, IconCalendar, IconPeople } from '@/components/icons';
+import { IconBell } from '@/components/icons';
 
 const RECIPIENTS = [
   { art: 'label_daughter', label: '딸' },
@@ -45,7 +45,7 @@ export default function MissionSentPage() {
         <Row
           icon={
             <IconCircle tone="leaf" size={44}>
-              <IconPeople size={22} className="text-leaf-600" />
+              <Art name="ui_people" size={24} alt="" />
             </IconCircle>
           }
           label="보낸 대상"
@@ -65,7 +65,7 @@ export default function MissionSentPage() {
         <Row
           icon={
             <IconCircle tone="brand" size={44}>
-              <IconCalendar size={22} className="text-brand-600" />
+              <Art name="ui_calendar_check" size={24} alt="" />
             </IconCircle>
           }
           label="응답 마감"

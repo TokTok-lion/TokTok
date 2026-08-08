@@ -3,7 +3,7 @@
 import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, IconCircle, PrimaryButton } from '@/components/ui';
-import { IconBulb, IconHeart, IconPeople } from '@/components/icons';
+import { IconPeople } from '@/components/icons';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
@@ -26,7 +26,7 @@ export default function MemoryCardsPage() {
           disabled={!s.memoryCard}
           leading={
             <IconCircle tone="neutral" size={30}>
-              <IconHeart size={16} className="text-brand-500" />
+              <Art name="ui_heart" size={17} alt="" />
             </IconCircle>
           }
           trailing={<Chevron className="text-white" />}
@@ -103,7 +103,7 @@ export default function MemoryCardsPage() {
 
       <Card className="mt-4 flex items-center gap-3 p-4">
         <IconCircle tone="amber" size={48}>
-          <IconBulb size={24} className="text-amber-700" />
+          <Art name="ui_bulb" size={26} alt="" />
         </IconCircle>
         <p className="text-[1rem] leading-snug text-ink-700">
           카드를 먼저 보여드리면

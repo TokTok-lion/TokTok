@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, IconCircle, NoteBar, PrimaryButton, Waveform } from '@/components/ui';
-import { IconGift, IconMic, IconPeople, IconSave, IconShield, IconSkip, IconSmile } from '@/components/icons';
+import { IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
 import { hasConsent } from '@/lib/domain';
 import { SEED_INTERVIEW_PROMPTS } from '@/lib/seed';
 import { useSession } from '@/lib/store';
 
-const PROMPT_ICON = { people: IconPeople, smile: IconSmile, gift: IconGift };
+// the deck's own glyphs (p.21), cut by scripts/prepare-ui-icons.py
+const PROMPT_ART = { people: 'ui_people', smile: 'ui_reaction', gift: 'ui_gift' } as const;
 
 /** 인터뷰 진행 중 (deck p.21) */
 export default function InterviewPage() {
@@ -59,7 +61,7 @@ export default function InterviewPage() {
 
         <ul className="mt-4 space-y-2.5">
           {SEED_INTERVIEW_PROMPTS.map((p) => {
-            const Icon = PROMPT_ICON[p.icon];
+            const art = PROMPT_ART[p.icon];
             return (
               <li key={p.id}>
                 <button
@@ -67,10 +69,7 @@ export default function InterviewPage() {
                   className="flex min-h-[64px] w-full items-center gap-3 rounded-[16px] border border-hairline bg-surface-strong px-3.5 text-left"
                 >
                   <IconCircle tone={p.icon === 'smile' ? 'brand' : 'leaf'} size={42}>
-                    <Icon
-                      size={21}
-                      className={p.icon === 'smile' ? 'text-brand-600' : 'text-leaf-600'}
-                    />
+                    <Art name={art} size={23} alt="" />
                   </IconCircle>
                   <span className="flex-1 text-[1.0625rem] font-bold text-ink-900">
                     {p.text}

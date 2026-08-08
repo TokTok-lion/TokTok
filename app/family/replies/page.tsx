@@ -1,9 +1,9 @@
 'use client';
 
-import { ArtBox } from '@/components/Art';
+import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, NoteBar, PrimaryButton, Waveform } from '@/components/ui';
-import { IconClock, IconHeart, IconImage, IconMic, IconPlay } from '@/components/icons';
+import { IconClock, IconHeart, IconPlay } from '@/components/icons';
 import { formatDuration } from '@/lib/domain';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
@@ -50,11 +50,11 @@ export default function FamilyRepliesPage() {
                   <h2 className="flex items-center gap-2 text-[1.1875rem] font-extrabold text-ink-900">
                     {r.kind === 'photo' ? (
                       <IconCircle tone="amber" size={34}>
-                        <IconImage size={18} className="text-amber-700" />
+                        <Art name="ui_image" size={19} alt="" />
                       </IconCircle>
                     ) : r.kind === 'voice' ? (
                       <IconCircle tone="brand" size={34}>
-                        <IconMic size={18} className="text-brand-600" />
+                        <Art name="ui_mic" size={19} alt="" />
                       </IconCircle>
                     ) : null}
                     {r.title}

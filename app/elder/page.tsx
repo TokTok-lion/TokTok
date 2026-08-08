@@ -8,7 +8,6 @@ import { Card, Chevron, Chip, IconCircle, PrimaryButton } from '@/components/ui'
 import {
   IconChat,
   IconEnvelopeOpen,
-  IconMusicNote,
   IconPeople,
   IconSend,
 } from '@/components/icons';
@@ -103,7 +102,7 @@ export default function ElderPage() {
         className="mt-3 flex min-h-[68px] items-center gap-3.5 rounded-[18px] bg-brand-50 px-4"
       >
         <IconCircle tone="brand" size={44}>
-          <IconMusicNote size={22} className="text-brand-600" />
+          <Art name="ui_music" size={24} alt="" />
         </IconCircle>
         <span className="min-w-0 flex-1">
           <span className="block text-[1rem] font-extrabold text-ink-900">

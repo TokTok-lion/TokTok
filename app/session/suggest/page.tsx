@@ -3,7 +3,7 @@
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, IconCircle, NoteBar, PrimaryButton } from '@/components/ui';
-import { IconEdit, IconInfo } from '@/components/icons';
+import { IconInfo } from '@/components/icons';
 import { lyricInputs } from '@/lib/domain';
 import { SEED_SUGGESTED_QUESTIONS } from '@/lib/seed';
 import { useSession } from '@/lib/store';
@@ -58,7 +58,7 @@ export default function SuggestPage() {
             className="flex min-h-[76px] w-full items-center gap-3.5 rounded-[20px] bg-surface-sunk px-4 text-left"
           >
             <IconCircle tone="leaf" size={44}>
-              <IconEdit size={22} className="text-leaf-600" />
+              <Art name="ui_pencil" size={24} alt="" />
             </IconCircle>
             <span className="flex-1 text-[1.125rem] font-bold text-ink-900">
               직접 질문 바꾸기

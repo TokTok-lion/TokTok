@@ -2,15 +2,12 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, PrimaryButton } from '@/components/ui';
 import {
   IconCalendar,
   IconClock,
-  IconDoc,
-  IconEdit,
-  IconMusicNote,
-  IconPeople,
   IconPlus,
 } from '@/components/icons';
 import { SEED_SCHEDULE } from '@/lib/seed';
@@ -18,10 +15,11 @@ import { SEED_SCHEDULE } from '@/lib/seed';
 const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
 const DAYS = [18, 19, 20, 21, 22, 23, 24];
 
+// Row glyphs are the deck's own (p.17), cut by scripts/prepare-ui-icons.py
 const KIND = {
-  interview: { Icon: IconPeople, tone: 'leaf' as const, time: 'text-brand-700' },
-  music: { Icon: IconMusicNote, tone: 'leaf' as const, time: 'text-amber-700' },
-  log: { Icon: IconEdit, tone: 'leaf' as const, time: 'text-leaf-700' },
+  interview: { art: 'ui_people' as const, tone: 'leaf' as const, time: 'text-brand-700' },
+  music: { art: 'ui_music' as const, tone: 'leaf' as const, time: 'text-amber-700' },
+  log: { art: 'ui_pencil' as const, tone: 'leaf' as const, time: 'text-leaf-700' },
 };
 
 /** 회기 일정 (deck p.17) */
@@ -136,7 +134,7 @@ export default function SessionsPage() {
                   </span>
                 </span>
                 <IconCircle tone={k.tone} size={44}>
-                  <k.Icon size={22} className="text-leaf-600" />
+                  <Art name={k.art} size={24} alt="" />
                 </IconCircle>
               </Link>
             </Card>
@@ -147,7 +145,7 @@ export default function SessionsPage() {
       <Card className="mt-4 flex items-center p-4">
         <div className="flex flex-1 items-center gap-3">
           <IconCircle tone="brand" size={48}>
-            <IconCalendar size={24} className="text-brand-600" />
+            <Art name="ui_calendar_check" size={26} alt="" />
           </IconCircle>
           <p className="text-[0.9375rem] text-ink-500">
             오늘
@@ -159,7 +157,7 @@ export default function SessionsPage() {
         <span className="mx-2 h-12 w-px bg-hairline" />
         <div className="flex flex-1 items-center gap-3">
           <IconCircle tone="amber" size={48}>
-            <IconDoc size={24} className="text-amber-700" />
+            <Art name="ui_clipboard" size={26} alt="" />
           </IconCircle>
           <p className="text-[0.9375rem] text-ink-500">
             미완료

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ArtBox } from '@/components/Art';
+import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, IconCircle, PrimaryButton } from '@/components/ui';
-import { IconChat, IconClock, IconDoc, IconLink, IconPeople, IconSend } from '@/components/icons';
+import { IconChat, IconDoc, IconLink, IconSend } from '@/components/icons';
 
 /** 가족 초대 (deck p.3) */
 export default function InvitePage() {
@@ -123,7 +123,7 @@ export default function InvitePage() {
         <div className="mt-3 flex items-center">
           <div className="flex flex-1 items-center gap-2.5">
             <IconCircle tone="leaf" size={40}>
-              <IconPeople size={20} className="text-leaf-600" />
+              <Art name="ui_people" size={22} alt="" />
             </IconCircle>
             <span className="text-[0.9375rem] text-ink-500">
               최근 초대: <span className="font-extrabold text-ink-900">1명</span>
@@ -132,7 +132,7 @@ export default function InvitePage() {
           <span className="mx-2 h-9 w-px bg-hairline" />
           <div className="flex flex-1 items-center gap-2.5">
             <IconCircle tone="amber" size={40}>
-              <IconClock size={20} className="text-amber-700" />
+              <Art name="ui_duration" size={22} alt="" />
             </IconCircle>
             <span className="text-[0.9375rem] text-ink-500">
               <span className="block font-bold text-ink-900">응답 대기</span>1명
