@@ -19,7 +19,7 @@ const TOTAL = 130; // 2:10
  * output demoted to an optional P2 extra.
  */
 export default function SingPage() {
-  const { s } = useSession();
+  const { s, set } = useSession();
   const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '따뜻한 발라드';
   const [playing, setPlaying] = useState(true);
   const [t, setT] = useState(42);
@@ -62,7 +62,14 @@ export default function SingPage() {
       title="함께 부르기 활동"
       subtitle="완성된 후렴을 모두 함께 따라 불러요"
       decoration={<Ornaments variant="leafRight" />}
-      footer={<PrimaryButton href="/session/reactions">활동 마무리</PrimaryButton>}
+      footer={
+        <PrimaryButton
+          href="/session/reactions"
+          onClick={() => set('sangTogether', true)}
+        >
+          활동 마무리
+        </PrimaryButton>
+      }
     >
       <Card className="flex items-center gap-3.5 p-3.5">
         <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[18px] bg-brand-100">

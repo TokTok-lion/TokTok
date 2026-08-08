@@ -83,8 +83,11 @@ export function PrimaryButton({
   );
 
   if (href && !disabled) {
+    // A CTA that both records something and navigates is the norm here
+    // ("수정 완료", "이 가사 확정"). Dropping onClick on the link branch would
+    // silently lose the save, so it is forwarded.
     return (
-      <Link href={href} className={`${skin} ${base} ${className}`}>
+      <Link href={href} onClick={onClick} className={`${skin} ${base} ${className}`}>
         {inner}
       </Link>
     );
@@ -130,7 +133,7 @@ export function OutlineButton({
 
   if (href) {
     return (
-      <Link href={href} className={cls}>
+      <Link href={href} onClick={onClick} className={cls}>
         {leading}
         {children}
         {trailing}

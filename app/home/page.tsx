@@ -1,41 +1,59 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
 import { ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
-import { Chevron, Chip, PrimaryButton } from '@/components/ui';
-import { IconBulb, IconClock, IconDoc, IconPlus, IconChat } from '@/components/icons';
-import { SEED_RESUME } from '@/lib/seed';
+import { Card, Chevron, Chip, IconCircle, PrimaryButton } from '@/components/ui';
+import {
+  IconCalendar,
+  IconChat,
+  IconClock,
+  IconDoc,
+  IconMusicNote,
+  IconPeople,
+} from '@/components/icons';
+import { flowState } from '@/lib/flow';
+import { SEED_RESUME, SEED_SCHEDULE } from '@/lib/seed';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
-const FILTERS = ['전체', '진행 중', '완료'] as const;
-
-const STATUS_ICON = {
-  brand: IconClock,
-  amber: IconChat,
-  leaf: IconDoc,
+const KIND_ICON = {
+  interview: IconPeople,
+  music: IconMusicNote,
+  log: IconDoc,
 } as const;
 
-/** 이전 회기 이어보기 (deck p.28) — 홈 */
-export default function HomePage() {
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>('전체');
-  const { set } = useSession();
+/**
+ * 오늘 (홈)
+ *
+ * Answers one question: what do I do next? The single orange button is the
+ * next unfinished step of the active session — everything else on this screen
+ * is context. Nothing here is a second copy of a screen that lives elsewhere;
+ * 회기 단계는 회기 탭, 완성된 것은 기록 탭이 각각 소유한다.
+ */
+export default function TodayPage() {
+  const { s, set } = useSession();
   const router = useRouter();
+  const flow = flowState(s);
 
-  const cards = SEED_RESUME.filter((c) =>
-    filter === '전체' ? true : filter === '완료' ? c.done : !c.done,
-  );
+  const pendingFamily = s.familyStories.filter((f) => f.state === 'pending').length;
+  const unverified = s.story.filter((i) => i.status === 'unverified').length;
+  const waiting = [
+    pendingFamily > 0
+      ? { label: `가족 제보 ${pendingFamily}건 확인`, href: '/family/stories', tone: 'brand' as const }
+      : null,
+    unverified > 0
+      ? { label: `사실 확인 ${unverified}건`, href: '/session/story', tone: 'amber' as const }
+      : null,
+    !s.logSaved
+      ? { label: '활동일지 미확정', href: '/session/log', tone: 'brand' as const }
+      : null,
+  ].filter(Boolean) as { label: string; href: string; tone: 'brand' | 'amber' }[];
 
-  /**
-   * Resuming a session makes its story the active topic, which is what every
-   * downstream screen keys off — including the artwork on 노래 만드는 중 and
-   * 노래 완성 (lib/scenes.ts).
-   */
-  const resume = (title: string, href: string) => {
+  const resume = (title: string) => {
     set('topic', title);
-    router.push(href);
+    router.push(flowState(s).next.href);
   };
 
   return (
@@ -43,113 +61,157 @@ export default function HomePage() {
       back={false}
       menu
       bell
-      title="이전 회기 이어보기"
-      subtitle="중간에 멈춘 기록을 다시 이어갈 수 있어요"
+      title="오늘"
+      subtitle="지금 이어서 할 일을 알려드려요"
       decoration={<Ornaments variant="leafRight" />}
       footer={
-        <PrimaryButton
-          href="/sessions"
-          leading={
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/90">
-              <IconPlus size={16} />
-            </span>
-          }
-        >
-          새 회기 시작
+        <PrimaryButton href={flow.next.href}>
+          {flow.complete ? '오늘 회기 마무리됨' : `${flow.next.label} 이어하기`}
         </PrimaryButton>
       }
     >
-      {/* filter pills */}
-      <div className="flex gap-2.5" role="tablist" aria-label="회기 상태 필터">
-        {FILTERS.map((f) => {
-          const on = filter === f;
-          return (
-            <button
-              key={f}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              onClick={() => setFilter(f)}
-              // 19px/800 keeps white-on-orange in WCAG "large text", where the
-              // deck's vivid fill clears the 3:1 bar. Bigger type also suits
-              // the audience, so this is a win either way.
-              className={`min-h-[46px] flex-1 rounded-full px-3 text-[1.1875rem] font-extrabold transition-colors ${
-                on
-                  ? 'tk-cta text-white'
-                  : 'border border-hairline bg-surface-strong text-ink-700'
-              }`}
-            >
-              {f}
-            </button>
-          );
-        })}
+      {/* 지금 할 일 — 화면에서 가장 큰 한 가지 */}
+      <Card className="p-4">
+        <div className="flex items-center gap-3">
+          <ArtBox
+            name={s.elder.avatar as ArtKey}
+            className="h-[56px] w-[56px] shrink-0 rounded-full object-cover"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-[1.0625rem] font-bold text-ink-900">
+              {s.elder.honorific}
+            </p>
+            <p className="text-[0.875rem] text-ink-500">{s.topic}</p>
+          </div>
+          <Chip tone="leaf" size="sm">
+            {flow.done}/{flow.total} 단계
+          </Chip>
+        </div>
+
+        <div className="mt-3.5 rounded-[14px] bg-brand-50 p-4">
+          <p className="text-[0.875rem] font-bold text-brand-700">
+            {flow.complete ? '모든 단계 완료' : `다음 ${flow.next.index}단계`}
+          </p>
+          <p className="mt-0.5 text-[1.375rem] font-extrabold leading-tight text-ink-900">
+            {flow.next.label}
+          </p>
+          <p className="mt-1 text-[0.9375rem] text-ink-700">{flow.next.action}</p>
+        </div>
+
+        <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-track">
+          <div
+            className="h-full rounded-full bg-leaf-500"
+            style={{ width: `${(flow.done / flow.total) * 100}%` }}
+          />
+        </div>
+      </Card>
+
+      {/* 오늘 일정 — 회기 일정을 여기로 합쳐 홈이 시간축을 온전히 담당한다 */}
+      <div className="mt-5 flex items-baseline justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-[1.125rem] font-extrabold text-ink-900">
+          <IconCalendar size={21} className="text-brand-600" />
+          오늘 일정
+          <span className="text-[0.9375rem] font-semibold text-ink-500">
+            5월 21일 (수)
+          </span>
+        </h2>
+        <Link
+          href="/sessions"
+          className="inline-flex min-h-[24px] shrink-0 items-center text-[0.875rem] font-bold text-leaf-700 underline underline-offset-2"
+        >
+          전체 일정
+        </Link>
       </div>
-
-      <ul className="mt-4 space-y-3.5">
-        {cards.map((c) => {
-          const StatusIcon = STATUS_ICON[c.statusTone];
+      <ul className="mt-3 space-y-2.5">
+        {SEED_SCHEDULE.map((item) => {
+          const Icon = KIND_ICON[item.kind];
           return (
-            <li
-              key={c.id}
-              className="rounded-[20px] bg-surface p-3.5 shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
-            >
-              <div className="flex gap-3.5">
-                <ArtBox
-                  name={c.art as ArtKey}
-                  className="h-[92px] w-[92px] shrink-0 rounded-[14px] object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <h2 className="text-[1.1875rem] font-extrabold leading-tight text-ink-900">
-                      {c.title}
-                    </h2>
-                    <Chevron className="mt-0.5 text-ink-300" />
-                  </div>
-
-                  <p className="mt-1.5">
-                    <Chip tone={c.statusTone} size="sm">
-                      <StatusIcon size={14} className="mr-1.5" />
-                      {c.status}
-                    </Chip>
-                  </p>
-
-                  <p className="mt-1.5 flex items-start gap-1.5 text-[0.875rem] font-medium leading-snug text-ink-500">
-                    <IconBulb size={16} className="mt-0.5 shrink-0 text-leaf-600" />
-                    {c.detail}
-                  </p>
-                </div>
-              </div>
-
-              <div className="-mt-1 flex justify-end">
-                {c.cta === '이어하기' ? (
-                  <button
-                    type="button"
-                    onClick={() => resume(c.title, '/session/checklist')}
-                    className="tk-cta flex min-h-[44px] items-center gap-1 rounded-full px-5 text-[1.1875rem] font-extrabold text-white"
-                  >
-                    이어하기
-                    <Chevron className="text-white" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => resume(c.title, '/session/wrap')}
-                    className="flex min-h-[44px] items-center rounded-full border-2 border-brand-300 bg-surface-strong px-6 text-[1rem] font-bold text-brand-700"
-                  >
-                    보기
-                  </button>
-                )}
-              </div>
-            </li>
+            <Card as="li" key={item.time} className="p-0">
+              <Link
+                href="/session"
+                className="flex min-h-[74px] items-center gap-3 p-3.5"
+              >
+                <IconClock size={22} className="shrink-0 text-brand-600" />
+                <span className="text-[1.1875rem] font-extrabold text-brand-700">
+                  {item.time}
+                </span>
+                <span className="h-9 w-px shrink-0 bg-hairline" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[1.0625rem] font-extrabold text-ink-900">
+                    {item.who} {item.what}
+                  </span>
+                  <span className="block text-[0.875rem] text-ink-500">
+                    {item.detail}
+                  </span>
+                </span>
+                <IconCircle tone="leaf" size={38}>
+                  <Icon size={19} className="text-leaf-600" />
+                </IconCircle>
+              </Link>
+            </Card>
           );
         })}
       </ul>
 
-      {cards.length === 0 ? (
-        <p className="mt-10 text-center text-[1rem] font-semibold text-ink-500">
-          해당하는 회기가 없어요.
-        </p>
+      {/* 대기 중 — 남이 답을 줘야 넘어가는 것들 */}
+      {waiting.length > 0 ? (
+        <>
+          <h2 className="mt-5 flex items-center gap-2 text-[1.125rem] font-extrabold text-ink-900">
+            <IconChat size={21} className="text-amber-700" />
+            확인이 필요해요
+          </h2>
+          <ul className="mt-3 space-y-2.5">
+            {waiting.map((w) => (
+              <li key={w.href}>
+                <Link
+                  href={w.href}
+                  className="flex min-h-[62px] items-center gap-3 rounded-[16px] bg-surface px-4 shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
+                >
+                  <Chip tone={w.tone} size="sm">
+                    확인
+                  </Chip>
+                  <span className="flex-1 text-[1rem] font-bold text-ink-900">
+                    {w.label}
+                  </span>
+                  <Chevron />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
+
+      {/* 다른 어르신 회기로 갈아타기 */}
+      <h2 className="mt-5 text-[1.125rem] font-extrabold text-ink-900">
+        다른 회기 이어하기
+      </h2>
+      <ul className="mt-3 space-y-2.5">
+        {SEED_RESUME.filter((c) => !c.done).map((c) => (
+          <Card as="li" key={c.id} className="p-3">
+            <button
+              type="button"
+              onClick={() => resume(c.title)}
+              className="flex w-full items-center gap-3 text-left"
+            >
+              <ArtBox
+                name={c.art as ArtKey}
+                className="h-[56px] w-[56px] shrink-0 rounded-[12px] object-cover"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[1.0625rem] font-extrabold text-ink-900">
+                  {c.title}
+                </span>
+                <span className="block text-[0.875rem] text-ink-500">{c.status}</span>
+              </span>
+              <Chevron />
+            </button>
+          </Card>
+        ))}
+      </ul>
+
+      <p className="mt-4 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
+        완성된 노래와 지난 활동일지는 <strong>기록</strong> 탭에 있어요.
+      </p>
     </Screen>
   );
 }

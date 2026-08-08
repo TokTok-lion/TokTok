@@ -24,7 +24,7 @@ const GROUPS: {
 
 /** 이야기 정리 · 사실 확인 (deck p.6) */
 export default function StoryPage() {
-  const { s, setStoryStatus } = useSession();
+  const { s, set, setStoryStatus } = useSession();
   const ready = lyricInputs(s.story).length > 0;
 
   return (
@@ -36,6 +36,7 @@ export default function StoryPage() {
         <PrimaryButton
           href="/session/lyrics"
           disabled={!ready}
+          onClick={() => set('storyConfirmed', true)}
           trailing={<Chevron className="text-white" />}
         >
           {ready ? '가사로 보내기' : '확인된 이야기가 필요해요'}

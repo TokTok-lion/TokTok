@@ -293,6 +293,20 @@ export const IconSkip = (p: P) => (
   </Svg>
 );
 
+export const IconEnvelopeOpen = (p: P) => (
+  <Svg {...p}>
+    <path d="M3.6 10.4 12 4.4l8.4 6v8a1.8 1.8 0 0 1-1.8 1.8H5.4a1.8 1.8 0 0 1-1.8-1.8Z" />
+    <path d="m3.6 10.4 8.4 5.8 8.4-5.8" />
+  </Svg>
+);
+
+export const IconTextSize = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 6.2h8.4M7.2 6.2v12" />
+    <path d="M13.2 11h7.4M16.9 11v7.2" />
+  </Svg>
+);
+
 export const IconHeadset = (p: P) => (
   <Svg {...p}>
     <path d="M4.4 15.4v-3a7.6 7.6 0 0 1 15.2 0v3" />

@@ -51,10 +51,14 @@ export type SessionState = {
   transcript: { id: string; text: string; at: number }[];
   transcriptConfirmed: boolean;
   story: StoryItem[];
+  /** 복지사가 사실 확인을 끝내고 가사로 넘긴 시점 (원칙 3 · 사람 검수) */
+  storyConfirmed: boolean;
   lyricsApproved: boolean;
   style: MusicStyleId | null;
   songStatus: SongStatus;
   previewChoice: 'A' | 'B' | 'C' | null;
+  /** 함께 부르기 활동을 실제로 진행하고 마무리한 시점 */
+  sangTogether: boolean;
   reactions: ReactionId[];
   reactionNote: string;
   logDraft: string;
@@ -77,14 +81,18 @@ function seedState(): SessionState {
     // the deck opens with 놀이 and 따뜻한 발라드 already chosen
     memoryCard: 'play',
     questionLevel: 1,
-    checklist: { elder: true, cards: true, familyNote: true, mic: false },
+    // The demo opens mid-session: 준비·기억카드·인터뷰가 끝나고 전사 교정
+    // 차례. Steps read in order rather than looking randomly scattered.
+    checklist: { elder: true, cards: true, familyNote: true, mic: true },
     transcript: SEED_TRANSCRIPT,
     transcriptConfirmed: false,
     story: SEED_STORY,
+    storyConfirmed: false,
     lyricsApproved: false,
     style: 'ballad',
     songStatus: 'draft',
     previewChoice: 'B',
+    sangTogether: false,
     reactions: ['speak', 'smile', 'clap'],
     reactionNote: '',
     logDraft: SEED_LOG_DRAFT,

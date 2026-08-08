@@ -4,6 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { stepForScreen } from '@/lib/flow';
+import { SessionStepper } from './SessionStepper';
 import {
   IconBack,
   IconBell,
@@ -89,11 +91,23 @@ export function Logo({
  * iteration, and 회기 일정 lives under 홈 here so navigation stays fixed).
  * ------------------------------------------------------------------ */
 
+/**
+ * Five tabs, each answering one question, and every screen belongs to exactly
+ * one of them:
+ *
+ *   오늘   지금 뭘 하지?      today's schedule, the next action, what's waiting
+ *   어르신  이 분은 어떤 분?    profile, family, this elder's past sessions
+ *   회기   지금 만드는 중      the linear flow from 준비 to 마무리
+ *   기록   예전에 만든 것      finished songs, logs, lyric cards
+ *   더보기  설정              consent, text size, data, help
+ *
+ * The line between 회기 and 기록 is tense, not topic: in progress vs. finished.
+ */
 const TABS = [
-  { href: '/home', label: '홈', Icon: IconHome, match: ['/home', '/family', '/sessions'] },
-  { href: '/elder', label: '어르신', Icon: IconPeople, match: ['/elder'] },
-  { href: '/session', label: '콘텐츠', Icon: IconContent, match: ['/session', '/library'] },
-  { href: '/records', label: '기록', Icon: IconBook, match: ['/records'] },
+  { href: '/home', label: '오늘', Icon: IconHome, match: ['/home', '/sessions'] },
+  { href: '/elder', label: '어르신', Icon: IconPeople, match: ['/elder', '/family'] },
+  { href: '/session', label: '회기', Icon: IconContent, match: ['/session'] },
+  { href: '/records', label: '기록', Icon: IconBook, match: ['/records', '/library'] },
   { href: '/more', label: '더보기', Icon: IconMore, match: ['/more', '/guide'] },
 ] as const;
 
@@ -165,6 +179,8 @@ export function Screen({
   decoration?: ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const step = stepForScreen(pathname);
 
   // The action area is pinned, so main needs to reserve exactly its height —
   // which varies (one button, or a button plus secondary links).
@@ -229,6 +245,10 @@ export function Screen({
           ) : null}
         </div>
       </header>
+
+      {/* Any screen that is part of the session flow gets the step indicator
+          automatically — no per-screen wiring to forget. */}
+      {step ? <SessionStepper current={step} /> : null}
 
       {title ? (
         <div className="relative z-10 px-5 pt-3 text-center">
