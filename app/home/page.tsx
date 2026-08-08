@@ -78,7 +78,12 @@ export default function TodayPage() {
         anything, and stays gone once dismissed.
       */}
       {!s.guideDismissed ? (
-        <div className="mb-4 rounded-[20px] border-2 border-brand-200 bg-brand-50 p-4">
+        <div
+          // Transient: links in here are one-off prompts, not menu entries.
+          // 오늘 never becomes a second home for a screen that lives elsewhere.
+          data-transient="처음 안내"
+          className="mb-4 rounded-[20px] border-2 border-brand-200 bg-brand-50 p-4"
+        >
           <div className="flex items-start gap-3">
             <Art name="ui_bulb" size={34} alt="" className="mt-0.5 shrink-0" />
             <div className="min-w-0 flex-1">
@@ -209,7 +214,7 @@ export default function TodayPage() {
             <IconChat size={21} className="text-amber-700" />
             확인이 필요해요
           </h2>
-          <ul className="mt-3 space-y-2.5">
+          <ul data-transient="확인이 필요해요" className="mt-3 space-y-2.5">
             {waiting.map((w) => (
               <li key={w.href}>
                 <Link

@@ -36,6 +36,59 @@ export const SEED_ELDER: Elder = {
   consents: GRANTED,
 };
 
+/**
+ * 어르신 목록(SW-PTC-L).
+ *
+ * 이름은 전부 가명 표기다 — 명세서의 최소수집 원칙에 따라 실명·주민번호·
+ * 건강정보는 제품 표면에 두지 않는다. 목록에 두는 것은 진행 상태와 다음
+ * 일정처럼 업무에 필요한 최소 정보뿐이다 (F-SW-PTC-001).
+ */
+export type ServiceStatus = 'active' | 'paused' | 'ended';
+
+export const SERVICE_STATUS_LABELS: Record<ServiceStatus, string> = {
+  active: '이용 중',
+  paused: '일시중지',
+  ended: '종료',
+};
+
+/** 가족 협업 가능 여부. 미참여가 서비스 이용을 막지 않는다 (F-SW-PTC-007). */
+export type FamilyAvailability = 'available' | 'none' | 'unreachable';
+
+export const FAMILY_AVAILABILITY_LABELS: Record<FamilyAvailability, string> = {
+  available: '가족 참여',
+  none: '가족 미사용',
+  unreachable: '연락 불가',
+};
+
+export type ElderSummary = {
+  id: string;
+  /** 가명 표기 */
+  displayName: string;
+  /** 기관 내부 번호 — 검색용, 개인 식별정보 아님 */
+  code: string;
+  avatar: string;
+  worker: string;
+  status: ServiceStatus;
+  family: FamilyAvailability;
+  /** 9단계 중 완료 단계 수 */
+  step: number;
+  topic: string;
+  nextSession: string;
+  /** 동의 만료까지 남은 일수. null이면 해당 없음. */
+  consentExpiresInDays: number | null;
+};
+
+export const SEED_ELDERS: ElderSummary[] = [
+  { id: 'elder-kim', displayName: '김○○', code: 'A-01', avatar: 'avatar_grandfather_leaf', worker: '박서준', status: 'active', family: 'available', step: 3, topic: '첫 직장과 첫 월급', nextSession: '5/21 10:00', consentExpiresInDays: 12 },
+  { id: 'elder-park', displayName: '박○○', code: 'A-02', avatar: 'avatar_grandmother_round', worker: '박서준', status: 'active', family: 'available', step: 7, topic: '고향의 바닷바람', nextSession: '5/21 14:00', consentExpiresInDays: null },
+  { id: 'elder-lee', displayName: '이○○', code: 'A-03', avatar: 'avatar_grandfather_round', worker: '김하늘', status: 'active', family: 'none', step: 5, topic: '우리 가족의 탄생', nextSession: '5/22 10:00', consentExpiresInDays: 4 },
+  { id: 'elder-jung', displayName: '정○○', code: 'A-04', avatar: 'avatar_grandmother', worker: '김하늘', status: 'active', family: 'available', step: 6, topic: '가장 자랑스러운 순간', nextSession: '5/22 11:00', consentExpiresInDays: null },
+  { id: 'elder-han', displayName: '한○○', code: 'A-05', avatar: 'portrait_grandfather', worker: '박서준', status: 'active', family: 'available', step: 9, topic: '손주와의 하루', nextSession: '5/23 10:00', consentExpiresInDays: 45 },
+  { id: 'elder-cho', displayName: '조○○', code: 'A-06', avatar: 'avatar_grandmother_round', worker: '김하늘', status: 'active', family: 'unreachable', step: 1, topic: '아이 첫걸음', nextSession: '5/23 14:00', consentExpiresInDays: null },
+  { id: 'elder-yoon', displayName: '윤○○', code: 'A-07', avatar: 'avatar_grandfather', worker: '박서준', status: 'paused', family: 'available', step: 4, topic: '신혼여행', nextSession: '—', consentExpiresInDays: 21 },
+  { id: 'elder-jang', displayName: '장○○', code: 'A-08', avatar: 'avatar_grandmother', worker: '김하늘', status: 'ended', family: 'none', step: 9, topic: '학창시절 친구들', nextSession: '—', consentExpiresInDays: null },
+];
+
 /** 전사 교정 화면(SW-STT)의 전사 문장. */
 export const SEED_TRANSCRIPT = [
   { id: 't1', text: '첫 월급으로 어머니께 신발을 사드렸어요', at: 42 },

@@ -168,7 +168,84 @@ for _stem, _cap in MAP.values():
         if os.path.exists(_p):
             os.remove(_p)
 
-missing, rows, before, after = [], [], 0, 0
+# 누끼.zip was cut from the design page and some tiles kept a slice of the
+# neighbouring Korean copy, or a clipped scrap of the artwork next door. Those
+# survive the transparent-padding trim because they are opaque.
+#
+# Discriminator: the artwork's own detached bits (hearts, music notes, petals)
+# are bright pastel; stray type and clipped scraps are noticeably darker.
+STRAY_MAX_SHARE = 0.03   # ... and small next to the subject
+STRAY_MAX_VALUE = 0.85   # ... and darker than the artwork's loose pieces
+# A scrap clipped by the tile edge is stray even when a little larger: the
+# artwork's own loose pieces sit inside the frame, cut pieces do not.
+STRAY_EDGE_SHARE = 0.10
+
+
+def drop_strays(im: Image.Image) -> tuple[Image.Image, int]:
+    import numpy as np
+    from scipy import ndimage
+
+    a = np.array(im)
+    solid = a[..., 3] > 40
+    if not solid.any():
+        return im, 0
+    lab, n = ndimage.label(solid)
+    if n < 2:
+        return im, 0
+    sizes = ndimage.sum(solid, lab, range(1, n + 1))
+    biggest = sizes.max()
+    H, W = solid.shape
+    removed = 0
+    for i, sz in enumerate(sizes, start=1):
+        share = sz / biggest
+        if share >= STRAY_EDGE_SHARE:
+            continue
+        m = lab == i
+        v = (a[m][:, :3].max(axis=1) / 255).mean()
+        if v >= STRAY_MAX_VALUE:
+            continue                       # a pale loose piece of the artwork
+        ys, xs = np.where(m)
+        clipped = (xs.min() <= 1 or ys.min() <= 1
+                   or xs.max() >= W - 2 or ys.max() >= H - 2)
+        if share < STRAY_MAX_SHARE or clipped:
+            a[m] = 0
+            removed += 1
+    return Image.fromarray(a, 'RGBA'), removed
+
+
+# These tiles carry the word (딸 · 아들 · 손녀) drawn beside the face. The app
+# renders that word as real text next to the picture, so the baked-in copy is
+# cropped away — otherwise it reads twice.
+FACE_ONLY = {'label-daughter', 'label-son', 'label-granddaughter'}
+
+
+def face_only(im: Image.Image) -> Image.Image:
+    import numpy as np
+    from scipy import ndimage
+
+    a = np.array(im)
+    solid = a[..., 3] > 40
+    lab, n = ndimage.label(solid)
+    if n < 2:
+        return im
+    # the face is the left-most sizeable blob; the word sits to its right
+    best, best_x = None, None
+    for i in range(1, n + 1):
+        ys, xs = np.where(lab == i)
+        if len(xs) < solid.sum() * 0.08:
+            continue
+        if best_x is None or xs.min() < best_x:
+            best, best_x = i, xs.min()
+    if best is None:
+        return im
+    keep = lab == best
+    a[~keep] = 0
+    out = Image.fromarray(a, 'RGBA')
+    b = out.getbbox()
+    return out.crop(b) if b else out
+
+
+missing, rows, before, after, cleaned = [], [], 0, 0, 0
 for src, (stem, cap) in MAP.items():
     p = os.path.join(SRC, src)
     if not os.path.exists(p):
@@ -176,6 +253,10 @@ for src, (stem, cap) in MAP.items():
         continue
     before += os.path.getsize(p)
     im = Image.open(p).convert('RGBA')
+    im, n_removed = drop_strays(im)
+    cleaned += n_removed
+    if stem in FACE_ONLY:
+        im = face_only(im)
     box = im.getbbox()
     if box:
         im = im.crop(box)                       # trim transparent padding
@@ -188,6 +269,7 @@ for src, (stem, cap) in MAP.items():
 
 print(f"written {len(rows)} webp files -> {DST}")
 print(f"size {before/1048576:.1f}MB -> {after/1048576:.2f}MB")
+print(f"stray fragments removed: {cleaned}")
 if missing:
     print("MISSING SOURCES:", missing)
 used = set(MAP)
