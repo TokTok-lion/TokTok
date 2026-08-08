@@ -30,6 +30,11 @@ export function Art({ name, size, alt = '', className, priority }: Props) {
       height={a.height}
       className={className}
       priority={priority}
+      // Art renders row glyphs and avatars — a few KB each, and always part of
+      // the layout the moment the screen appears. Lazy-loading them makes the
+      // icons pop in one by one, which reads as the screen glitching. The big
+      // scene artwork uses ArtBox and stays lazy.
+      loading={priority ? undefined : 'eager'}
       style={{ width: size, height: 'auto' }}
       aria-hidden={alt === '' ? true : undefined}
     />
