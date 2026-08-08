@@ -31,6 +31,19 @@ they win.
   is shown as an album and a record.
 - **No impersonation.** Music styles describe moods, never real singers.
 
+## The console is a management surface, not a reading surface
+
+`/center` (센터장 콘솔) shows counts, states and deadlines. The spec's
+permission matrix gives the director "기본 미열람" on 원음성 and only
+"진행상태" on 전사·스토리, so **never add a screen there that renders an
+elder's story, transcript, or lyrics**. Opening anything sensitive goes
+through `validateAccessReason()` and lands in the audit log.
+
+Other console rules that are code, not copy: `blockApproval()` (two-person
+deletion), `canRequireConsent()` (홍보 동의 필수화 금지), `RETENTION_BOUNDS`
+(무기한 금지), `safetyCritical` usage metrics (쿼터가 안전 기능을 막지 않음).
+Staff workload is counts only — no scores, grades, or rankings.
+
 ## Accessibility is a build requirement
 
 - All type sizes are in `rem`; the root font size follows `--text-scale` so the

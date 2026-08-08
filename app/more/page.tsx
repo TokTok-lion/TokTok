@@ -154,6 +154,25 @@ export default function MorePage() {
             <Chevron />
           </Link>
         </li>
+        <li>
+          <Link
+            href="/center"
+            className="flex min-h-[72px] items-center gap-3.5 rounded-[20px] bg-surface px-4 shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
+          >
+            <IconCircle tone="brand" size={46}>
+              <IconShield size={23} className="text-brand-700" />
+            </IconCircle>
+            <span className="flex-1">
+              <span className="block text-[1.125rem] font-extrabold text-ink-900">
+                센터장 콘솔
+              </span>
+              <span className="block text-[0.875rem] text-ink-500">
+                직원·정책·요금·삭제 승인 (센터장 권한)
+              </span>
+            </span>
+            <Chevron />
+          </Link>
+        </li>
       </ul>
 
       <h2 className="mt-6 text-[1.1875rem] font-extrabold text-ink-900">데이터</h2>
