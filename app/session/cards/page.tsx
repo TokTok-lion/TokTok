@@ -94,6 +94,7 @@ export default function MemoryCardsPage() {
                   name={c.art as ArtKey}
                   className={`${wide ? 'ml-auto h-[112px] w-auto pr-2' : 'h-[116px] w-full'} object-contain`}
                   fit="contain"
+                  priority={i < 2}
                 />
               </label>
             );

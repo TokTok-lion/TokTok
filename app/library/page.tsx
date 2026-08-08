@@ -73,20 +73,14 @@ export default function LibraryPage() {
               />
 
               <div className="min-w-0 flex-1">
-                <div className="flex items-start gap-2">
-                  <h2 className="min-w-0 flex-1 text-[1.3125rem] font-extrabold leading-tight text-ink-900">
-                    {song.title}
-                  </h2>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-[0.8125rem] font-bold ${
-                      song.badge === '최근 재생'
-                        ? 'bg-leaf-100 text-leaf-700'
-                        : 'bg-leaf-100 text-leaf-700'
-                    }`}
-                  >
-                    {song.badge}
-                  </span>
-                </div>
+                {/* The badge used to sit beside the title and squeezed long
+                    ones like "가족에게 남기는 노래" onto three lines. */}
+                <h2 className="text-[1.1875rem] font-extrabold leading-tight text-ink-900">
+                  {song.title}
+                </h2>
+                <span className="mt-1 inline-block rounded-full bg-leaf-100 px-2.5 py-0.5 text-[0.8125rem] font-bold text-leaf-700">
+                  {song.badge}
+                </span>
                 <p className="mt-1.5 flex items-center gap-1.5 text-[1rem] text-ink-500">
                   <IconMusicNote size={17} className="text-brand-400" />
                   {song.style}

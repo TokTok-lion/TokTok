@@ -68,23 +68,21 @@ export default function GuidePage() {
       <div className="mt-4 grid grid-cols-2 gap-3">
         <a
           href="#faq"
-          className="flex min-h-[68px] items-center gap-2.5 rounded-[16px] bg-surface px-3.5 shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
+          className="flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[16px] bg-surface px-3 py-3 text-center shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[1.25rem] font-black text-ink-900">
             ?
           </span>
-          <span className="flex-1 text-[1.0625rem] font-bold text-ink-900">
+          <span className="text-[1.0625rem] font-bold text-ink-900">
             자주 묻는 질문
           </span>
-          <Chevron className="text-ink-300" />
         </a>
         <a
           href="#support"
-          className="flex min-h-[68px] items-center gap-2.5 rounded-[16px] bg-surface px-3.5 shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
+          className="flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[16px] bg-surface px-3 py-3 text-center shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
         >
           <Art name="icon_headset" size={34} alt="" />
-          <span className="flex-1 text-[1.0625rem] font-bold text-ink-900">문의하기</span>
-          <Chevron className="text-ink-300" />
+          <span className="text-[1.0625rem] font-bold text-ink-900">문의하기</span>
         </a>
       </div>
 

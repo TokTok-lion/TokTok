@@ -96,13 +96,15 @@ export default function LogPage() {
         <IconCircle tone="leaf" size={48}>
           <Art name="ui_next_topic" size={26} alt="" />
         </IconCircle>
-        <span className="flex-1 text-[1.125rem] font-bold text-ink-900">
+        {/* Korean keeps whole words together, so a flexible label wraps hard in
+            this row. The label holds its line; the topic takes the slack. */}
+        <span className="shrink-0 whitespace-nowrap text-[1.0625rem] font-bold text-ink-900">
           다음 추천 주제
         </span>
-        <span className="text-[1.0625rem] font-extrabold text-ink-900">
+        <span className="min-w-0 flex-1 text-right text-[1rem] font-extrabold text-ink-900">
           {s.nextTopic}
         </span>
-        <Chevron className="text-ink-300" />
+        <Chevron className="shrink-0 text-ink-300" />
       </Card>
 
       <Card className="mt-3 p-4">
