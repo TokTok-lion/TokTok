@@ -26,7 +26,8 @@ export const SEED_ELDER: Elder = {
   id: 'elder-kim',
   displayName: '김○○',
   honorific: '김○○ 어르신',
-  avatar: 'avatar_grandfather',
+  // the deck's profile avatar: glasses + a leaf sprig at the lower left
+  avatar: 'avatar_grandfather_leaf',
   stage: 3,
   nextTopic: '첫 직장과 첫 월급',
   communication: ['천천히 질문하기', '기억 카드 먼저'],

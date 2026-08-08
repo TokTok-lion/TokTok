@@ -117,15 +117,17 @@ export default function ElderPage() {
       </Link>
 
       {/* ---- 프로필 ---- */}
+      {/* Glyphs are the deck's own, cut by scripts/prepare-ui-icons.py — not
+          look-alikes drawn by hand. */}
       <h2 className="mt-5 text-[1.125rem] font-extrabold text-ink-900">프로필</h2>
       <ul className="mt-3 space-y-2.5">
         <ProfileRow
-          icon={<IconPeople size={22} className="text-leaf-600" />}
+          icon={<Art name="ui_honorific" size={26} alt="" />}
           title="호칭"
           body={<span className="text-[0.9375rem] text-ink-500">{e.honorific}</span>}
         />
         <ProfileRow
-          icon={<IconChat size={22} className="text-leaf-600" />}
+          icon={<Art name="ui_communication" size={26} alt="" />}
           title="의사소통 방식"
           body={
             <span className="flex flex-wrap gap-1.5">
@@ -138,7 +140,7 @@ export default function ElderPage() {
           }
         />
         <ProfileRow
-          icon={<IconMusicNote size={21} className="text-leaf-600" />}
+          icon={<Art name="ui_music_pref" size={26} alt="" />}
           title="선호 음악"
           body={
             <span className="flex flex-wrap gap-1.5">
@@ -152,7 +154,7 @@ export default function ElderPage() {
         />
         <ProfileRow
           tone="brand"
-          icon={<WarnGlyph />}
+          icon={<Art name="ui_avoid_topic" size={26} alt="" />}
           title="피하고 싶은 주제"
           body={
             <span className="flex flex-wrap gap-1.5">
@@ -267,23 +269,3 @@ function ProfileRow({
   );
 }
 
-function WarnGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="22"
-      height="22"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="text-brand-600"
-      aria-hidden="true"
-    >
-      <path d="M12 3.8 21 19.4H3Z" />
-      <path d="M12 9.6v4.2" />
-      <circle cx="12" cy="16.6" r="1.05" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}

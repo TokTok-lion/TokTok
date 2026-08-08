@@ -81,6 +81,10 @@ export const art = {
   style_folk_bright: { src: '/art/style-folk-bright.webp', width: 560, height: 458 },
   style_folk_trad: { src: '/art/style-folk-trad.webp', width: 560, height: 423 },
   style_trot: { src: '/art/style-trot.webp', width: 560, height: 471 },
+  ui_avoid_topic: { src: '/art/ui-avoid-topic.webp', width: 128, height: 128 },
+  ui_communication: { src: '/art/ui-communication.webp', width: 128, height: 128 },
+  ui_honorific: { src: '/art/ui-honorific.webp', width: 128, height: 128 },
+  ui_music_pref: { src: '/art/ui-music-pref.webp', width: 128, height: 128 },
 } as const;
 
 export type ArtKey = keyof typeof art;
