@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Art, ArtBox } from '@/components/Art';
+import { InstallGate } from '@/components/InstallGate';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, IconCircle, PrimaryButton } from '@/components/ui';
 import {
@@ -68,6 +69,9 @@ export default function TodayPage() {
         </PrimaryButton>
       }
     >
+      {/* 홈 화면 설치 안내 — 인앱 브라우저면 브라우저로 넘기고, 아니면 설치 */}
+      <InstallGate />
+
       {/*
         처음 안내.
 

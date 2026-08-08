@@ -29,10 +29,10 @@ export default function ReactionsPage() {
       decoration={<Ornaments variant="leafRight" />}
       footer={<PrimaryButton href="/session/log">반응 기록 저장</PrimaryButton>}
     >
-      <Card className="flex items-center gap-3.5 p-3.5">
-        <Art name={s.elder.avatar as ArtKey} size={84} alt="" className="shrink-0" />
+      <Card className="flex items-center gap-3 p-3">
+        <Art name={s.elder.avatar as ArtKey} size={68} alt="" className="shrink-0" />
         <div className="min-w-0">
-          <p className="text-[1.4375rem] font-extrabold text-ink-900">
+          <p className="text-[1.25rem] font-extrabold text-ink-900">
             {s.elder.honorific}
           </p>
           <p className="mt-1 text-[1rem] text-ink-500">
@@ -42,7 +42,7 @@ export default function ReactionsPage() {
         </div>
       </Card>
 
-      <fieldset className="mt-5">
+      <fieldset className="mt-4">
         <legend className="flex items-center gap-2 text-[1.0625rem] font-bold text-ink-900">
           오늘 보인 반응을 선택해 주세요
           <IconInfo size={19} className="text-brand-600" />
@@ -54,7 +54,7 @@ export default function ReactionsPage() {
             return (
               <label
                 key={r.id}
-                className={`relative flex min-h-[132px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[16px] p-2 text-center transition-colors ${
+                className={`relative flex min-h-[112px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[16px] p-2 text-center transition-colors ${
                   on
                     ? 'bg-brand-50 ring-2 ring-brand-500'
                     : 'bg-surface shadow-[0_2px_10px_rgba(122,84,46,0.06)]'
@@ -73,7 +73,7 @@ export default function ReactionsPage() {
                     </svg>
                   </span>
                 ) : null}
-                <Art name={r.art as ArtKey} size={62} alt="" />
+                <Art name={r.art as ArtKey} size={54} alt="" />
                 <span className="text-[0.875rem] font-bold leading-tight text-ink-900">
                   {r.label}
                 </span>
@@ -83,7 +83,7 @@ export default function ReactionsPage() {
         </div>
       </fieldset>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <label
           htmlFor="note"
           className="block text-[1.0625rem] font-bold text-ink-900"

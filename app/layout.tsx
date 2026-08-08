@@ -8,6 +8,8 @@ export const metadata: Metadata = {
     '어르신의 삶을 노래로 남기는 따뜻한 기록. 주야간보호센터 사회복지사를 위한 생애 인터뷰·가사·노래·활동일지 도구입니다.',
   applicationName: '똑똑 TokTok',
   appleWebApp: { capable: true, title: '똑똑', statusBarStyle: 'default' },
+  manifest: '/manifest.webmanifest',
+  icons: { apple: '/icons/apple-touch-icon.png' },
   formatDetection: { telephone: false },
 };
 

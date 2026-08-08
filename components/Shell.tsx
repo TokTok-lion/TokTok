@@ -129,18 +129,23 @@ function TabBar() {
               <Link
                 href={href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-[64px] flex-col items-center justify-center gap-1 px-1 py-2 ${
-                  active ? 'text-brand-700' : 'text-ink-500'
+                // The deck marks the active tab with colour alone — no pill
+                // behind the icon. Adding one made the bar heavier than the
+                // design and drew the eye away from the page.
+                className={`flex min-h-[60px] flex-col items-center justify-center gap-1 px-1 py-1.5 ${
+                  active ? 'text-brand-600' : 'text-ink-300'
                 }`}
               >
+                <Icon size={25} />
+                {/* The icon keeps the deck's vivid orange, but a 12px label
+                    needs 4.5:1 — brand-600 only reaches 3.1 on this bar. */}
                 <span
-                  className={`flex h-8 w-12 items-center justify-center rounded-[12px] ${
-                    active ? 'bg-brand-100' : ''
+                  className={`text-[0.75rem] leading-none ${
+                    active ? 'font-extrabold text-brand-700' : 'font-bold text-ink-500'
                   }`}
                 >
-                  <Icon size={24} />
+                  {label}
                 </span>
-                <span className="text-[0.75rem] font-bold leading-none">{label}</span>
               </Link>
             </li>
           );

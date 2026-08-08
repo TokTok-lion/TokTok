@@ -41,10 +41,10 @@ export default function WrapPage() {
         </>
       }
     >
-      <Card className="flex items-center gap-3.5 p-3.5">
-        <Art name={s.elder.avatar as ArtKey} size={84} alt="" className="shrink-0" />
+      <Card className="flex items-center gap-3 p-3">
+        <Art name={s.elder.avatar as ArtKey} size={68} alt="" className="shrink-0" />
         <div className="min-w-0">
-          <p className="text-[1.4375rem] font-extrabold text-ink-900">
+          <p className="text-[1.25rem] font-extrabold text-ink-900">
             {s.elder.honorific}
           </p>
           <p className="mt-0.5 text-[1.0625rem] text-ink-500">{s.topic}</p>

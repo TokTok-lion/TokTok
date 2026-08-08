@@ -24,43 +24,62 @@ function Svg({ size = 24, children, ...rest }: P) {
   );
 }
 
+/* ---------------------------------------------------------------- tab bar
+ * The deck draws these as solid silhouettes, not outlines — a filled house,
+ * two filled people, a play square, a book, three dots. They are redrawn here
+ * rather than cut from the PDF because each needs to recolour between the
+ * inactive warm grey and the active orange, which a raster cannot do.
+ * ------------------------------------------------------------------------ */
+
+const Solid = ({ size = 24, children, ...rest }: P) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    fill="currentColor"
+    aria-hidden="true"
+    {...rest}
+  >
+    {children}
+  </svg>
+);
+
 export const IconHome = (p: P) => (
-  <Svg {...p}>
-    <path d="M3 10.4 12 3.5l9 6.9" />
-    <path d="M5.5 9.6V20h13V9.6" />
-  </Svg>
+  <Solid {...p}>
+    <path d="M11.24 3.3a1.2 1.2 0 0 1 1.52 0l8.1 6.62c.5.4.24 1.2-.4 1.2h-1.3v7.7a1.9 1.9 0 0 1-1.9 1.9H6.74a1.9 1.9 0 0 1-1.9-1.9v-7.7h-1.3c-.64 0-.9-.8-.4-1.2Z" />
+  </Solid>
 );
 
 export const IconPeople = (p: P) => (
-  <Svg {...p}>
-    <circle cx="9" cy="8" r="3.2" />
-    <path d="M3.2 19.4c0-3.2 2.6-5.2 5.8-5.2s5.8 2 5.8 5.2" />
-    <path d="M16.4 5.2a3 3 0 0 1 0 5.9" />
-    <path d="M17.6 14.5c2.1.5 3.5 2.1 3.5 4.4" />
-  </Svg>
+  <Solid {...p}>
+    <circle cx="8.7" cy="8.1" r="3.5" />
+    <circle cx="16.6" cy="9.1" r="2.8" />
+    <path d="M2.6 19.2c0-3.4 2.7-5.6 6.1-5.6s6.1 2.2 6.1 5.6a.9.9 0 0 1-.9.9H3.5a.9.9 0 0 1-.9-.9Z" />
+    <path d="M16.3 13.9c3 0 5.1 1.8 5.1 4.6a.8.8 0 0 1-.8.8h-4.2c.2-.5.3-1 .3-1.6 0-1.5-.5-2.8-1.4-3.8Z" />
+  </Solid>
 );
 
 export const IconContent = (p: P) => (
-  <Svg {...p}>
-    <rect x="3.2" y="4.6" width="17.6" height="14.8" rx="3.4" />
-    <path d="M10.4 9.6 15 12l-4.6 2.4Z" fill="currentColor" stroke="none" />
-  </Svg>
+  <Solid {...p}>
+    <path
+      d="M5.4 4.4h13.2a3 3 0 0 1 3 3v9.2a3 3 0 0 1-3 3H5.4a3 3 0 0 1-3-3V7.4a3 3 0 0 1 3-3Zm0 1.9a1.1 1.1 0 0 0-1.1 1.1v9.2a1.1 1.1 0 0 0 1.1 1.1h13.2a1.1 1.1 0 0 0 1.1-1.1V7.4a1.1 1.1 0 0 0-1.1-1.1Z"
+    />
+    <path d="M10.1 8.9 15.3 12l-5.2 3.1Z" />
+  </Solid>
 );
 
 export const IconBook = (p: P) => (
-  <Svg {...p}>
-    <path d="M12 6.4C10.3 5.1 8.4 4.5 6 4.5H3.6v13.6H6c2.4 0 4.3.6 6 1.9" />
-    <path d="M12 6.4c1.7-1.3 3.6-1.9 6-1.9h2.4v13.6H18c-2.4 0-4.3.6-6 1.9" />
-    <path d="M12 6.4v13.6" />
-  </Svg>
+  <Solid {...p}>
+    <path d="M11.05 6.2v13.1c-1.6-1.05-3.4-1.55-5.5-1.55H3.9a1.2 1.2 0 0 1-1.2-1.2V5.7a1.2 1.2 0 0 1 1.2-1.2h1.5c2.2 0 4.05.55 5.65 1.7Zm1.9 0c1.6-1.15 3.45-1.7 5.65-1.7h1.5a1.2 1.2 0 0 1 1.2 1.2v10.85a1.2 1.2 0 0 1-1.2 1.2h-1.65c-2.1 0-3.9.5-5.5 1.55Z" />
+  </Solid>
 );
 
 export const IconMore = (p: P) => (
-  <Svg {...p}>
-    <circle cx="5.4" cy="12" r="1.5" fill="currentColor" stroke="none" />
-    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
-    <circle cx="18.6" cy="12" r="1.5" fill="currentColor" stroke="none" />
-  </Svg>
+  <Solid {...p}>
+    <circle cx="5.2" cy="12" r="1.9" />
+    <circle cx="12" cy="12" r="1.9" />
+    <circle cx="18.8" cy="12" r="1.9" />
+  </Solid>
 );
 
 export const IconBell = (p: P) => (
