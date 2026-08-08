@@ -94,7 +94,8 @@ export default function MemoryCardsPage() {
                   name={c.art as ArtKey}
                   className={`${wide ? 'ml-auto h-[112px] w-auto pr-2' : 'h-[116px] w-full'} object-contain`}
                   fit="contain"
-                  priority={i < 2}
+                  // the first row and the wide 명절 tile are the largest paint
+                  priority={i < 2 || wide}
                 />
               </label>
             );
