@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# the template carries no real values and needs to be shared
+!.env.example
 
 # vercel
 .vercel
