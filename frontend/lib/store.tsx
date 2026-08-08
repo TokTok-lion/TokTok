@@ -72,6 +72,19 @@ export type SessionState = {
   missionSent: boolean;
   /** 글자 크기 배율 (1 / 1.15 / 1.3) — NFR-A11Y-003 */
   textScale: number;
+
+  /* --- 서버 사본과의 연결 고리 -------------------------------------
+   * 화면은 항상 이 로컬 상태를 본다. 아래 값들은 "이 회기가 서버의 어느
+   * 행에 대응하는가"만 들고 있어서, 여러 번 저장해도 회기가 여러 개로
+   * 늘어나지 않게 한다. 서버를 안 쓰면 전부 null 인 채로 그냥 논다. */
+
+  /** 서버 sessions.id. 처음 저장할 때 생기고 그 뒤로는 갱신에만 쓴다. */
+  remoteSessionId: string | null;
+  /** 서버 participants.id. 어르신을 골라야 저장할 수 있다. */
+  remoteParticipantId: string | null;
+  remoteStartedAt: string | null;
+  /** 9단계 중 어디까지 왔는지 — 콘솔이 진행상태만 보는 근거가 된다. */
+  remoteStep: number;
 };
 
 function seedState(): SessionState {
@@ -105,6 +118,10 @@ function seedState(): SessionState {
     missionBody: '',
     missionSent: false,
     textScale: 1,
+    remoteSessionId: null,
+    remoteParticipantId: null,
+    remoteStartedAt: null,
+    remoteStep: 1,
   };
 }
 

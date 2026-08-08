@@ -12,6 +12,7 @@ import {
   type ConsentKind,
 } from '@/lib/domain';
 import { useSession } from '@/lib/store';
+import { useAccount } from '@/lib/auth';
 
 const ORDER: ConsentKind[] = [
   'recording',
@@ -38,6 +39,7 @@ const PURPOSE: Record<ConsentKind, string> = {
  */
 export default function MorePage() {
   const { s, setConsent, set, reset } = useSession();
+  const { account } = useAccount();
   const [confirmReset, setConfirmReset] = useState(false);
 
   return (
@@ -128,6 +130,30 @@ export default function MorePage() {
 
       <h2 className="mt-6 text-[1.1875rem] font-extrabold text-ink-900">안내</h2>
       <ul className="mt-3 space-y-3">
+        {/* 서버를 안 쓰는 배포에서는 로그인 자체가 의미 없으므로 감춘다 */}
+        {account.status !== 'local' ? (
+          <li>
+            <Link
+              href="/login"
+              className="flex min-h-[72px] items-center gap-3.5 rounded-[20px] bg-surface px-4 shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
+            >
+              <IconCircle tone="leaf" size={46}>
+                <IconShield size={23} className="text-leaf-700" />
+              </IconCircle>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[1.125rem] font-extrabold text-ink-900">
+                  {account.status === 'in' ? '기관 계정' : '기관 로그인'}
+                </span>
+                <span className="block text-[0.875rem] text-ink-500">
+                  {account.status === 'in'
+                    ? `${account.tenantName} · 기록이 기관에도 저장돼요`
+                    : '로그인하면 기록이 기관에도 저장돼요'}
+                </span>
+              </span>
+              <Chevron />
+            </Link>
+          </li>
+        ) : null}
         <li>
           <Link
             href="/guide"

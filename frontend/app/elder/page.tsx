@@ -9,11 +9,11 @@ import { IconInfo, IconPlus } from '@/components/icons';
 import { TOTAL_STEPS } from '@/lib/flow';
 import {
   FAMILY_AVAILABILITY_LABELS,
-  SEED_ELDERS,
   SERVICE_STATUS_LABELS,
   type ElderSummary,
   type ServiceStatus,
 } from '@/lib/seed';
+import { useElders } from '@/lib/useElders';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
@@ -43,10 +43,12 @@ export default function ElderListPage() {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<ServiceStatus | 'all'>('all');
+  // 로그인해서 기관이 정해졌으면 서버 목록, 아니면 시연용 씨앗
+  const { elders, live, loading } = useElders();
 
   const query = q.trim();
   const list = useMemo(() => {
-    const byStatus = SEED_ELDERS.filter(
+    const byStatus = elders.filter(
       (e) => filter === 'all' || e.status === filter,
     );
     if (query.length < MIN_QUERY) return byStatus;
@@ -56,10 +58,14 @@ export default function ElderListPage() {
         v.toLowerCase().includes(needle),
       ),
     );
-  }, [filter, query]);
+  }, [elders, filter, query]);
 
   const open = (e: ElderSummary) => {
     // switching elder switches the whole working context
+    // 서버 목록에서 고른 경우에만 실제 participants.id 를 물린다. 씨앗
+    // 어르신의 id 를 서버로 보내면 없는 행을 가리키게 된다.
+    set('remoteParticipantId', live ? e.id : null);
+    set('remoteSessionId', null);
     set('elder', {
       ...s.elder,
       id: e.id,
@@ -73,7 +79,7 @@ export default function ElderListPage() {
     router.push('/elder/profile');
   };
 
-  const attention = SEED_ELDERS.filter(
+  const attention = elders.filter(
     (e) => e.consentExpiresInDays !== null && e.consentExpiresInDays <= 14,
   ).length;
 
@@ -83,7 +89,11 @@ export default function ElderListPage() {
       menu
       bell
       title="어르신"
-      subtitle={`이용 중 ${SEED_ELDERS.filter((e) => e.status === 'active').length}명`}
+      subtitle={
+        loading
+          ? '불러오는 중…'
+          : `이용 중 ${elders.filter((e) => e.status === 'active').length}명`
+      }
       decoration={<Ornaments variant="leafRight" />}
       footer={
         <PrimaryButton

@@ -7,6 +7,7 @@ import { Card, Chevron, Chip, IconCircle, OutlineButton, PrimaryButton } from '@
 import { IconCopy, IconExport } from '@/components/icons';
 import { REACTIONS } from '@/lib/domain';
 import { useSession } from '@/lib/store';
+import { useServerSave } from '@/lib/useServerSave';
 
 const MAX = 1000;
 
@@ -20,6 +21,7 @@ const MAX = 1000;
 export default function LogPage() {
   const { s, set } = useSession();
   const [copied, setCopied] = useState(false);
+  const server = useServerSave();
   const selected = REACTIONS.filter((r) => s.reactions.includes(r.id));
 
   const copy = async () => {
@@ -44,12 +46,29 @@ export default function LogPage() {
               {copied ? '복사했어요' : '복사하기'}
             </OutlineButton>
           </div>
+          {/* 서버 저장 결과는 감추지 않는다. 실패해도 화면은 넘어가지만,
+              나중에 다시 저장해야 한다는 걸 복지사가 알아야 한다. */}
+          {server.state.kind === 'error' ? (
+            <p
+              role="alert"
+              className="mb-2 rounded-[12px] bg-surface-sunk px-3 py-2 text-[0.875rem] font-bold text-danger-600"
+            >
+              이 기기에는 저장됐어요. 서버 저장은 실패했습니다 — {server.state.reason}
+            </p>
+          ) : server.state.kind === 'saved' ? (
+            <p className="mb-2 text-center text-[0.875rem] font-bold text-leaf-700">
+              기관 기록에도 저장했어요
+            </p>
+          ) : null}
           <PrimaryButton
             href="/session/wrap"
-            onClick={() => set('logSaved', true)}
+            onClick={() => {
+              set('logSaved', true);
+              void server.save();
+            }}
             leading={<IconExport size={22} />}
           >
-            저장하고 내보내기
+            {server.state.kind === 'saving' ? '저장하는 중…' : '저장하고 내보내기'}
           </PrimaryButton>
         </>
       }

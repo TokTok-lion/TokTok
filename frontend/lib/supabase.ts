@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr';
+import type { Database } from './db.types';
 
 /**
  * Supabase 클라이언트.
@@ -18,16 +19,16 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 /** 환경변수가 갖춰졌는지. 없으면 앱은 지금처럼 기기 저장으로만 동작한다. */
 export const isSupabaseConfigured = Boolean(url && anonKey);
 
-let client: ReturnType<typeof createBrowserClient> | null = null;
+let client: ReturnType<typeof createBrowserClient<Database>> | null = null;
 
 /**
- * 설정이 없으면 null을 돌려준다. 아직 로컬 저장만으로 완결되는 화면들이 있어,
+ * 설정이 없으면 null을 돌려준다. 서버가 없어도 회기는 진행되어야 하므로,
  * 연결이 없다고 앱이 죽어서는 안 된다.
  */
 export function getSupabase() {
   if (!isSupabaseConfigured) return null;
   if (!client) {
-    client = createBrowserClient(url!, anonKey!);
+    client = createBrowserClient<Database>(url!, anonKey!);
   }
   return client;
 }

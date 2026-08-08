@@ -13,6 +13,7 @@ import {
   Td,
   Th,
 } from '@/components/CenterShell';
+import { CenterLive } from '@/components/CenterLive';
 import { PIPELINE_STAGES, TASK_LABELS, sortTasks } from '@/lib/center';
 import {
   AI_COST,
@@ -58,7 +59,11 @@ export default function CenterDashboard() {
     >
       <SampleBadge />
 
-      {/* F-CM-DASH-001 주간 운영 현황 */}
+      {/* 서버가 실제로 아는 값. 아래 지표들과 섞이지 않도록 먼저 둔다 —
+          어느 숫자가 진짜인지 화면에서 구분되어야 한다. */}
+      <CenterLive />
+
+      {/* F-CM-DASH-001 주간 운영 현황 (아래는 아직 시연용 데이터) */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
           label="이번 주 예정 세션"
