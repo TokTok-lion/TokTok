@@ -1,5 +1,6 @@
 import { googleStt } from './stt-google';
 import { googleTts } from './tts-google';
+import { apiframeMusic } from './music-apiframe';
 import { sunoMusic } from './music-suno';
 import { trebloMusic } from './music-treblo';
 import type { MusicProvider, SttProvider, TtsProvider } from './types';
@@ -28,12 +29,21 @@ export const tts: TtsProvider = pick(process.env.TTS_PROVIDER, { google: googleT
  * Treblo 는 열쇠 하나로 부르고 상업적 이용권을 함께 준다. 길이도 정할 수
  * 있어서 "회상용 노래는 90초"라는 결정을 지킬 수 있다.
  *
- * suno 항목은 남겨 둔다. 공식 파트너 API 가 열리면 그 파일만 고치면 된다.
+ * 지금 기본은 apiframe(Suno 경유)이다. 한국어 보컬 품질이 눈에 띄게 낫다.
+ * 다만 그 회사는 Suno 와 제휴 관계가 아니라고 스스로 밝히므로, 권리 관계는
+ * 그쪽 약관에 기대는 셈이다 — 기관과 계약하기 전에 확인해야 할 것이 하나
+ * 남아 있다는 뜻이다.
+ *
+ * treblo 는 공식 API 에 상업권이 명확하고 길이도 정할 수 있다. 위험을
+ * 낮추고 싶으면 이쪽이다.
+ *
+ * suno 는 직접 띄운 중계 서버용으로 남겨 둔다. 공식 파트너 API 가 열리면
+ * 그 파일만 고치면 된다.
  */
 export const music: MusicProvider = pick(
   process.env.MUSIC_PROVIDER,
-  { treblo: trebloMusic, suno: sunoMusic },
-  trebloMusic,
+  { apiframe: apiframeMusic, treblo: trebloMusic, suno: sunoMusic },
+  apiframeMusic,
 );
 
 function pick<T>(name: string | undefined, table: Record<string, T>, fallback: T): T {
