@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { Art } from '@/components/Art';
+import { SpeakButton } from '@/components/SpeakButton';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, IconCircle, NoteBar, PrimaryButton, Waveform } from '@/components/ui';
 import { IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
@@ -12,6 +13,8 @@ import { useSession } from '@/lib/store';
 
 // the deck's own glyphs (p.21), cut by scripts/prepare-ui-icons.py
 const PROMPT_ART = { people: 'ui_people', smile: 'ui_reaction', gift: 'ui_gift' } as const;
+
+const QUESTION = '첫 월급으로 무엇을 하셨나요?';
 
 /** 인터뷰 진행 중 (deck p.21) */
 export default function InterviewPage() {
@@ -57,8 +60,14 @@ export default function InterviewPage() {
           </span>
         </div>
         <h2 className="mt-3 text-center text-[1.5rem] font-extrabold leading-snug text-ink-900">
-          첫 월급으로 무엇을 하셨나요?
+          {QUESTION}
         </h2>
+
+        {/* 글씨가 잘 안 보이는 어르신께 읽어 드린다. 질문은 우리가 쓴 문장이라
+            어르신 개인정보가 밖으로 나가지 않는다 — 외부 AI 동의와 무관하다. */}
+        <div className="mt-3 flex justify-center">
+          <SpeakButton text={QUESTION} label="질문 읽어주기" />
+        </div>
 
         <ul className="mt-4 space-y-2.5">
           {SEED_INTERVIEW_PROMPTS.map((p) => {
