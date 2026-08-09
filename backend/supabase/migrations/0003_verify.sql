@@ -80,15 +80,26 @@ begin
 end $$;
 
 -- ── 5. 지우는 길이 열려 있다 (삭제 요청에 응할 수 있어야 한다)
+--
+--    Supabase 는 storage.objects 에서 SQL 로 직접 지우는 것을 막는다
+--    (storage.protect_delete). 파일은 남고 행만 사라지는 사고를 막기 위해서다.
+--    실제 삭제는 앱이 Storage API 로 한다. 그래서 여기서는 "지울 수 있는 정책이
+--    있는가"와 "그 정책이 내 기관으로 한정되는가"를 본다.
 do $$
-declare n int;
+declare qual text;
 begin
-  delete from storage.objects
-   where bucket_id = 'songs'
-     and name like '11110000-0000-0000-0000-000000000001/%new.mp3';
-  get diagnostics n = row_count;
-  if n <> 1 then raise exception '내 기관 파일을 지우지 못했습니다'; end if;
-  insert into _c values ('5', '내 기관 파일 삭제 가능');
+  select pg_get_expr(polqual, polrelid) into qual
+    from pg_policy
+   where polname = 'songs_delete'
+     and polrelid = 'storage.objects'::regclass;
+
+  if qual is null then
+    raise exception '곡 파일을 지울 정책이 없습니다 — 삭제 요청에 응할 수 없습니다';
+  end if;
+  if qual not like '%current_tenant_ids%' then
+    raise exception '삭제 정책이 기관으로 한정되지 않았습니다: %', qual;
+  end if;
+  insert into _c values ('5', '삭제 정책이 있고 내 기관으로 한정됨');
 end $$;
 
 -- ── 6. 같은 어르신·같은 가사로는 곡이 두 개 생기지 않는다
