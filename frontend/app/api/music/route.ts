@@ -35,8 +35,14 @@ const STYLE_PROMPT: Record<string, string> = {
  * 요금이 길이에 정확히 비례한다(실측: 60초 750크레딧, 30초 378크레딧,
  * 초당 12.5). 즉 이 값이 원가를 그대로 정한다. 예산이 빠듯하면 여기부터
  * 줄이면 되고, 품질을 깎지 않고 조절할 수 있는 유일한 손잡이다.
+ *
+ * 90초로 잡은 이유: 만들어지는 가사가 3절 12줄인데 60초에 넣으면 한 줄에
+ * 5초라 발라드로는 너무 빠르고, 모델이 내용을 뭉개거나 버린다. 어르신이
+ * 본인 이야기를 듣는 노래에서 이야기가 잘려 나가면 곡을 만든 뜻이 없다.
+ * 곡 수보다 이쪽이 먼저다 — 곡 수는 요금제로 늘릴 수 있지만 잘린 가사는
+ * 되돌릴 수 없다.
  */
-const LENGTH_MS = Number(process.env.MUSIC_LENGTH_MS) || 60_000;
+const LENGTH_MS = Number(process.env.MUSIC_LENGTH_MS) || 90_000;
 
 export async function POST(req: Request) {
   const key = process.env.ELEVENLABS_API_KEY;
