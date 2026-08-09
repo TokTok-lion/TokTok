@@ -1,0 +1,153 @@
+'use client';
+
+import { useCallback, useSyncExternalStore } from 'react';
+
+/**
+ * 실제 녹음.
+ *
+ * 브라우저의 MediaRecorder 만 쓴다. 외부 서비스가 필요 없고, 소리가 기기 밖으로
+ * 나가지 않는다 — 전사 API 를 붙이기 전까지는 이 편이 오히려 안전하다.
+ *
+ * 녹음본은 회기가 도는 동안 메모리에만 둔다. localStorage 에는 못 넣고(용량),
+ * 서버로 보내려면 저장 위치와 보관기간 정책이 먼저 정해져야 한다. 그래서
+ * "새로고침하면 사라진다"를 화면에서도 숨기지 않는다.
+ *
+ * 이 녹음본이 있어야 이야기의 출처("어르신 음성 0:42")를 눌러 그 대목으로
+ * 돌아갈 수 있다. 출처가 진짜 근거가 되려면 들어볼 수 있어야 한다.
+ */
+
+export type RecState = 'idle' | 'recording' | 'paused' | 'stopped' | 'denied' | 'unsupported';
+
+type Snap = {
+  state: RecState;
+  /** 녹음된 길이(초). 일시정지 중에는 늘지 않는다. */
+  seconds: number;
+  /** 재생용 주소. 녹음이 끝나야 생긴다. */
+  url: string | null;
+  error: string | null;
+};
+
+const EMPTY: Snap = { state: 'idle', seconds: 0, url: null, error: null };
+let snap: Snap = EMPTY;
+const listeners = new Set<() => void>();
+
+let recorder: MediaRecorder | null = null;
+let chunks: BlobPart[] = [];
+let stream: MediaStream | null = null;
+let ticker: number | null = null;
+
+function emit(next: Partial<Snap>) {
+  snap = { ...snap, ...next };
+  for (const l of listeners) l();
+}
+
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+function startTicker() {
+  stopTicker();
+  ticker = window.setInterval(() => emit({ seconds: snap.seconds + 1 }), 1000);
+}
+
+function stopTicker() {
+  if (ticker !== null) window.clearInterval(ticker);
+  ticker = null;
+}
+
+/** 마이크를 열고 녹음을 시작한다. 권한 거부는 오류가 아니라 상태다. */
+export async function startRecording(): Promise<void> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    emit({ state: 'unsupported', error: '이 브라우저는 녹음을 지원하지 않아요.' });
+    return;
+  }
+  if (snap.state === 'recording') return;
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    // 거부하셨을 수도, 마이크가 없을 수도 있다. 둘 다 "못 켠다"로 같다.
+    emit({ state: 'denied', error: '마이크를 쓸 수 없어요. 받아 적기로 진행해 주세요.' });
+    return;
+  }
+
+  chunks = [];
+  if (snap.url) URL.revokeObjectURL(snap.url);
+
+  // webm/opus 가 가장 널리 되지만 사파리는 mp4 를 준다. 브라우저가 고르게 둔다.
+  const mime = ['audio/webm', 'audio/mp4', ''].find(
+    (t) => !t || MediaRecorder.isTypeSupported(t),
+  );
+  recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+
+  recorder.ondataavailable = (e) => {
+    if (e.data.size > 0) chunks.push(e.data);
+  };
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: recorder?.mimeType || 'audio/webm' });
+    stream?.getTracks().forEach((t) => t.stop());
+    stream = null;
+    emit({ state: 'stopped', url: URL.createObjectURL(blob) });
+  };
+
+  recorder.start(1000); // 1초마다 조각을 받아 둬야 중간에 죽어도 남는다
+  emit({ state: 'recording', seconds: 0, url: null, error: null });
+  startTicker();
+}
+
+export function pauseRecording() {
+  if (recorder?.state === 'recording') {
+    recorder.pause();
+    stopTicker();
+    emit({ state: 'paused' });
+  }
+}
+
+export function resumeRecording() {
+  if (recorder?.state === 'paused') {
+    recorder.resume();
+    startTicker();
+    emit({ state: 'recording' });
+  }
+}
+
+export function stopRecording() {
+  stopTicker();
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
+  recorder = null;
+}
+
+/** 회기를 벗어날 때 마이크를 확실히 끈다. 켜진 채로 두면 안 된다. */
+export function releaseRecording() {
+  stopTicker();
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
+  stream?.getTracks().forEach((t) => t.stop());
+  stream = null;
+  recorder = null;
+}
+
+/** 녹음본이 있는지 — 출처 재생이 가능한지 판단에 쓴다. */
+export function hasRecording(): boolean {
+  return snap.url !== null;
+}
+
+export function recordingUrl(): string | null {
+  return snap.url;
+}
+
+export function useRecorder() {
+  const s = useSyncExternalStore(subscribe, () => snap, () => EMPTY);
+
+  const toggle = useCallback(async () => {
+    if (s.state === 'recording') pauseRecording();
+    else if (s.state === 'paused') resumeRecording();
+    else await startRecording();
+  }, [s.state]);
+
+  return { ...s, toggle, stop: stopRecording, release: releaseRecording };
+}
+
+export function mmss(total: number): string {
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}

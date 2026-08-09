@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, IconCircle, NoteBar, PrimaryButton, Waveform } from '@/components/ui';
 import { IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
 import { hasConsent } from '@/lib/domain';
+import { mmss, releaseRecording, useRecorder } from '@/lib/recorder';
 import { SEED_INTERVIEW_PROMPTS } from '@/lib/seed';
 import { useSession } from '@/lib/store';
 
@@ -15,20 +16,20 @@ const PROMPT_ART = { people: 'ui_people', smile: 'ui_reaction', gift: 'ui_gift' 
 /** 인터뷰 진행 중 (deck p.21) */
 export default function InterviewPage() {
   const { s } = useSession();
-  const [listening, setListening] = useState(true);
-  const [elapsed, setElapsed] = useState(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const rec = useRecorder();
 
   // 녹음 동의가 없으면 마이크는 시작조차 하지 않는다 (F-SW-INT-001)
   const canRecord = hasConsent(s.elder.consents, 'recording');
 
-  useEffect(() => {
-    if (!listening || !canRecord) return;
-    timer.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-    };
-  }, [listening, canRecord]);
+  // 화면을 벗어나면 마이크를 확실히 끈다. 켜진 채로 남으면 어르신 앞에서
+  // 무엇이 녹음되는지 아무도 모르게 된다. 끄면서 녹음본은 마무리된다.
+  //
+  // 훅이 돌려주는 rec 은 렌더마다 새 객체라 의존성에 넣으면 안 된다 —
+  // 넣었더니 매 렌더 정리가 돌아 녹음이 시작하자마자 멈췄다. 모듈 함수를
+  // 직접 부르면 참조가 고정된다.
+  useEffect(() => () => releaseRecording(), []);
+
+  const listening = rec.state === 'recording';
 
   return (
     <Screen
@@ -88,8 +89,8 @@ export default function InterviewPage() {
         <button
           type="button"
           aria-pressed={listening}
-          disabled={!canRecord}
-          onClick={() => setListening((v) => !v)}
+          disabled={!canRecord || rec.state === 'unsupported'}
+          onClick={() => void rec.toggle()}
           className={`relative flex h-[124px] w-[124px] shrink-0 flex-col items-center justify-center gap-1 rounded-full text-white shadow-[0_10px_26px_rgba(216,88,12,0.35)] disabled:opacity-50 ${
             listening ? 'tk-cta' : 'bg-ink-500'
           }`}
@@ -103,15 +104,32 @@ export default function InterviewPage() {
           <IconMic size={40} />
           {/* 19px/800 -> WCAG "large text" on the vivid orange fill */}
           <span className="text-[1.1875rem] font-extrabold">
-            {!canRecord ? '녹음 불가' : listening ? '말씀 듣는 중' : '일시정지'}
+            {!canRecord
+              ? '녹음 불가'
+              : rec.state === 'recording'
+                ? '말씀 듣는 중'
+                : rec.state === 'paused'
+                  ? '일시정지'
+                  : rec.state === 'denied'
+                    ? '마이크 없음'
+                    : '눌러서 시작'}
           </span>
         </button>
         <Waveform bars={9} height={30} tone="muted" seed={11} />
       </div>
 
       <p className="mt-2 text-center text-[0.9375rem] font-semibold tabular-nums text-ink-500">
-        {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} 녹음됨
+        {mmss(rec.seconds)} 녹음됨
       </p>
+
+      {rec.error ? (
+        <p
+          role="alert"
+          className="mt-2 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-center text-[0.875rem] font-bold text-danger-600"
+        >
+          {rec.error}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex justify-center">
         <button
@@ -126,7 +144,10 @@ export default function InterviewPage() {
       <div className="mt-4">
         {canRecord ? (
           <NoteBar tone="leaf" icon={<IconShield size={20} />}>
-            불편한 질문은 언제든 넘길 수 있어요
+            {/* 소리가 어디에 있는지 분명히 적는다. 전사 API 를 붙이기 전까지
+                녹음은 기기 밖으로 나가지 않는다. */}
+            녹음은 이 기기에만 남고 밖으로 보내지 않아요. 불편한 질문은 언제든
+            넘길 수 있어요.
           </NoteBar>
         ) : (
           <NoteBar tone="brand" icon={<IconShield size={20} />}>

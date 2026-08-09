@@ -1,6 +1,8 @@
 'use client';
 
+import { Contradictions } from '@/components/Contradictions';
 import { Ornaments, Screen } from '@/components/Shell';
+import { SourceChips } from '@/components/SourcePlayer';
 import { Card, Chevron, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconHeart, IconMinus, IconQuestion } from '@/components/icons';
 import {
@@ -43,7 +45,10 @@ export default function StoryPage() {
         </PrimaryButton>
       }
     >
-      <div className="space-y-4">
+      {/* 지난 회기와 어긋나는 곳부터 보여준다 — 정리하기 전에 알아야 한다 */}
+      <Contradictions />
+
+      <div className="mt-4 space-y-4">
         {GROUPS.map((g) => {
           const items = s.story.filter((i) => i.status === g.status);
           return (
@@ -105,10 +110,11 @@ function StoryRow({
         <span className="block text-[1.0625rem] font-bold leading-snug text-ink-900">
           {item.text}
         </span>
-        <span className="mt-0.5 block text-[0.8125rem] font-semibold text-ink-500">
-          출처 · {item.sources.map((s) => s.label).join(', ')}
+        {/* 출처를 글자로만 적어 두면 주장이다. 눌러서 그 대목을 들을 수
+            있어야 근거가 된다. */}
+        <span className="mt-1 block">
+          <SourceChips sources={item.sources} />
         </span>
-
       </span>
 
       {/* 어르신이 언제든 판단을 바꿀 수 있어야 한다 (원칙 1 · 본인 최종 통제) */}
