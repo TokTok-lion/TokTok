@@ -50,9 +50,30 @@ let handoffTried = false;
  */
 export function LaunchPopup() {
   const env = useSyncExternalStore(subscribe, () => envSnap, () => SERVER_ENV);
-  const [open, setOpen] = useState(true);
   const promptRef = useRef<InstallPromptEvent | null>(null);
   const [canPrompt, setCanPrompt] = useState(false);
+
+  /*
+   * 인앱 브라우저에서는 바로 띄운다 — 크롬으로 넘겨야 하고, 그게 이 화면에서
+   * 가장 급한 일이다.
+   *
+   * 일반 브라우저에서는 조금 기다린다. 첫 화면에서 제일 먼저 보여야 할 것은
+   * "무료로 시작하기"이지 설치 권유가 아니다. 설치 팝업이 그 버튼을 덮고
+   * 있으면 새로 온 사람은 무엇을 해야 할지 모른 채 닫기부터 누른다.
+   */
+  const [dismissed, setDismissed] = useState(false);
+  const [waited, setWaited] = useState(false);
+
+  useEffect(() => {
+    if (!env || env.installed || env.inAppBrowser) return;
+    const t = window.setTimeout(() => setWaited(true), 6000);
+    return () => window.clearTimeout(t);
+  }, [env]);
+
+  // 인앱이면 기다릴 것 없이 바로다. 상태로 두면 렌더 중 setState 가 되므로
+  // env 에서 그대로 계산한다.
+  const open = !dismissed && Boolean(env?.inAppBrowser || waited);
+  const setOpen = (v: boolean) => setDismissed(!v);
 
   // 인앱 브라우저면 곧바로 크롬으로 넘긴다
   useEffect(() => {

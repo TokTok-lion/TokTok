@@ -1,7 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Logo } from '@/components/Shell';
-import { PrimaryButton, Chevron } from '@/components/ui';
+import { Chevron } from '@/components/ui';
+import { LandingCta } from '@/components/LandingCta';
 import { LaunchPopup } from '@/components/LaunchPopup';
 
 /** 스플래시 · 시작 (deck p.1) */
@@ -51,9 +52,8 @@ export default function SplashPage() {
         </div>
 
         <div className="mt-auto w-full pt-8">
-          <PrimaryButton href="/home" trailing={<Chevron className="text-white" />}>
-            시작하기
-          </PrimaryButton>
+          {/* 로그인 상태에 따라 시작 버튼이 달라진다 */}
+          <LandingCta />
 
           <div className="mt-5 text-center">
             <Link
