@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { stepForScreen } from '@/lib/flow';
-import { useSession } from '@/lib/store';
+import { currentSession, useSession } from '@/lib/store';
 import { SessionStepper } from './SessionStepper';
 import {
   IconBack,
@@ -41,11 +41,23 @@ function TextScaleButton() {
   const next = SCALES[(at + 1) % SCALES.length];
   const now = SCALE_NAME[String(s.textScale)] ?? '보통';
 
+  /*
+   * 다음 값은 누르는 순간의 저장소에서 고른다.
+   *
+   * 렌더 시점의 s 를 쓰면 빠르게 두 번 눌렀을 때 한 칸만 간다 — 두 번째
+   * 클릭이 아직 갱신되지 않은 값을 보기 때문이다. 안 보인다고 하시는
+   * 어르신 앞에서 두 번 눌렀는데 한 번만 커지면, 고장 난 것처럼 보인다.
+   */
+  const bump = () => {
+    const at = SCALES.indexOf(currentSession().textScale);
+    set('textScale', SCALES[(at + 1) % SCALES.length]);
+  };
+
   return (
     <button
       type="button"
       aria-label={`글자 크기 ${now}. 누르면 ${SCALE_NAME[String(next)]}로 바뀝니다`}
-      onClick={() => set('textScale', next)}
+      onClick={bump}
       className="relative flex h-11 w-11 items-center justify-center rounded-full text-ink-900"
     >
       <IconTextSize size={26} />
