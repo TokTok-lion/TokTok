@@ -74,6 +74,20 @@ export async function listParticipants(): Promise<ParticipantRow[]> {
   return data ?? [];
 }
 
+/** 이 어르신이 아직 기관 목록에 있는가. 지워졌으면 false. */
+export async function participantExists(id: string): Promise<boolean> {
+  const sb = getSupabase();
+  const t = tenant();
+  if (!sb || !t) return false;
+  const { data } = await sb
+    .from('participants')
+    .select('id')
+    .eq('tenant_id', t)
+    .eq('id', id)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 export async function createParticipant(
   displayName: string,
   opts: { honorific?: string; avatarKey?: string; internalNo?: string } = {},

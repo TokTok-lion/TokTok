@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { ArtBox } from '@/components/Art';
+import { NoElderCard } from '@/components/NoElderCard';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, PrimaryButton } from '@/components/ui';
 import { STEPS, flowState, isStepDone } from '@/lib/flow';
 import { useSession } from '@/lib/store';
+import { useActiveElder } from '@/lib/useActiveElder';
 import type { ArtKey } from '@/lib/art';
 
 /**
@@ -18,6 +20,23 @@ import type { ArtKey } from '@/lib/art';
 export default function SessionFlowPage() {
   const { s } = useSession();
   const flow = flowState(s);
+  const elder = useActiveElder();
+
+  // 홈에서 막아도 아래 탭으로 바로 들어올 수 있다. 같은 문에는 같은 자물쇠.
+  if (elder === 'missing') {
+    return (
+      <Screen
+        back={false}
+        menu
+        bell
+        title="오늘의 회기"
+        subtitle="어르신을 고르면 아홉 단계가 여기 펼쳐져요"
+        decoration={<Ornaments variant="leafRight" />}
+      >
+        <NoElderCard deleted={Boolean(s.remoteParticipantId)} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen
