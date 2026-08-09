@@ -186,7 +186,17 @@ async function replaceFacts(
   const keep = s.story.filter((i) => i.status !== 'excluded');
   if (!keep.length) return { ok: true, sessionId };
 
-  const now = new Date().toISOString();
+  /*
+   * 세 번에 나눠 넣는다 — 넣고, 출처를 붙이고, 그다음에 확정으로 올린다.
+   *
+   * DB 는 "출처 없는 이야기는 확정할 수 없다"를 지연 제약 트리거로 지킨다.
+   * 지연이라 함은 커밋 시점에 본다는 뜻인데, REST 는 요청 하나가 트랜잭션
+   * 하나라서 사실과 출처를 같은 커밋에 담을 방법이 없다. 그대로 두면
+   * 확정된 이야기가 있는 회기는 무슨 수를 써도 저장에 실패한다.
+   *
+   * 그래서 순서를 바꿨다. 규칙을 느슨하게 푼 것이 아니라, 트리거가 볼 때는
+   * 이미 출처가 있게 만든 것이다.
+   */
   const { data, error } = await sb
     .from('story_facts')
     .insert(
@@ -195,18 +205,14 @@ async function replaceFacts(
         session_id: sessionId,
         participant_id: s.remoteParticipantId!,
         text: i.text,
-        status: i.status,
+        status: 'unverified' as const,
         follow_up: i.followUp ?? null,
-        // 확정된 사실에는 "누가 언제 확인했는지"가 있어야 한다 (원칙 1·3).
-        decided_by: i.status === 'verified' ? facilitator : null,
-        decided_at: i.status === 'verified' ? now : null,
       })),
     )
     .select('id');
 
   if (error || !data) return { ok: false, reason: '이야기를 저장하지 못했습니다.' };
 
-  // 출처. DB 트리거가 커밋 시점에 확인하므로 빠뜨리면 저장이 거부된다.
   const sources = data.flatMap((r, idx) => {
     const item = keep[idx];
     return (item.sources ?? []).map((src) => ({
@@ -219,6 +225,33 @@ async function replaceFacts(
   if (sources.length) {
     const { error: srcErr } = await sb.from('fact_sources').insert(sources);
     if (srcErr) return { ok: false, reason: '이야기 출처를 저장하지 못했습니다.' };
+  }
+
+  // 확정된 사실에는 "누가 언제 확인했는지"가 있어야 한다 (원칙 1·3).
+  const promote = data
+    .map((r, idx) => ({ id: r.id, item: keep[idx] }))
+    .filter(({ item }) => item.status === 'verified');
+
+  // 출처 없는 확정은 앱에서 이미 막고 있지만(assertStoryIntegrity), 여기서
+  // 한 번 더 걸러 낸다. 이 줄이 없으면 앱의 실수 하나가 회기 전체의 저장
+  // 실패로 번진다.
+  const grounded = promote.filter(({ item }) => (item.sources ?? []).length > 0);
+  if (grounded.length) {
+    const { error: vErr } = await sb
+      .from('story_facts')
+      .update({
+        status: 'verified',
+        decided_by: facilitator,
+        decided_at: new Date().toISOString(),
+      })
+      .in(
+        'id',
+        grounded.map(({ id }) => id),
+      );
+    if (vErr) return { ok: false, reason: '이야기 확인 표시를 저장하지 못했습니다.' };
+  }
+  if (grounded.length !== promote.length) {
+    return { ok: false, reason: '출처 없는 이야기가 있어 확인 표시를 남기지 못했습니다.' };
   }
   return { ok: true, sessionId };
 }
