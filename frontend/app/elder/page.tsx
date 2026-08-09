@@ -14,7 +14,7 @@ import {
   type ServiceStatus,
 } from '@/lib/seed';
 import { useElders } from '@/lib/useElders';
-import { useSession } from '@/lib/store';
+import { beginSession, useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
 const FILTERS: { id: ServiceStatus | 'all'; label: string }[] = [
@@ -43,6 +43,8 @@ export default function ElderListPage() {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<ServiceStatus | 'all'>('all');
+  /** 진행 중인 회기를 지우기 전에 물어볼 대상 */
+  const [ask, setAsk] = useState<ElderSummary | null>(null);
   // 로그인해서 기관이 정해졌으면 서버 목록, 아니면 시연용 씨앗
   const { elders, live, loading } = useElders();
 
@@ -60,23 +62,47 @@ export default function ElderListPage() {
     );
   }, [elders, filter, query]);
 
-  const open = (e: ElderSummary) => {
-    // switching elder switches the whole working context
-    // 서버 목록에서 고른 경우에만 실제 participants.id 를 물린다. 씨앗
-    // 어르신의 id 를 서버로 보내면 없는 행을 가리키게 된다.
-    set('remoteParticipantId', live ? e.id : null);
-    set('remoteSessionId', null);
-    set('elder', {
-      ...s.elder,
-      id: e.id,
-      displayName: e.displayName,
-      honorific: `${e.displayName} 어르신`,
-      avatar: e.avatar,
-      stage: e.step,
-      nextTopic: e.topic,
+  /**
+   * 어르신을 고르면 작업대 전체가 바뀐다.
+   *
+   * 예전에는 이름표만 갈아 끼웠다. 그래서 앞 어르신의 전사·이야기·가사·
+   * 녹음이 다음 회기에 그대로 따라왔고, 그 상태로 곡을 만들면 다른 분의
+   * 생애가 들어갔다. beginSession 이 작업대를 비운다.
+   *
+   * 다만 말없이 비우지는 않는다. 30분짜리 인터뷰가 잘못 누른 한 번에
+   * 사라지면 안 된다.
+   */
+  const start = (e: ElderSummary) => {
+    beginSession({
+      // 서버 목록에서 고른 경우에만 실제 participants.id 를 물린다. 씨앗
+      // 어르신의 id 를 서버로 보내면 없는 행을 가리키게 된다.
+      participantId: live ? e.id : null,
+      topic: e.topic,
+      elder: {
+        ...s.elder,
+        id: e.id,
+        displayName: e.displayName,
+        honorific: `${e.displayName} 어르신`,
+        avatar: e.avatar,
+        stage: e.step,
+        nextTopic: e.topic,
+      },
     });
-    set('topic', e.topic);
     router.push('/elder/profile');
+  };
+
+  const open = (e: ElderSummary) => {
+    const switching = live && s.remoteParticipantId !== null && s.remoteParticipantId !== e.id;
+    const hasWork =
+      s.transcript.length > 0 ||
+      s.story.length > 0 ||
+      s.storyConfirmed ||
+      Boolean(s.songKey);
+    if (switching && hasWork) {
+      setAsk(e);
+      return;
+    }
+    start(e);
   };
 
   const attention = elders.filter(
@@ -106,6 +132,41 @@ export default function ElderListPage() {
         </PrimaryButton>
       }
     >
+      {/* 30분짜리 인터뷰가 잘못 누른 한 번에 사라지면 안 된다.
+          무엇이 사라지는지 이름을 대고 묻는다. */}
+      {ask ? (
+        <Card className="mb-4 border-2 border-brand-300 p-4">
+          <p className="text-[1.0625rem] font-extrabold text-ink-900">
+            {s.elder.honorific} 회기가 진행 중이에요
+          </p>
+          <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+            {ask.displayName} 어르신으로 넘어가면 지금까지의 전사·이야기·가사와
+            이 기기에 남은 녹음이 지워집니다. 기관 기록에 저장한 내용은 그대로
+            남아요.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setAsk(null)}
+              className="min-h-[52px] rounded-[14px] border border-hairline bg-surface-strong text-[1rem] font-bold text-ink-700"
+            >
+              지금 회기 계속
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const target = ask;
+                setAsk(null);
+                start(target);
+              }}
+              className="min-h-[52px] rounded-[14px] bg-danger-600 text-[1rem] font-bold text-white"
+            >
+              지우고 넘어가기
+            </button>
+          </div>
+        </Card>
+      ) : null}
+
       <label htmlFor="elder-search" className="sr-only">
         어르신 검색
       </label>

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { forgetRecording } from './recorder';
+import { deleteSong } from './songStore';
 import {
   DEFAULT_CONSENTS,
   type Consents,
@@ -240,6 +241,64 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Kept as a component so screens can stay agnostic about how state is held;
   // the store itself is module-level, so there is no context value to thread.
   return <>{children}</>;
+}
+
+/**
+ * 어르신을 바꾸면 작업대를 비운다.
+ *
+ * 예전에는 elder 만 갈아 끼웠다. 그래서 김 어르신 인터뷰를 하고 박 어르신을
+ * 고르면, 박 어르신 회기에 김 어르신의 전사·이야기·가사·녹음이 그대로
+ * 남았다. 그 상태로 곡을 만들면 박 어르신의 노래에 다른 분의 생애가 들어간다.
+ * 화면에는 아무 표시도 나지 않는다 — 그게 제일 나쁘다.
+ *
+ * 기기에 남은 원음성과 곡도 같이 지운다. 출처를 눌렀을 때 다른 어르신
+ * 목소리가 나오면 그건 사고다.
+ *
+ * 시연 기기(participantId 가 없는 경우)는 씨앗 이야기를 그대로 둔다. 보여
+ * 주려고 만든 화면이 빈 채로 뜨면 그건 그것대로 고장으로 보인다.
+ */
+export function beginSession(next: {
+  elder: Elder;
+  topic: string;
+  participantId: string | null;
+}): void {
+  const seed = seedState();
+  const live = next.participantId !== null;
+
+  update({
+    ...seed,
+    // 사람이 고른 설정은 회기와 무관하므로 넘어간다.
+    textScale: state.textScale,
+    elder: next.elder,
+    topic: next.topic,
+    remoteParticipantId: next.participantId,
+    ...(live
+      ? {
+          transcript: [],
+          transcriptConfirmed: false,
+          story: [],
+          storyConfirmed: false,
+          lyrics: [],
+          lyricsApproved: false,
+          memoryCard: null,
+          checklist: {},
+          reactions: [],
+          reactionNote: '',
+          logDraft: '',
+          logSaved: false,
+          wrapNote: '',
+          familyStories: [],
+          familyReplies: [],
+          songKey: null,
+          songStatus: 'draft' as SessionState['songStatus'],
+        }
+      : {}),
+  });
+
+  if (live) {
+    void forgetRecording();
+    void deleteSong();
+  }
 }
 
 export function useSession() {
