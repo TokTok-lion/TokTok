@@ -29,8 +29,14 @@ const STYLE_PROMPT: Record<string, string> = {
     'classic arrangement, expressive vocal, unhurried',
 };
 
-/** 회상용 노래는 짧아야 한다. 길면 어르신이 끝까지 듣기 어렵다. */
-const LENGTH_MS = 60_000;
+/**
+ * 곡 길이. 회상용 노래는 짧아야 한다 — 길면 어르신이 끝까지 듣기 어렵다.
+ *
+ * 요금이 길이에 정확히 비례한다(실측: 60초 750크레딧, 30초 378크레딧,
+ * 초당 12.5). 즉 이 값이 원가를 그대로 정한다. 예산이 빠듯하면 여기부터
+ * 줄이면 되고, 품질을 깎지 않고 조절할 수 있는 유일한 손잡이다.
+ */
+const LENGTH_MS = Number(process.env.MUSIC_LENGTH_MS) || 60_000;
 
 export async function POST(req: Request) {
   const key = process.env.ELEVENLABS_API_KEY;
