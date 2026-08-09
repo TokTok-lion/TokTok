@@ -24,10 +24,10 @@ const BASE = 'https://api.apiframe.pro';
 
 /** 스타일 → 태그. 모델이 한국어 장르명을 정확히 못 알아듣는다. */
 const STYLE_TAGS: Record<string, string> = {
-  folkTrad: 'korean traditional folk, minyo, acoustic, warm, gentle, unhurried',
-  folkBright: 'korean acoustic folk, bright, cheerful, acoustic guitar, singalong',
-  ballad: 'korean ballad, tender, piano, strings, slow, comforting',
-  trot: 'korean trot, sentimental, nostalgic, electric organ, brushed drums',
+  folkTrad: 'korean folk, acoustic, warm',
+  folkBright: 'korean folk, acoustic, cheerful',
+  ballad: 'korean ballad, piano, slow',
+  trot: 'korean trot, nostalgic',
 };
 
 /**
@@ -36,10 +36,11 @@ const STYLE_TAGS: Record<string, string> = {
  * 어느 모델이든 약점은 보컬이고 부탁할 것도 같다 — 굴리지 말고, 한 글자에
  * 한 음, 또박또박. 듣는 분들은 고역 청력이 먼저 떨어지므로 자음이 살아야
  * 하고, 따라 부르실 수 있어야 하므로 음역이 좁아야 한다.
+ *
+ * 태그는 짧게 쓴다. 이 API 의 예시가 'rap pop' 수준이라, 문장으로 길게
+ * 적으면 400 으로 거절당한다.
  */
-const VOICE_TAGS =
-  'clear korean diction, one note per syllable, no melisma, no heavy vibrato, ' +
-  'warm mid-range voice, simple singable melody, sparse arrangement';
+const VOICE_TAGS = 'clear diction, gentle vocal, simple melody';
 
 type Song = { audio_url?: string; song_id?: string };
 type Fetched = {
@@ -92,12 +93,18 @@ export const apiframeMusic: MusicProvider = {
       title: req.title || '이름 없는 노래',
       tags: `${STYLE_TAGS[req.style] ?? STYLE_TAGS.ballad}, ${VOICE_TAGS}`,
       make_instrumental: false,
-      model: process.env.APIFRAME_MODEL || 'V4_5',
+      ...(process.env.APIFRAME_MODEL ? { model: process.env.APIFRAME_MODEL } : {}),
     });
 
     if (!res) return fail('곡 만들기 서버에 연결하지 못했어요.', 503);
     if (!res.ok) {
-      console.error('apiframe imagine failed', res.status);
+      // 상태 코드만 남기면 왜 거절당했는지 알 수 없다. 실제로 400 을 받고
+      // 이유를 못 찾아 한참 헤맸다 — 본문을 함께 남긴다.
+      console.error(
+        'apiframe imagine failed',
+        res.status,
+        await res.text().catch(() => ''),
+      );
       const k = badKey(res.status);
       if (k) return k;
       if (res.status === 402) {
@@ -128,7 +135,11 @@ export const apiframeMusic: MusicProvider = {
     const res = await call('/fetch', { task_id: taskId });
     if (!res) return fail('곡 만들기 서버에 연결하지 못했어요.', 503);
     if (!res.ok) {
-      console.error('apiframe fetch failed', res.status);
+      console.error(
+        'apiframe fetch failed',
+        res.status,
+        await res.text().catch(() => ''),
+      );
       const k = badKey(res.status);
       if (k) return k;
       return fail('곡 상태를 확인하지 못했어요.', 502);
