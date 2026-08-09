@@ -42,9 +42,15 @@ export function LandingCta() {
 
   return (
     <>
+      {/* 버튼은 다음 화면에서 할 일을 말해야 한다. 누르면 기관 이름을 적는
+          화면이 나오는데 "무료로 시작하기"는 그 일을 가리키지 않아서, 눌러
+          놓고 여기가 맞나 싶어진다. 무료라는 사실은 버튼 아래에서 말한다. */}
       <PrimaryButton href="/signup" trailing={<Chevron className="text-white" />}>
-        무료로 시작하기
+        기관 등록하기
       </PrimaryButton>
+      <p className="mt-2 text-center text-[0.875rem] font-semibold text-ink-500">
+        무료로 시작할 수 있어요 · 카드 등록 없음
+      </p>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Link

@@ -17,17 +17,43 @@ export const maxDuration = 300;
 /** 스타일 → 영어 지시문. 모델이 한국어 장르명을 정확히 못 알아듣는다. */
 const STYLE_PROMPT: Record<string, string> = {
   folkTrad:
-    'traditional Korean folk (minyo) style, warm and homely, acoustic, ' +
-    'gentle pentatonic melody, unhurried tempo',
+    'traditional Korean folk (minyo), warm and homely, acoustic — nylon ' +
+    'guitar, daegeum flute and light janggu, around 76 BPM, gentle ' +
+    'pentatonic melody',
   folkBright:
-    'bright acoustic Korean folk, warm and cheerful, light guitar, ' +
-    'easy singalong melody, moderate tempo',
+    'bright acoustic Korean folk, warm and cheerful — acoustic guitar, ' +
+    'brushed snare and a little glockenspiel, around 92 BPM, easy ' +
+    'singalong melody',
   ballad:
-    'soft Korean ballad, gentle piano and strings, emotional and tender, ' +
-    'slow tempo, comforting',
-  trot: 'slow Korean trot (teuroteu), sentimental and nostalgic, ' +
-    'classic arrangement, expressive vocal, unhurried',
+    'soft Korean ballad, tender and comforting — upright piano with a small ' +
+    'string section, around 68 BPM, sparse arrangement',
+  trot:
+    'slow Korean trot (teuroteu), sentimental and nostalgic — electric organ, ' +
+    'clean guitar and brushed drums, around 84 BPM, classic arrangement',
 };
+
+/**
+ * 소리에서 "기계 티"를 줄이는 지시.
+ *
+ * 이 모델의 약점은 반주가 아니라 보컬이다. 호흡이 고르고 비브라토가 일정해서
+ * 몇 초만 들어도 사람이 아니라는 걸 안다. 프롬프트로 없앨 수는 없지만, 어디서
+ * 티가 나는지는 분명하다 — 굴리는 창법, 한 글자에 여러 음, 빈틈 없이 꽉 찬
+ * 편곡, 지나치게 깨끗한 디지털 질감.
+ *
+ * 그래서 그 넷을 직접 금지한다. 한 글자에 한 음, 줄 사이에 숨, 악기는 적게,
+ * 녹음은 따뜻하게. 목표가 음원이 아니라 어르신이 따라 부를 수 있는 노래라서,
+ * 이 방향은 소리와 쓰임이 같은 곳을 본다.
+ */
+const VOICE_DIRECTION = [
+  'Vocal: one warm mid-range voice, mature and unhurried, plain and',
+  'conversational — not a pop belt, not breathy.',
+  'Clear Korean diction: every word must be intelligible to an older listener.',
+  'One note per syllable. No melisma, no runs, no heavy vibrato.',
+  'Keep the melody within one octave, simple and hymn-like, so an 80-year-old',
+  'can sing it back after hearing it once.',
+  'Leave natural breaths between lines. Sparse arrangement — do not fill every bar.',
+  'Warm analog recording character with a little room, no bright digital sheen.',
+].join(' ');
 
 /**
  * 곡 길이. 회상용 노래는 짧아야 한다 — 길면 어르신이 끝까지 듣기 어렵다.
@@ -79,7 +105,7 @@ export async function POST(req: Request) {
   const prompt = [
     `A gentle Korean song for an elderly person's life story.`,
     `Style: ${STYLE_PROMPT[style] ?? STYLE_PROMPT.ballad}.`,
-    `Sung in Korean with clear, warm vocals that are easy for an older listener to follow.`,
+    VOICE_DIRECTION,
     `Do not imitate any specific artist or existing song.`,
     title ? `Title: ${title}.` : '',
     `Lyrics:`,

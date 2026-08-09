@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, IconCircle } from '@/components/ui';
-import { IconCalendar, IconDoc, IconMusicNote, IconPlay, IconTextSize } from '@/components/icons';
-import { formatDate } from '@/lib/domain';
-import { SEED_LIBRARY, SEED_RESUME } from '@/lib/seed';
+import { IconCalendar, IconDoc, IconMusicNote, IconTextSize } from '@/components/icons';
+import { SEED_RESUME } from '@/lib/seed';
+import { useDeviceSong } from '@/lib/useDeviceSong';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
@@ -22,6 +22,7 @@ import type { ArtKey } from '@/lib/art';
 export default function RecordsPage() {
   const { s, set } = useSession();
   const router = useRouter();
+  const song = useDeviceSong();
   const finished = SEED_RESUME.filter((c) => c.done);
 
   const openPast = (title: string) => {
@@ -38,38 +39,45 @@ export default function RecordsPage() {
       subtitle="완성된 노래와 지난 기록을 모았어요"
       decoration={<Ornaments variant="leafRight" />}
     >
-      {/* 완성된 노래 */}
+      {/* 완성된 노래 — 이 기기에 실제로 있는 것만 센다.
+          예시 곡 세 개를 "완성된 노래 3곡"으로 적어 두었더니, 보관함은
+          "아직 없어요"라고 해서 두 화면이 서로 다른 말을 했다. */}
       <h2 className="flex items-center gap-2 text-[1.125rem] font-extrabold text-ink-900">
         <IconMusicNote size={21} className="text-brand-500" />
         완성된 노래
         <span className="text-[0.9375rem] font-semibold text-ink-500">
-          {SEED_LIBRARY.length}곡
+          {song ? 1 : 0}곡
         </span>
       </h2>
-      <ul className="mt-3 space-y-2.5">
-        {SEED_LIBRARY.map((song) => (
-          <Card as="li" key={song.id} className="p-3">
-            <Link href="/library" className="flex items-center gap-3.5">
-              <ArtBox
-                name={song.art as ArtKey}
-                alt={`${song.title} 앨범 그림`}
-                className="h-[64px] w-[64px] shrink-0 rounded-[12px] object-cover"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block text-[1.0625rem] font-extrabold text-ink-900">
-                  {song.title}
-                </span>
-                <span className="block text-[0.875rem] text-ink-500">
-                  {song.style} · {formatDate(song.date)}
-                </span>
+      {song ? (
+        <Card className="mt-3 p-3">
+          <Link href="/library" className="flex items-center gap-3.5">
+            <ArtBox
+              name={'album_briefcase_coins' as ArtKey}
+              alt=""
+              className="h-[64px] w-[64px] shrink-0 rounded-[12px] object-cover"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[1.0625rem] font-extrabold text-ink-900">
+                {s.topic}
               </span>
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-strong text-brand-600 shadow">
-                <IconPlay size={19} />
+              <span className="block text-[0.875rem] text-ink-500">
+                이 기기에 있음 · 보관함에서 듣기
               </span>
-            </Link>
-          </Card>
-        ))}
-      </ul>
+            </span>
+            <Chevron className="shrink-0 text-ink-300" />
+          </Link>
+        </Card>
+      ) : (
+        <Card className="mt-3 p-4">
+          <p className="text-[1rem] font-bold text-ink-700">
+            아직 완성된 노래가 없어요.
+          </p>
+          <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+            어떤 소리가 나오는지 먼저 보시려면 보관함의 예시 곡을 들어 보세요.
+          </p>
+        </Card>
+      )}
       <div className="mt-3">
         <Link
           href="/library"

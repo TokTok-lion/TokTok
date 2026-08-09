@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { ArtBox } from '@/components/Art';
 import { SampleShelf } from '@/components/SamplePlayer';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, PrimaryButton } from '@/components/ui';
 import { IconMusicNote, IconPlus } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
-import { loadSong } from '@/lib/songStore';
+import { useDeviceSong } from '@/lib/useDeviceSong';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
@@ -23,22 +22,7 @@ import type { ArtKey } from '@/lib/art';
  */
 export default function LibraryPage() {
   const { s } = useSession();
-  const [mine, setMine] = useState<string | null>(null);
-
-  useEffect(() => {
-    let url: string | null = null;
-    let alive = true;
-    void loadSong().then((blob) => {
-      if (!blob) return;
-      url = URL.createObjectURL(blob);
-      if (alive) setMine(url);
-      else URL.revokeObjectURL(url);
-    });
-    return () => {
-      alive = false;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, []);
+  const mine = useDeviceSong();
 
   const styleName =
     MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '만든 분위기';
