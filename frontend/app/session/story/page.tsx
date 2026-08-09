@@ -1,6 +1,7 @@
 'use client';
 
 import { Contradictions } from '@/components/Contradictions';
+import { ExtractFacts } from '@/components/ExtractFacts';
 import { Ornaments, Screen } from '@/components/Shell';
 import { SourceChips } from '@/components/SourcePlayer';
 import { Card, Chevron, NoteBar, PrimaryButton } from '@/components/ui';
@@ -47,6 +48,10 @@ export default function StoryPage() {
     >
       {/* 지난 회기와 어긋나는 곳부터 보여준다 — 정리하기 전에 알아야 한다 */}
       <Contradictions />
+
+      {/* 목록이 비어 있으면 여기가 시작점이다. 녹음 → 전사 → 이야기가
+          여기서 이어지고, 출처 시각이 자동으로 붙는다. */}
+      <ExtractFacts />
 
       <div className="mt-4 space-y-4">
         {GROUPS.map((g) => {
