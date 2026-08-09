@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Art, ArtBox } from '@/components/Art';
-import { NoElderCard } from '@/components/NoElderCard';
+import { ElderCardSkeleton, NoElderCard } from '@/components/NoElderCard';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, IconCircle, PrimaryButton } from '@/components/ui';
 import {
@@ -69,7 +69,9 @@ export default function TodayPage() {
       subtitle="지금 이어서 할 일을 알려드려요"
       decoration={<Ornaments variant="leafRight" />}
       footer={
-        elder === 'missing' ? (
+        elder === 'checking' ? (
+          <PrimaryButton disabled>불러오는 중…</PrimaryButton>
+        ) : elder === 'missing' ? (
           <PrimaryButton href="/elder">어르신 고르기</PrimaryButton>
         ) : (
           <PrimaryButton href={flow.next.href}>
@@ -79,8 +81,11 @@ export default function TodayPage() {
       }
     >
       {/* 지금 할 일 — 화면에서 가장 큰 한 가지.
-          단, 가리킬 어르신이 없으면 진행 중인 척하지 않는다. */}
-      {elder === 'missing' ? (
+          단, 가리킬 어르신이 없으면 진행 중인 척하지 않는다. 확인이 끝나기
+          전에도 마찬가지다 — 그 사이에 옛 이름을 띄우면 1초짜리 거짓말이 된다. */}
+      {elder === 'checking' ? (
+        <ElderCardSkeleton />
+      ) : elder === 'missing' ? (
         <NoElderCard deleted={Boolean(s.remoteParticipantId)} actions={false} />
       ) : (
       <Card className="p-4">

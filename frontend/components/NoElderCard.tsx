@@ -10,6 +10,33 @@ import { Card } from './ui';
  * 막다른 길로 두지 않는다. 왜 비어 있는지 한 줄로 말하고, 바로 다음에 할
  * 일(어르신 고르기 / 등록하기)을 준다.
  */
+/**
+ * 서버에 물어보는 동안 자리를 지키는 카드.
+ *
+ * 확인이 끝나기 전에 기기에 남은 회기를 그대로 그렸더니, 지워진 어르신
+ * 이름이 1초쯤 떴다가 "목록에 없어요"로 바뀌었다. 그 1초가 바로 앞에서
+ * 고치려던 그 문제다 — 없는 사람 이름을 보여 주는 것.
+ *
+ * 잠깐 비어 있는 편이 잠깐 틀린 것보다 낫다. 카드 크기는 진짜 카드와
+ * 같게 잡아서 확인이 끝나도 화면이 튀지 않는다.
+ */
+export function ElderCardSkeleton() {
+  return (
+    <Card className="p-4" aria-busy="true">
+      <span className="sr-only">회기를 불러오는 중입니다</span>
+      <div className="flex items-center gap-3">
+        <div className="h-[56px] w-[56px] shrink-0 rounded-full bg-surface-sunk" />
+        <div className="min-w-0 flex-1">
+          <div className="h-4 w-32 rounded-full bg-surface-sunk" />
+          <div className="mt-2 h-3 w-20 rounded-full bg-surface-sunk" />
+        </div>
+      </div>
+      <div className="mt-3.5 h-[92px] rounded-[14px] bg-surface-sunk" />
+      <div className="mt-2.5 h-2 rounded-full bg-track" />
+    </Card>
+  );
+}
+
 export function NoElderCard({
   deleted,
   /** 화면 아래에 이미 같은 버튼이 있으면 끈다. 같은 말을 두 번 하지 않는다. */
