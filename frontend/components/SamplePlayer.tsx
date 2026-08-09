@@ -1,0 +1,194 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArtBox } from './Art';
+import { Card } from './ui';
+import { IconMusicNote, IconPlay } from './icons';
+import { SAMPLE_SONGS, sampleLength } from '@/lib/samples';
+import type { ArtKey } from '@/lib/art';
+
+/**
+ * 예시 곡 재생.
+ *
+ * 오디오 하나만 두고 돌려 쓴다. 카드마다 따로 만들면 두 곡이 겹쳐 흐르는데,
+ * 어르신 앞에서 그런 일이 나면 회기가 흐트러진다.
+ *
+ * preload 는 none 이다. 예시 파일은 합쳐 3MB가 넘고, 센터 와이파이에서
+ * 아무도 듣지 않을 파일을 미리 받아 두는 건 그냥 손해다.
+ */
+function useSamplePlayer() {
+  const ref = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState<string | null>(null);
+
+  const toggle = useCallback(
+    (id: string, src: string) => {
+      let a = ref.current;
+      if (!a) {
+        a = new Audio();
+        a.preload = 'none';
+        a.addEventListener('ended', () => setPlaying(null));
+        ref.current = a;
+      }
+      if (playing === id) {
+        a.pause();
+        setPlaying(null);
+        return;
+      }
+      a.pause();
+      a.src = src;
+      a.currentTime = 0;
+      void a
+        .play()
+        .then(() => setPlaying(id))
+        .catch(() => setPlaying(null));
+    },
+    [playing],
+  );
+
+  // 화면을 떠나면 소리도 함께 멎어야 한다.
+  useEffect(
+    () => () => {
+      ref.current?.pause();
+      ref.current = null;
+    },
+    [],
+  );
+
+  return { playing, toggle };
+}
+
+function PlayGlyph({ on }: { on: boolean }) {
+  if (!on) return <IconPlay size={24} />;
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+      <rect x="6" y="5" width="4" height="14" rx="1.4" />
+      <rect x="14" y="5" width="4" height="14" rx="1.4" />
+    </svg>
+  );
+}
+
+/**
+ * 보관함에 놓는 예시 선반.
+ *
+ * 어르신 곡과 같은 목록에 섞지 않는다. 섞이는 순간, 어느 것이 우리
+ * 어르신 것인지 확인하려면 하나씩 눌러 봐야 한다.
+ */
+export function SampleShelf() {
+  const { playing, toggle } = useSamplePlayer();
+
+  return (
+    <section className="mt-7">
+      <h2 className="text-[1.1875rem] font-extrabold text-ink-900">예시로 들어보기</h2>
+      <p className="mt-1.5 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.875rem] leading-relaxed text-ink-700">
+        <strong>예시입니다.</strong> 어르신의 곡이 아니라, 같은 방식으로 미리
+        만들어 둔 결과물이에요. 몇 번을 들으셔도 이번 달 곡 한도는 줄지 않아요.
+      </p>
+
+      <ul className="mt-3 space-y-3.5">
+        {SAMPLE_SONGS.map((song) => {
+          const on = playing === song.id;
+          return (
+            <Card as="li" key={song.id} className="p-3.5">
+              <div className="flex items-center gap-3.5">
+                <ArtBox
+                  name={song.art as ArtKey}
+                  alt=""
+                  className="h-[76px] w-[76px] shrink-0 rounded-[16px] object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[1.0625rem] font-extrabold leading-tight text-ink-900">
+                    {song.title}
+                  </h3>
+                  <span className="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[0.8125rem] font-bold text-amber-700">
+                    예시
+                  </span>
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[0.9375rem] text-ink-500">
+                    <IconMusicNote size={17} className="text-brand-400" />
+                    {song.style} · {sampleLength(song.seconds)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label={`${song.title} ${on ? '멈추기' : '재생'}`}
+                  onClick={() => toggle(song.id, song.src)}
+                  className={`flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-full shadow-[0_4px_12px_rgba(122,84,46,0.14)] ${
+                    on ? 'tk-cta text-white' : 'bg-surface-strong text-brand-600'
+                  }`}
+                >
+                  <PlayGlyph on={on} />
+                </button>
+              </div>
+            </Card>
+          );
+        })}
+      </ul>
+
+      <p className="mt-3 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
+        세 곡 모두 같은 가사로 만든 서로 다른 결과예요. 같은 이야기라도 매번
+        조금씩 다르게 나온다는 뜻이라, 마음에 안 들면 다시 만들 수 있어요.
+      </p>
+    </section>
+  );
+}
+
+/**
+ * 스타일 고르기 화면의 미리듣기.
+ *
+ * 예전에는 눌러도 아무 소리가 안 났다. 어떤 소리가 나올지 모른 채 분위기를
+ * 고르게 하는 셈이었는데, 그 다음 버튼이 1,125크레딧짜리라 더 나빴다.
+ */
+export function SamplePreviewRow() {
+  const { playing, toggle } = useSamplePlayer();
+
+  return (
+    <>
+      <div className="mt-3 grid grid-cols-3 gap-2.5">
+        {SAMPLE_SONGS.map((song, i) => {
+          const on = playing === song.id;
+          return (
+            <button
+              key={song.id}
+              type="button"
+              onClick={() => toggle(song.id, song.src)}
+              aria-label={`예시 ${'ABC'[i]} ${on ? '멈추기' : '들어보기'}`}
+              className={`flex min-h-[64px] items-center gap-2 rounded-[16px] px-2.5 text-left shadow-[0_2px_10px_rgba(122,84,46,0.06)] ${
+                on ? 'bg-brand-100' : 'bg-surface'
+              }`}
+            >
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 ${
+                  on
+                    ? 'border-brand-600 bg-brand-600 text-white'
+                    : 'border-brand-400 text-brand-600'
+                }`}
+              >
+                {on ? (
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
+                    <rect x="6" y="5" width="4" height="14" rx="1.4" />
+                    <rect x="14" y="5" width="4" height="14" rx="1.4" />
+                  </svg>
+                ) : (
+                  <IconPlay size={14} />
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-[0.875rem] font-bold text-ink-900">
+                  예시 {'ABC'[i]}
+                </span>
+                <span className="block text-[0.8125rem] text-ink-500">
+                  {sampleLength(song.seconds)}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="mt-2.5 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
+        미리 만들어 둔 예시 곡이라 들어도 요금이 들지 않아요. 셋 다{' '}
+        <strong>잔잔한 발라드</strong>로 만든 것이어서, 위에서 고른 분위기와는
+        다를 수 있어요.
+      </p>
+    </>
+  );
+}

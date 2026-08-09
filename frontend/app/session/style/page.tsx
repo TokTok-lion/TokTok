@@ -1,9 +1,10 @@
 'use client';
 
 import { Art, ArtBox } from '@/components/Art';
+import { SamplePreviewRow } from '@/components/SamplePlayer';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, PrimaryButton } from '@/components/ui';
-import { IconMusicNote, IconPlay } from '@/components/icons';
+import { IconMusicNote } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
@@ -92,25 +93,7 @@ export default function StylePage() {
         <IconMusicNote size={20} className="text-brand-400" />
         미리 들어보기
       </h2>
-      <div className="mt-3 grid grid-cols-3 gap-2.5">
-        {(['A', 'B', 'C'] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            className="flex min-h-[64px] items-center gap-2 rounded-[16px] bg-surface px-2.5 text-left shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-brand-400 text-brand-600">
-              <IconPlay size={14} />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-[0.875rem] font-bold text-ink-900">
-                미리듣기 {v}
-              </span>
-              <span className="block text-[0.8125rem] text-ink-500">0:30</span>
-            </span>
-          </button>
-        ))}
-      </div>
+      <SamplePreviewRow />
 
       <p className="mt-3 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
         특정 가수의 목소리나 창법을 따라 만들지 않아요. 분위기만 참고합니다.
