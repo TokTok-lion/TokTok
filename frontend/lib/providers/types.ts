@@ -83,6 +83,44 @@ export function fail(
 const MAX_SEGMENT_CHARS = 60;
 const PAUSE_SECONDS = 0.8;
 
+/**
+ * 한국어는 단어가 아니라 조각으로 온다.
+ *
+ * 구글에 단어별 시각을 달라고 하면 한국어는 서브워드 단위로 쪼개져서
+ * 돌아온다 — "열아홉에"가 `▁열` `아` `홉` `의` 네 조각이다. 앞의 `▁`
+ * (U+2581)가 "여기서 새 단어가 시작한다"는 표시다.
+ *
+ * 이걸 모르고 공백으로 이어 붙였더니 "▁열 아 홉 의 ▁그 ▁공 장 을"이
+ * 나왔다. 그 상태로 이야기를 뽑으면 사실 문장이 될 리가 없고, 출처로
+ * 되짚을 원문도 읽을 수 없는 글자가 된다.
+ *
+ * 그래서 표시가 있으면 그 규칙대로 붙이고, 없으면(영어처럼 이미 단어로
+ * 오는 경우) 예전처럼 공백으로 잇는다.
+ */
+const WORD_MARK = '▁';
+
+function joinTokens(tokens: string[]): string {
+  const subword = tokens.some((t) => t.includes(WORD_MARK));
+  if (!subword) return tokens.join(' ').replace(/\s+/g, ' ').trim();
+
+  let out = '';
+  // 표시만 홀로 오는 조각이 있다. 글자가 없다고 버리면 그 자리의 띄어쓰기가
+  // 사라져서 "공장을들어갔지"가 된다 — 다음 조각에 넘겨 준다.
+  let boundary = false;
+  for (const t of tokens) {
+    const startsWord = t.startsWith(WORD_MARK);
+    const text = t.split(WORD_MARK).join('');
+    if (!text) {
+      boundary = true;
+      continue;
+    }
+    if ((startsWord || boundary) && out) out += ' ';
+    boundary = false;
+    out += text;
+  }
+  return out.replace(/\s+/g, ' ').trim();
+}
+
 export function toSegments(
   words: { text: string; start: number }[],
   fallback = '',
@@ -98,15 +136,19 @@ export function toSegments(
   let prevStart = start;
 
   const flush = () => {
-    const text = buf.join(' ').replace(/\s+/g, ' ').trim();
+    const text = joinTokens(buf);
     if (text) out.push({ id: `seg-${out.length}`, text, at: Math.round(start) });
     buf = [];
   };
 
   for (const w of spoken) {
     const gap = w.start - prevStart;
-    const long = buf.join(' ').length >= MAX_SEGMENT_CHARS;
-    if (buf.length && (gap >= PAUSE_SECONDS || long)) {
+    const long = joinTokens(buf).length >= MAX_SEGMENT_CHARS;
+    // 조각 한가운데서 끊으면 단어가 두 동강 난다. 새 단어가 시작하는
+    // 자리에서만 줄을 바꾼다.
+    const boundary = !buf.length || w.text.startsWith(WORD_MARK) ||
+      !buf.some((t) => t.includes(WORD_MARK));
+    if (buf.length && boundary && (gap >= PAUSE_SECONDS || long)) {
       flush();
       start = w.start;
     }
