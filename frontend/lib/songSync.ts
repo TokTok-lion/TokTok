@@ -94,7 +94,9 @@ export async function uploadSong(
     audio_path: path,
     lyrics_hash: hash,
     length_ms: meta.lengthMs,
-    provider: 'elevenlabs',
+    // 어느 업체가 만든 곡인지 남긴다. 업체를 갈아 끼우면 옛 곡과 새 곡이
+    // 섞이는데, 어디서 온 것인지 모르면 나중에 골라낼 수가 없다.
+    provider: process.env.NEXT_PUBLIC_MUSIC_PROVIDER || 'suno',
   };
 
   const { error } = await c.sb

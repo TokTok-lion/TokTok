@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Card } from './ui';
 import { CONSENT_FALLBACK, hasConsent } from '@/lib/domain';
+import { settled } from '@/lib/longJob';
 import { loadRecording } from '@/lib/recordingStore';
 import { mmss } from '@/lib/recorder';
 import { useSession } from '@/lib/store';
@@ -61,7 +62,12 @@ export function TranscribeButton() {
     form.append('file', rec.blob, 'interview.webm');
 
     try {
-      const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+      // 긴 녹음은 한 요청 안에서 안 끝난다. 서버가 작업 번호를 주면 끝날
+      // 때까지 대신 물어봐 준다.
+      const res = await settled(
+        await fetch('/api/transcribe', { method: 'POST', body: form }),
+        (job) => `/api/transcribe?job=${encodeURIComponent(job)}`,
+      );
       const json = (await res.json()) as {
         segments?: { id: string; text: string; at: number }[];
         error?: string;

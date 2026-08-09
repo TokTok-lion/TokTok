@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { MUSIC_STYLES, hasConsent } from './domain';
+import { settled } from './longJob';
 import { loadSong, saveSong } from './songStore';
 import { findServerSong, lyricsHash, songQuotaLeft, uploadSong } from './songSync';
 import { currentSession, useSession } from './store';
@@ -97,15 +98,20 @@ export function useMusic() {
     }
 
     try {
-      const res = await fetch('/api/music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          style: now.style ?? 'ballad',
-          lyrics,
-          title: now.topic,
+      // 곡 만들기는 1~3분이 걸린다. 서버가 작업 번호를 주면 끝날 때까지
+      // 대신 물어봐 준다 — 화면은 그동안 진행률만 보여 준다.
+      const res = await settled(
+        await fetch('/api/music', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            style: now.style ?? 'ballad',
+            lyrics,
+            title: now.topic,
+          }),
         }),
-      });
+        (job) => `/api/music?job=${encodeURIComponent(job)}`,
+      );
 
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as {

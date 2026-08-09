@@ -8,8 +8,8 @@ import { costEstimate, type CostEstimate } from '@/lib/repo';
 /**
  * 이번 달 AI 사용량과 어림 요금.
  *
- * 실측값으로 계산한다 — 90초 곡 하나가 1,125크레딧, Starter 39,935크레딧이
- * 6달러. 전사·읽어주기·가사는 곡에 비하면 없는 수준이라 따로 세지 않는다.
+ * 곡 수로 계산한다. 전사·읽어주기·가사는 곡에 비하면 없는 수준이라 따로
+ * 세지 않는다.
  *
  * "어림값"이라고 적는 것이 이 화면의 핵심이다. 청구서처럼 보이면 센터가 이
  * 숫자로 예산을 잡고, 실제 청구서와 다르면 신뢰를 잃는다. 가늠자라고 말해
@@ -68,10 +68,15 @@ export function CenterCostLive() {
               note="이번 달 한도"
             />
             <Kpi
-              label="쓴 크레딧"
-              value={cost.credits.toLocaleString('ko-KR')}
+              label="곡당 어림값"
+              value={
+                cost.songs
+                  ? Math.round(cost.krw / cost.songs).toLocaleString('ko-KR')
+                  : '—'
+              }
+              unit="원"
               tone="brand"
-              note="곡 1개 = 1,125 (90초)"
+              note="구독을 다 쓴다고 봤을 때"
             />
             <Kpi
               label="어림 요금"
@@ -92,9 +97,9 @@ export function CenterCostLive() {
 
           <div className="mt-3">
             <LimitNote>
-              어림값입니다. 곡 길이(90초)와 실측 단가로 계산한 것이라 실제
-              청구서와 다를 수 있습니다. 전사·읽어주기·가사는 곡에 비해 매우 작아
-              따로 세지 않았습니다.
+              어림값입니다. 곡 만들기 구독료를 만든 곡 수로 나눈 값이라, 곡을
+              적게 만든 달에는 실제 부담이 이보다 큽니다. 전사·읽어주기·가사는
+              곡에 비해 매우 작아 따로 세지 않았습니다.
             </LimitNote>
           </div>
         </>

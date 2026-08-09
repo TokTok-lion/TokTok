@@ -317,15 +317,22 @@ export type StaffLoad = {
  */
 export type CostEstimate = {
   songs: number;
-  credits: number;
   krw: number;
   quotaLeft: number | null;
   quota: number | null;
 };
 
-const CREDITS_PER_SONG = 1125;
-const USD_PER_CREDIT = 6 / 39_935;
-const KRW_PER_USD = 1400;
+/**
+ * 곡 하나에 드는 어림 요금.
+ *
+ * 업체를 바꾸면 이 숫자도 바뀐다. ElevenLabs 때는 90초 한 곡이 1,125크레딧,
+ * 약 237원이었다. 지금은 Suno 구독을 나눠 쓰는 구조라 한 곡 5크레딧,
+ * Pro($10)에 2,500크레딧이면 약 500곡이 나온다 — 곡당 약 28원이다.
+ *
+ * 다만 이건 구독을 다 쓴다는 가정이다. 열 곡만 만들면 곡당 1,400원인 셈이
+ * 된다. 그래서 화면에서 "어림값"이라고 못 박는다. 청구서가 아니라 가늠자다.
+ */
+const KRW_PER_SONG = Number(process.env.NEXT_PUBLIC_KRW_PER_SONG) || 28;
 
 /**
  * 콘솔이 쓰는 집계.
@@ -459,11 +466,9 @@ export async function costEstimate(): Promise<CostEstimate | null> {
   ]);
 
   const songs = count ?? 0;
-  const credits = songs * CREDITS_PER_SONG;
   return {
     songs,
-    credits,
-    krw: Math.round(credits * USD_PER_CREDIT * KRW_PER_USD),
+    krw: Math.round(songs * KRW_PER_SONG),
     quotaLeft: typeof quotaRes.data === 'number' ? quotaRes.data : null,
     quota: tenantRes.data?.song_quota ?? null,
   };
