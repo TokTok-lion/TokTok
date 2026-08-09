@@ -102,13 +102,23 @@ function start() {
   });
 }
 
+function ensureStarted() {
+  if (started) return;
+  started = true;
+  start();
+}
+
+// 로그인 확인은 화면이 물어보지 않아도 시작되어야 한다.
+//
+// 예전에는 첫 구독자(useAccount)가 시작시켰다. 그래서 회기 화면처럼
+// useAccount 를 쓰지 않는 페이지를 새로고침하거나 바로 열면 snap 이 영영
+// loading 에 머물렀고, 그 상태에서 canSync() 는 false 라 활동일지가 조용히
+// 기기에만 저장됐다. 곡도 마찬가지로 서버 사본을 못 찾고 다시 만들었다 —
+// 크레딧이 드는 실수였다. 확인은 앱이 뜨는 순간 한 번 시작한다.
+if (typeof window !== 'undefined') ensureStarted();
+
 function subscribe(cb: () => void) {
-  // 첫 구독자가 확인을 시작한다. 이펙트가 아니라 여기서 하는 이유는
-  // 렌더 도중 스냅샷이 흔들리지 않게 하기 위해서다.
-  if (!started) {
-    started = true;
-    start();
-  }
+  ensureStarted();
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
@@ -147,4 +157,34 @@ export function currentTenantId(): string | null {
 
 export function currentAccount(): Account {
   return snap;
+}
+
+/**
+ * 로그인 확인이 끝날 때까지 기다린다.
+ *
+ * 화면 밖에서 서버에 쓰기 전에 부른다. "아직 확인 중"과 "로그인 안 됨"을
+ * 구분하지 않으면, 앱이 막 뜬 순간의 저장은 전부 로그아웃으로 취급되어
+ * 소리 없이 기기에만 남는다.
+ *
+ * 통신이 끊긴 곳에서도 회기는 계속돼야 하므로 무한정 기다리지 않는다.
+ * 시간이 지나면 그때의 상태로 답한다.
+ */
+export function accountReady(timeoutMs = 6000): Promise<Account> {
+  ensureStarted();
+  if (snap.status !== 'loading') return Promise.resolve(snap);
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      listeners.delete(watch);
+      clearTimeout(timer);
+      resolve(snap);
+    };
+    const watch = () => {
+      if (snap.status !== 'loading') finish();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    listeners.add(watch);
+  });
 }

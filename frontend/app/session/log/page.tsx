@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Art } from '@/components/Art';
+import { ServerSaveNote } from '@/components/ServerSaveNote';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, IconCircle, OutlineButton, PrimaryButton } from '@/components/ui';
 import { IconCopy, IconExport } from '@/components/icons';
@@ -97,19 +98,11 @@ export default function LogPage() {
             </OutlineButton>
           </div>
           {/* 서버 저장 결과는 감추지 않는다. 실패해도 화면은 넘어가지만,
-              나중에 다시 저장해야 한다는 걸 복지사가 알아야 한다. */}
-          {server.state.kind === 'error' ? (
-            <p
-              role="alert"
-              className="mb-2 rounded-[12px] bg-surface-sunk px-3 py-2 text-[0.875rem] font-bold text-danger-600"
-            >
-              이 기기에는 저장됐어요. 서버 저장은 실패했습니다 — {server.state.reason}
-            </p>
-          ) : server.state.kind === 'saved' ? (
-            <p className="mb-2 text-center text-[0.875rem] font-bold text-leaf-700">
-              기관 기록에도 저장했어요
-            </p>
-          ) : null}
+              나중에 다시 저장해야 한다는 걸 복지사가 알아야 한다. 버튼을 누르면
+              바로 마무리 화면으로 넘어가므로, 같은 안내가 그쪽에도 있다. */}
+          <div className="mb-2 empty:mb-0">
+            <ServerSaveNote retry />
+          </div>
           <PrimaryButton
             href="/session/wrap"
             onClick={() => {

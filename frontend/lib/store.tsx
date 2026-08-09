@@ -106,7 +106,21 @@ export type SessionState = {
   remoteStartedAt: string | null;
   /** 9단계 중 어디까지 왔는지 — 콘솔이 진행상태만 보는 근거가 된다. */
   remoteStep: number;
+
+  /**
+   * 마지막 서버 저장 결과.
+   *
+   * 저장 버튼은 누르는 즉시 다음 화면으로 넘어간다(현장에서 기다리게 하지
+   * 않으려고). 그래서 결과를 그 화면에 띄우면 아무도 못 본다 — 여기에 남겨서
+   * 마무리 화면이 대신 말해 준다. off 는 "서버를 안 쓰는 중"이다.
+   */
+  serverSave: ServerSaveMark;
 };
+
+export type ServerSaveMark =
+  | { kind: 'off' }
+  | { kind: 'saved'; at: string }
+  | { kind: 'error'; reason: string };
 
 function seedState(): SessionState {
   return {
@@ -145,6 +159,7 @@ function seedState(): SessionState {
     remoteParticipantId: null,
     remoteStartedAt: null,
     remoteStep: 1,
+    serverSave: { kind: 'off' },
   };
 }
 

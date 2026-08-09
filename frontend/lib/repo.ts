@@ -1,7 +1,7 @@
 'use client';
 
 import { getSupabase } from './supabase';
-import { currentAccount } from './auth';
+import { accountReady, currentAccount } from './auth';
 import type {
   ParticipantRow,
   SessionRow,
@@ -45,6 +45,18 @@ function tenant(): string | null {
 /** 서버에 쓸 수 있는 상태인가 (설정됨 + 로그인 + 소속 있음). */
 export function canSync(): boolean {
   return Boolean(getSupabase()) && tenant() !== null;
+}
+
+/**
+ * 같은 질문을 "확인이 끝난 뒤에" 한다.
+ *
+ * 쓰기 직전에는 이쪽을 쓴다. canSync() 는 지금 이 순간의 답이라, 앱이 막
+ * 뜬 직후에는 아직 확인 중이라는 이유만으로 false 가 나온다.
+ */
+export async function readyToSync(): Promise<boolean> {
+  if (!getSupabase()) return false;
+  const a = await accountReady();
+  return a.status === 'in';
 }
 
 /* --------------------------------------------------------- 어르신 */

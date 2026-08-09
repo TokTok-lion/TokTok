@@ -1,6 +1,7 @@
 'use client';
 
 import { Art } from '@/components/Art';
+import { ServerSaveNote } from '@/components/ServerSaveNote';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, OutlineButton, PrimaryButton } from '@/components/ui';
 import { IconBulb, IconDoc, IconEdit, IconSmile } from '@/components/icons';
@@ -21,6 +22,11 @@ export default function WrapPage() {
       decoration={<Ornaments variant="notes" />}
       footer={
         <>
+          {/* 활동일지 저장은 이 화면으로 넘어오면서 뒤에서 끝난다.
+              결과를 여기서 말해 주지 않으면 아무도 못 본다. */}
+          <div className="mb-3 empty:mb-0">
+            <ServerSaveNote retry />
+          </div>
           <div className="mb-3">
             <OutlineButton href="/session/log" leading={<IconDoc size={22} />}>
               초안 다시 보기
