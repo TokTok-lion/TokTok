@@ -88,10 +88,18 @@ export default function ChecklistPage() {
           <p className="text-[1.625rem] font-extrabold leading-tight text-ink-900">
             {s.elder.honorific}
           </p>
+          {/* 라벨만 있고 값이 없는 칸이었다. 기관 회기는 주제 없이 시작하는
+              것이 정상이라(lib/useElders.ts) 빈 자리가 뜨는데, 그러면 값을
+              불러오지 못한 것처럼 보인다. 비었다고 말하고, 어디서 정해지는
+              값인지는 카드 아래에 적는다. */}
           <p className="mt-2.5 flex items-center gap-2 border-b border-hairline pb-2 text-[0.9375rem]">
             <IconChat size={19} className="shrink-0 text-brand-600" />
             <span className="flex-1 text-ink-500">오늘의 주제</span>
-            <span className="font-extrabold text-brand-700">{s.topic}</span>
+            {s.topic ? (
+              <span className="font-extrabold text-brand-700">{s.topic}</span>
+            ) : (
+              <span className="font-bold text-ink-500">아직 없어요</span>
+            )}
           </p>
           {/* 예약 시각을 아는 값이 세션에 없어서 '오전 10:00'이 박혀 있었다.
               지어낸 시각 대신 실제로 아는 것만 적는다 — 인터뷰를 시작하면
@@ -110,6 +118,17 @@ export default function ChecklistPage() {
           </p>
         </div>
       </Card>
+
+      {/* 주제를 고치는 화면은 앱 안에 없다. 비었을 때 "어디서 정하느냐"는
+          물음에 답할 곳이 여기뿐이라, 기억 카드 화면과 같은 말로 적는다
+          (app/session/cards/page.tsx — 고른 카드가 오늘의 질문이 된다). */}
+      {s.topic ? null : (
+        <p className="mt-3 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.8125rem] leading-relaxed text-ink-700">
+          주제는 <strong>어르신 고르기</strong>에서 회기를 시작할 때 어르신 기록에서
+          따라와요. 기관 어르신 기록에는 주제 칸이 없어 대개 비어 있고, 그럴 때는
+          다음 화면에서 고르는 <strong>기억 카드</strong>가 오늘의 질문이 됩니다.
+        </p>
+      )}
 
       <ul className="mt-4 space-y-3">
         {PREP_CHECKS.map((key) => {

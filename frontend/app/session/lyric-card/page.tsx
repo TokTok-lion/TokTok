@@ -117,18 +117,27 @@ export default function LyricCardPage() {
           세 개 놓여 있었고 셋 다 onClick 이 없었다. 이미지로 굽는 코드도,
           가족에게 보내는 코드도 이 저장소에 없다 — 없는 것을 있다고 해 두면
           복지사는 보냈다고 믿고 화면을 넘긴다. 실제로 되는 것 하나만 남기고
-          나머지는 아래 문장으로 정직하게 밝힌다. */}
-      <div className="mt-4">
-        <OutlineButton href="/session/lyrics" leading={<IconEdit size={22} />}>
-          가사 고치러 가기
-        </OutlineButton>
-      </div>
+          나머지는 아래 문장으로 정직하게 밝힌다.
 
-      <p className="mt-3 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
-        이미지로 저장하거나 가족에게 바로 보내는 기능은 아직 없어요. 지금은 이
-        화면을 어르신과 함께 크게 읽어 드리고, 문장을 바꾸시려면 가사 검수로
-        돌아가 다시 만들어 주세요.
-      </p>
+          가사가 없을 때는 이 묶음을 통째로 내린다. 없는 가사를 '고치러' 갈
+          수는 없고(푸터의 '가사 만들러 가기'와 같은 곳으로 가는 버튼이 둘이
+          되기도 했다), 읽어 드릴 문장이 한 줄도 없는 화면에서 "함께 크게 읽어
+          드리고"는 하지 않은 일을 한 것처럼 말한다. */}
+      {feature ? (
+        <>
+          <div className="mt-4">
+            <OutlineButton href="/session/lyrics" leading={<IconEdit size={22} />}>
+              가사 고치러 가기
+            </OutlineButton>
+          </div>
+
+          <p className="mt-3 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
+            이미지로 저장하거나 가족에게 바로 보내는 기능은 아직 없어요. 지금은
+            이 화면을 어르신과 함께 크게 읽어 드리고, 문장을 바꾸시려면 가사
+            검수로 돌아가 다시 만들어 주세요.
+          </p>
+        </>
+      ) : null}
 
       {/* 글자 크기 조절 — 카드가 실제로 커진다 (NFR-A11Y-003) */}
       {feature ? (

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, PrimaryButton, SectionLabel } from '@/components/ui';
 import { IconInfo } from '@/components/icons';
-import { lyricInputs } from '@/lib/domain';
+import { hasConsent, lyricInputs } from '@/lib/domain';
 import { WriteLyrics } from '@/components/WriteLyrics';
 import { useSession } from '@/lib/store';
 
@@ -13,6 +13,11 @@ export default function LyricsPage() {
   const { s, set } = useSession();
   const basis = lyricInputs(s.story);
   const hasLyrics = s.lyrics.length > 0;
+
+  // 아래 WriteLyrics 가 갈라지는 조건과 같은 값이다. 동의가 있으면 자동
+  // 생성기만, 없으면 손으로 쓰는 글상자만 나온다 — 안내 문구도 그 갈래를
+  // 따라가야 화면 안에서 말이 어긋나지 않는다.
+  const canAutoWrite = hasConsent(s.elder.consents, 'externalAi');
 
   return (
     <Screen
@@ -71,24 +76,40 @@ export default function LyricsPage() {
           둘 다 onClick 이 없었고, 진짜로 도는 생성기는 그 아래 WriteLyrics
           하나뿐이었다. 예쁜 쪽이 위에 있으니 복지사는 그것부터 눌렀고,
           "눌렀는데 안 바뀌네" 하고 씨앗 가사를 그대로 확정할 수 있었다.
-          그래서 죽은 카드는 지우고 진짜 생성기를 이 자리에 올린다.
-          손으로 한 줄씩 고치는 기능은 아직 만들지 못했으므로 있는 척하지
-          않고, 대신 무엇을 할 수 있는지 아래에 적어 둔다. */}
+          그래서 죽은 카드는 지우고 진짜 생성기를 이 자리에 올린다. */}
       <SectionLabel className="mt-5">가사 만들기</SectionLabel>
       <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">
-        어르신이 확인해 주신 이야기에서만 가사가 나와요. 마음에 들지 않으면
-        몇 번이든 다시 만들 수 있어요.
+        {canAutoWrite
+          ? '어르신이 확인해 주신 이야기에서만 가사가 나와요. 마음에 들지 않으면 몇 번이든 다시 만들 수 있어요.'
+          : '어르신이 확인해 주신 이야기에서만 가사가 나와요. 아래 글상자에 복지사가 직접 적어 저장할 수 있어요.'}
       </p>
 
       {/* 확인된 이야기만 가사가 된다. 그 걸러내기가 이 서비스의 규칙이다. */}
       <WriteLyrics />
 
+      {/* 이 문단은 "손으로 고치는 기능은 아직 없어요" 한 줄로 고정돼 있었다.
+          그런데 외부 AI 미동의일 때 WriteLyrics 는 바로 위에 손으로 쓰는
+          글상자를 펼친다 — 입력칸과 "그런 기능은 없다"가 세로로 나란히 붙어
+          같은 화면에서 서로를 부정했다. 지금 실제로 되는 쪽만 적는다. */}
       <p className="mt-3 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
-        가사를 손으로 직접 고치는 기능은 아직 없어요. 문장을 바꾸시려면{' '}
-        <Link href="/session/story" className="font-bold text-brand-700 underline">
-          이야기 정리
-        </Link>
-        에서 어르신과 사실을 다듬은 뒤 다시 만들어 주세요.
+        {canAutoWrite ? (
+          <>
+            가사를 손으로 직접 고치는 기능은 아직 없어요. 문장을 바꾸시려면{' '}
+            <Link href="/session/story" className="font-bold text-brand-700 underline">
+              이야기 정리
+            </Link>
+            에서 어르신과 사실을 다듬은 뒤 다시 만들어 주세요.
+          </>
+        ) : (
+          <>
+            위 글상자에서 문장을 고쳐 다시 저장하면 그대로 반영돼요. 사실
+            자체가 어긋나면{' '}
+            <Link href="/session/story" className="font-bold text-brand-700 underline">
+              이야기 정리
+            </Link>
+            에서 어르신과 확인한 뒤 적어 주세요.
+          </>
+        )}
       </p>
 
       {/* 원칙 2: 가사가 어떤 사실에서 나왔는지 항상 되짚을 수 있어야 한다.

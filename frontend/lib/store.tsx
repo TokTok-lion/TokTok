@@ -345,6 +345,12 @@ export function beginSession(next: {
           lyricsApproved: false,
           memoryCard: null,
           checklist: {},
+          // 음악 스타일도 복지사가 고르는 값이다. 여기를 비우지 않아 씨앗의
+          // 'ballad' 가 그대로 남았고, 스타일 화면에 들어가기도 전에 스타일·
+          // 미리듣기·노래 완성 화면이 모두 '따뜻한 발라드'라고 말했다. 고른
+          // 적 없는 것을 고른 것처럼 보이게 하는 값이라 회기와 함께 비운다.
+          // (시연 기기는 씨앗 그대로 발라드로 시작한다.)
+          style: null,
           reactions: [],
           reactionNote: '',
           logDraft: '',

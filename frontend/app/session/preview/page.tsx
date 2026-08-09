@@ -31,7 +31,10 @@ export default function PreviewPage() {
   const player = useSongPlayer();
   const [asking, setAsking] = useState(false);
 
-  const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '따뜻한 발라드';
+  // 고른 분위기가 없으면 이름을 지어내지 않는다. 예전에는 '따뜻한 발라드'로
+  // 받아 놨는데, 그 값은 목록의 첫 후보가 아니라 씨앗이 들고 있던 값이라
+  // 아무도 고르지 않은 회기에서도 발라드를 고른 것처럼 말했다.
+  const styleName = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
   const scene = sceneForTopic(s.topic);
   const title = songTitleForTopic(s.topic);
 
@@ -148,10 +151,14 @@ export default function PreviewPage() {
             <h2 className="text-[1.3125rem] font-extrabold leading-tight text-ink-900">
               {title}
             </h2>
-            <p className="mt-1.5 flex items-center gap-1.5 text-[1rem] font-bold text-leaf-700">
-              {style}
-              <span className="text-brand-400">♫</span>
-            </p>
+            {styleName ? (
+              <p className="mt-1.5 flex items-center gap-1.5 text-[1rem] font-bold text-leaf-700">
+                {styleName}
+                <span className="text-brand-400">♫</span>
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[1rem] text-ink-500">분위기를 아직 고르지 않았어요</p>
+            )}
           </div>
         </div>
 

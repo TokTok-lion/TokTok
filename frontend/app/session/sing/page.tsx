@@ -27,7 +27,10 @@ import { useSongPlayer } from '@/lib/useMusic';
  */
 export default function SingPage() {
   const { s, set } = useSession();
-  const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '따뜻한 발라드';
+  // 고른 적 없는 분위기를 이름 대어 말하지 않는다. 예전에는 폴백이 '따뜻한
+  // 발라드'라, 스타일 화면에 들어가 본 적도 없는 회기가 발라드를 고른 것처럼
+  // 보였다. 없으면 줄 자체를 그리지 않는다 (preview·song 과 같은 규칙).
+  const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
   const player = useSongPlayer();
 
   // 함께 부르는 부분은 후렴이다. 후렴이 없는 가사면 첫 절을 쓴다.
@@ -84,12 +87,18 @@ export default function SingPage() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[0.9375rem] font-bold text-leaf-700">주제</p>
+          {/* 기관 어르신 기록에는 주제 칸이 없어 대개 비어 있다. 라벨만 남고
+              값이 빈 줄은 화면이 무엇을 못 채운 것처럼 보이므로 그렇게 적는다. */}
           <p className="text-[1.25rem] font-extrabold leading-tight text-ink-900">
-            {s.topic}
+            {s.topic || (
+              <span className="font-bold text-ink-500">주제 없이 진행한 회기예요</span>
+            )}
           </p>
-          <p className="mt-1.5 flex items-center gap-2 text-[0.9375rem] font-bold text-leaf-700">
-            스타일 <Chip tone="brand" size="sm">{style}</Chip>
-          </p>
+          {style ? (
+            <p className="mt-1.5 flex items-center gap-2 text-[0.9375rem] font-bold text-leaf-700">
+              스타일 <Chip tone="brand" size="sm">{style}</Chip>
+            </p>
+          ) : null}
         </div>
       </Card>
 

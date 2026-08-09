@@ -27,8 +27,10 @@ export default function LibraryPage() {
   const mine = useDeviceSong();
   const elder = useActiveElder();
 
-  const styleName =
-    MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '만든 분위기';
+  // 분위기를 고르지 않은 회기도 있다(기관 회기는 비운 채로 시작한다). 그때는
+  // '만든 분위기' 같은 자리표시를 넣지 않고 줄을 아예 그리지 않는다 —
+  // 회기 화면(/session/preview·song)과 같은 규칙이다.
+  const styleName = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
 
   // 표지와 제목은 회기 화면(/session/song)과 같은 규칙(lib/scenes.ts)을 쓴다.
   // 여기만 서류가방 그림 한 장으로 고정돼 있어서, 같은 곡이 화면을 옮길 때마다
@@ -86,10 +88,12 @@ export default function LibraryPage() {
               <span className="mt-1 inline-block rounded-full bg-leaf-100 px-2.5 py-0.5 text-[0.8125rem] font-bold text-leaf-700">
                 이 기기에 있음
               </span>
-              <p className="mt-1.5 flex items-center gap-1.5 text-[0.9375rem] text-ink-500">
-                <IconMusicNote size={17} className="text-brand-400" />
-                {styleName}
-              </p>
+              {styleName ? (
+                <p className="mt-1.5 flex items-center gap-1.5 text-[0.9375rem] text-ink-500">
+                  <IconMusicNote size={17} className="text-brand-400" />
+                  {styleName}
+                </p>
+              ) : null}
             </div>
           </div>
           <audio src={mine} controls preload="metadata" className="mt-3 w-full" />

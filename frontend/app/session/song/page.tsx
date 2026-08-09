@@ -5,7 +5,7 @@ import { ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconBook, IconDoc, IconPause, IconPlay, IconRefresh, IconShield } from '@/components/icons';
-import { MUSIC_STYLES, formatDuration } from '@/lib/domain';
+import { MUSIC_STYLES, formatDuration, lyricInputs } from '@/lib/domain';
 import { sceneForTopic, songTitleForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 import { useSongPlayer } from '@/lib/useMusic';
@@ -27,15 +27,45 @@ import { useSongPlayer } from '@/lib/useMusic';
  */
 export default function SongPage() {
   const { s } = useSession();
-  const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '따뜻한 발라드';
+  // 고른 분위기가 없으면 이름을 지어내지 않는다(/session/preview 와 같은 규칙).
+  const styleName = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
   const scene = sceneForTopic(s.topic);
   const title = songTitleForTopic(s.topic);
   const player = useSongPlayer();
 
+  /*
+   * 확인된 이야기가 실제로 있는가.
+   *
+   * 아래 '확인된 이야기만 담아…' 배지가 근거로 삼는 값이다. 가사로 넘어갈 수
+   * 있는 항목을 세는 그 함수(lyricInputs)로 세야, 배지가 말하는 것과 실제로
+   * 곡에 들어간 것이 같아진다. 이야기가 한 줄도 없는 회기에서 '확인된
+   * 이야기만 담았다'는 말은 담을 것이 없었다는 뜻일 뿐이다.
+   */
+  const verifiedCount = lyricInputs(s.story).length;
+
+  /*
+   * 제목과 부제도 곡의 유무를 따라간다.
+   *
+   * 예전에는 머리말이 늘 '노래 완성 / 어르신의 이야기가 한 곡의 노래가
+   * 되었어요'였다. 그래서 곡이 없는 회기에서 바로 아래 카드가 '이 기기에는
+   * 아직 곡 파일이 없어요'라고 말하는데도 화면 맨 위는 완성됐다고 했다.
+   * 한 화면 안에서 서로 반대되는 말이라, 복지사는 둘 중 하나를 믿게 된다.
+   *
+   * 불러오는 중에는 어느 쪽도 단정하지 않는다 — '완성'이라고 먼저 말했다가
+   * 없는 것으로 밝혀져 물리는 것은, 없다고 말했다가 뒤집는 것과 똑같이 나쁘다.
+   * 그래서 제목은 곡을 확인하기 전까지 아무것도 주장하지 않는 말로 두고,
+   * 확인된 뒤에만 '노래 완성'으로 올라간다. 내려가는 일은 없다.
+   */
+  const heading = player.ready
+    ? { title: '노래 완성', subtitle: '어르신의 이야기가 한 곡의 노래가 되었어요' }
+    : player.loading
+      ? { title: '어르신의 노래', subtitle: '이 기기에 있는 곡을 불러오고 있어요' }
+      : { title: '어르신의 노래', subtitle: '아직 곡이 없어요. 가사 카드는 그대로 보실 수 있어요' };
+
   return (
     <Screen
-      title="노래 완성"
-      subtitle="어르신의 이야기가 한 곡의 노래가 되었어요"
+      title={heading.title}
+      subtitle={heading.subtitle}
       decoration={<Ornaments variant="notes" />}
       footer={
         <PrimaryButton href="/session/lyric-card" leading={<IconDoc size={22} />}>
@@ -56,10 +86,12 @@ export default function SongPage() {
             <h2 className="text-[1.4375rem] font-extrabold leading-tight text-ink-900">
               {title}
             </h2>
-            <p className="mt-2 flex items-center gap-1.5 text-[1rem] font-bold text-leaf-700">
-              {style}
-              <span className="text-brand-400">♫</span>
-            </p>
+            {styleName ? (
+              <p className="mt-2 flex items-center gap-1.5 text-[1rem] font-bold text-leaf-700">
+                {styleName}
+                <span className="text-brand-400">♫</span>
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -124,17 +156,27 @@ export default function SongPage() {
         </Link>
       </div>
 
-      <div className="mt-4">
-        <NoteBar tone="leaf" icon={<IconShield size={20} />}>
-          확인된 이야기만 담아 안전하게 만들었어요
-        </NoteBar>
-      </div>
+      {/* 만든 곡이 실제로 있고, 그 곡에 들어갈 확인된 이야기가 있을 때만
+          '확인된 이야기만 담았다'고 말할 수 있다. 아무것도 확인하지 않은
+          회기에서 이 배지를 띄우면, 검수를 거쳤다는 표시가 검수 없이 나온다 —
+          이 배지 하나가 원칙 3(사람 검수)의 유일한 표시라 더 그렇다. */}
+      {player.ready && verifiedCount > 0 ? (
+        <div className="mt-4">
+          <NoteBar tone="leaf" icon={<IconShield size={20} />}>
+            확인된 이야기 {verifiedCount}가지만 담아 안전하게 만들었어요
+          </NoteBar>
+        </div>
+      ) : null}
 
-      <p className="mt-3 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
-        노래는 만들어질 때 이 태블릿에 이미 저장됐어요. 가족에게 보내는 기능은
-        아직 없습니다 — 동의 범위(가족 공유·시설 재생)는 따로 관리되고 있고,
-        보내는 기능이 준비되면 그 범위 안에서만 열립니다.
-      </p>
+      {/* 저장됐다는 안내도 곡이 있을 때의 이야기다. 곡이 없는 화면에서
+          '이미 저장됐어요'는 바로 위 카드와 정반대로 말한다. */}
+      {player.ready ? (
+        <p className="mt-3 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
+          노래는 만들어질 때 이 태블릿에 이미 저장됐어요. 가족에게 보내는 기능은
+          아직 없습니다 — 동의 범위(가족 공유·시설 재생)는 따로 관리되고 있고,
+          보내는 기능이 준비되면 그 범위 안에서만 열립니다.
+        </p>
+      ) : null}
     </Screen>
   );
 }

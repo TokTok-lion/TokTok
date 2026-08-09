@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MUSIC_STYLES, hasConsent } from './domain';
+import { hasConsent } from './domain';
 import { settled } from './longJob';
 import { loadSong, saveSong } from './songStore';
 import { findServerSong, lyricsHash, songQuotaLeft, uploadSong } from './songSync';
@@ -208,10 +208,11 @@ export function useMusic() {
     // 값은 전부 currentSession() 에서 읽으므로 s 의 조각들은 의존성이 아니다.
   }, [set]);
 
-  const styleName =
-    MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '따뜻한 발라드';
-
-  return { state, generate, allowed, styleName };
+  // styleName 은 여기서 돌려주지 않는다. 읽는 화면이 하나도 없었고(grep 0건),
+  // 폴백이 '따뜻한 발라드'라 고른 적 없는 분위기를 이름 대어 말할 준비만 된
+  // 값이었다. 필요한 화면은 각자 MUSIC_STYLES 에서 찾아 쓰되, 없으면 없다고
+  // 그린다.
+  return { state, generate, allowed };
 }
 
 /* ------------------------------------------------------------------ *

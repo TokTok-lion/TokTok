@@ -52,9 +52,14 @@ export default function StylePage() {
         />
         <div className="min-w-0 flex-1 text-center">
           <p className="text-[1.3125rem] font-extrabold text-ink-900">{title}</p>
-          <p className="mt-1 text-[1.0625rem] font-bold text-brand-700">
-            {styleName ?? '분위기를 골라 주세요'}
-          </p>
+          {/* 고른 분위기와 "아직 안 골랐다"는 안내가 같은 굵기·같은 색이면,
+              읽는 사람에게는 둘 다 답으로 보인다. 아직 값이 아닌 자리는
+              흐리게 둔다 — 골라야 채워지는 칸이라는 것이 눈에 보이도록. */}
+          {styleName ? (
+            <p className="mt-1 text-[1.0625rem] font-bold text-brand-700">{styleName}</p>
+          ) : (
+            <p className="mt-1 text-[1.0625rem] text-ink-500">분위기를 골라 주세요</p>
+          )}
         </div>
       </Card>
 

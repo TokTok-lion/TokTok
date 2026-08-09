@@ -7,6 +7,7 @@ import { ConsentGate, missingConsents } from '@/components/ConsentGate';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, PrimaryButton } from '@/components/ui';
 import { IconDoc, IconHeart, IconMusicNote } from '@/components/icons';
+import { MUSIC_STYLES } from '@/lib/domain';
 import { sceneForTopic } from '@/lib/scenes';
 import { useMusic } from '@/lib/useMusic';
 import { useSession } from '@/lib/store';
@@ -96,10 +97,29 @@ export default function GeneratingPage() {
   // 끝났을 때의 100%는 상태에서 바로 나온다. 따로 담아 두면 둘이 어긋난다.
   const shown = state.kind === 'done' ? 100 : pct;
 
+  /*
+   * 앞의 두 칸은 done:true 로 박혀 있었다.
+   *
+   * 그래서 확인된 이야기가 0건이고 스타일도 고르지 않은 회기에서 "이야기 확인
+   * 완료 / 음악 스타일 선택 완료"가 초록 체크로 떴다 — 복지사가 하지 않은 일을
+   * 했다고 말하는 화면이었다. 두 칸도 나머지 하나처럼 실제 값을 본다.
+   *
+   * 스타일은 특정 기본값과 비교하지 않고 MUSIC_STYLES 에서 찾히는지로만
+   * 판단한다. 회기 시작 시의 style 값이 바뀌는 중이라(lib/store), 그 값을
+   * 직접 알고 있는 코드를 여기 두면 곧 어긋난다.
+   */
+  const chosenStyle = MUSIC_STYLES.find((m) => m.id === s.style);
+
   /** 세 번째 칸은 지금 실제로 무슨 일이 있었는지에 따라 문구가 달라진다. */
   const trail = [
-    { label: '이야기\n확인 완료', done: true },
-    { label: '음악 스타일\n선택 완료', done: true },
+    {
+      label: s.storyConfirmed ? '이야기\n확인 완료' : '이야기\n확인 전',
+      done: s.storyConfirmed,
+    },
+    {
+      label: chosenStyle ? '음악 스타일\n선택 완료' : '음악 스타일\n고르기 전',
+      done: Boolean(chosenStyle),
+    },
     {
       label: blocked
         ? '동의가 없어\n만들지 않음'
@@ -273,8 +293,11 @@ export default function GeneratingPage() {
                   </svg>
                 </span>
               ) : (
+                // 미완료 칸에는 3이 박혀 있었다. 세 번째 칸만 미완료일 수
+                // 있다고 본 것인데, 이제 앞의 두 칸도 미완료로 설 수 있어
+                // 1·2번 칸에 3이 뜬다. 자기 순번을 적는다.
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-[0.9375rem] font-extrabold text-white">
-                  3
+                  {i + 1}
                 </span>
               )}
               <span
