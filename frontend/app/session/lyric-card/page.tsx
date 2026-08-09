@@ -18,7 +18,6 @@ export default function LyricCardPage() {
 
   return (
     <Screen
-      bell
       title="가사 카드 보기"
       subtitle="가족에게 전할 문장을 큰 글씨로 확인해요"
       decoration={<Ornaments variant="notes" />}

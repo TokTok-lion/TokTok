@@ -15,7 +15,6 @@ export default function FamilyStoriesPage() {
 
   return (
     <Screen
-      bell
       title="가족이 남긴 이야기"
       subtitle="가족이 보내준 소중한 이야기들을 함께 확인해요"
       decoration={<Ornaments variant="leafLeft" />}

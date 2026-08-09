@@ -16,7 +16,6 @@ export default function WrapPage() {
 
   return (
     <Screen
-      bell
       title="회기 마무리"
       subtitle="오늘의 반응과 다음 주제를 함께 정리해요"
       decoration={<Ornaments variant="notes" />}

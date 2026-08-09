@@ -21,9 +21,6 @@ export default function ReactionsPage() {
 
   return (
     <Screen
-      menu
-      back={false}
-      bell
       title="관찰 반응 기록"
       subtitle="오늘 보인 반응을 빠르게 남겨요"
       decoration={<Ornaments variant="leafRight" />}

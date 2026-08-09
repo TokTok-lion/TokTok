@@ -85,9 +85,7 @@ export default function ElderListPage() {
 
   return (
     <Screen
-      back={false}
-      menu
-      bell
+      root
       title="어르신"
       subtitle={
         loading

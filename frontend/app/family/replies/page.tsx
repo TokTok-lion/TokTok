@@ -15,9 +15,6 @@ export default function FamilyRepliesPage() {
 
   return (
     <Screen
-      menu
-      back={false}
-      bell
       title="가족 답장 보기"
       subtitle="가족이 남긴 따뜻한 답장을 확인해요"
       decoration={<Ornaments variant="leafRight" />}

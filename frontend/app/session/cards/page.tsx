@@ -14,9 +14,6 @@ export default function MemoryCardsPage() {
 
   return (
     <Screen
-      menu
-      back={false}
-      bell
       title="기억 카드 선택"
       subtitle="어떤 기억부터 시작해볼까요?"
       decoration={<Ornaments variant="leafRight" />}

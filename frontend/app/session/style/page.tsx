@@ -15,7 +15,6 @@ export default function StylePage() {
 
   return (
     <Screen
-      bell
       title="음악 스타일 선택"
       subtitle="이야기에 어울리는 분위기를 골라요"
       decoration={<Ornaments variant="leafRight" />}

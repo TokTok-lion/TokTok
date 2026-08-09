@@ -58,7 +58,6 @@ export default function SingPage() {
 
   return (
     <Screen
-      bell
       title="함께 부르기 활동"
       subtitle="완성된 후렴을 모두 함께 따라 불러요"
       decoration={<Ornaments variant="leafRight" />}

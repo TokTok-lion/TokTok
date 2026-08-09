@@ -28,7 +28,6 @@ export default function SongPage() {
 
   return (
     <Screen
-      bell
       title="노래 완성"
       subtitle="어르신의 이야기가 한 곡의 노래가 되었어요"
       decoration={<Ornaments variant="notes" />}

@@ -17,9 +17,6 @@ export default function PreviewPage() {
 
   return (
     <Screen
-      menu
-      back={false}
-      bell
       title="노래 미리듣기"
       subtitle="마음에 드는 버전을 골라보세요"
       decoration={<Ornaments variant="notes" />}

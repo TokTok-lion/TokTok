@@ -46,8 +46,7 @@ export default function MorePage() {
 
   return (
     <Screen
-      back={false}
-      menu={false}
+      root
       title="더보기"
       subtitle="동의와 사용 환경을 관리해요"
       decoration={<Ornaments variant="leafRight" />}

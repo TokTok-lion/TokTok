@@ -26,9 +26,7 @@ export default function SessionFlowPage() {
   if (elder !== 'ok') {
     return (
       <Screen
-        back={false}
-        menu
-        bell
+        root
         title="오늘의 회기"
         subtitle={
           elder === 'checking'
@@ -48,9 +46,7 @@ export default function SessionFlowPage() {
 
   return (
     <Screen
-      back={false}
-      menu
-      bell
+      root
       title="오늘의 회기"
       subtitle="준비부터 마무리까지 순서대로 진행해요"
       decoration={<Ornaments variant="leafRight" />}

@@ -86,7 +86,6 @@ export default function LogPage() {
 
   return (
     <Screen
-      bell
       title="활동일지 편집"
       subtitle="오늘의 기록을 정리하고 저장해보세요"
       decoration={<Ornaments variant="both" />}

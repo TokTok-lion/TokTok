@@ -17,7 +17,6 @@ export default function SuggestPage() {
 
   return (
     <Screen
-      bell
       title="AI 질문 추천"
       subtitle="앞선 답변을 바탕으로 다음 질문을 골라요"
       decoration={<Ornaments variant="notes" />}

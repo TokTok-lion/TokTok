@@ -69,7 +69,6 @@ export default function ElderPage() {
   return (
     <Screen
       back
-      bell
       title="어르신 프로필"
       decoration={<Ornaments variant="leafRight" />}
       footer={

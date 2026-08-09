@@ -5,17 +5,57 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { stepForScreen } from '@/lib/flow';
+import { useSession } from '@/lib/store';
 import { SessionStepper } from './SessionStepper';
 import {
   IconBack,
-  IconBell,
   IconBook,
   IconContent,
   IconHome,
-  IconMenu,
   IconMore,
   IconPeople,
+  IconTextSize,
 } from './icons';
+
+/**
+ * 글자 크기 — 탭 루트 화면의 왼쪽 자리.
+ *
+ * 이 자리에는 원래 햄버거가 있었는데 눌러도 「더보기」로 갔다. 오른쪽 종도,
+ * 아래 「더보기」 탭도 같은 곳이었다. 같은 방에 문이 셋이면 그중 둘은
+ * 자리만 차지한다.
+ *
+ * 그 자리를 글자 크기가 받는다. 설정 안에 이미 있지만, 정작 필요한 순간은
+ * 어르신께 화면을 보여 드리는 중이다. "안 보인다" 하실 때 설정까지 들어갔다
+ * 나오면 그 사이에 이야기가 끊긴다.
+ */
+const SCALES = [1, 1.15, 1.3];
+const SCALE_NAME: Record<string, string> = {
+  '1': '보통',
+  '1.15': '크게',
+  '1.3': '더 크게',
+};
+
+function TextScaleButton() {
+  const { s, set } = useSession();
+  const at = SCALES.indexOf(s.textScale);
+  const next = SCALES[(at + 1) % SCALES.length];
+  const now = SCALE_NAME[String(s.textScale)] ?? '보통';
+
+  return (
+    <button
+      type="button"
+      aria-label={`글자 크기 ${now}. 누르면 ${SCALE_NAME[String(next)]}로 바뀝니다`}
+      onClick={() => set('textScale', next)}
+      className="relative flex h-11 w-11 items-center justify-center rounded-full text-ink-900"
+    >
+      <IconTextSize size={26} />
+      {/* 지금 커져 있다는 것이 보여야 한다. 안 그러면 왜 글자가 큰지 모른다. */}
+      {s.textScale > 1 ? (
+        <span className="absolute bottom-1 right-1 h-2 w-2 rounded-full bg-brand-600" />
+      ) : null}
+    </button>
+  );
+}
 
 /* ------------------------------------------------------------------ *
  * Brand mark
@@ -164,8 +204,7 @@ export function Screen({
   title,
   subtitle,
   back = true,
-  menu = false,
-  bell = false,
+  root = false,
   tabs = true,
   footer,
   decoration,
@@ -174,10 +213,16 @@ export function Screen({
   /** Big page heading, as printed in the deck. */
   title?: ReactNode;
   subtitle?: ReactNode;
-  /** Left slot: back chevron (default), hamburger, or nothing. */
+  /** Left slot: back chevron (default), or nothing. */
   back?: boolean;
-  menu?: boolean;
-  bell?: boolean;
+  /**
+   * 아래 탭이 바로 여는 화면(오늘·어르신·회기·기록·더보기).
+   *
+   * 돌아갈 곳이 없으므로 뒤로가기를 두지 않는다. 대신 그 자리에 글자 크기를
+   * 둔다 — 어르신 앞에서 화면을 보여 드리다 "안 보인다" 하실 때, 설정까지
+   * 들어갔다 나오는 동안 이야기가 끊긴다.
+   */
+  root?: boolean;
   tabs?: boolean;
   /** Sticky action area pinned above the tab bar. */
   footer?: ReactNode;
@@ -211,16 +256,7 @@ export function Screen({
 
       <header className="relative z-10 flex items-center gap-2 px-4 pt-4">
         <div className="flex w-11 justify-start">
-          {menu ? (
-            <button
-              type="button"
-              aria-label="메뉴 열기"
-              onClick={() => router.push('/more')}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-ink-900"
-            >
-              <IconMenu size={26} />
-            </button>
-          ) : back ? (
+          {root ? <TextScaleButton /> : back ? (
             <button
               type="button"
               aria-label="이전 화면으로"
@@ -238,17 +274,10 @@ export function Screen({
           </Link>
         </div>
 
-        <div className="flex w-11 justify-end">
-          {bell ? (
-            <Link
-              href="/more"
-              aria-label="알림"
-              className="flex h-11 w-11 items-center justify-center rounded-full text-ink-900"
-            >
-              <IconBell size={26} />
-            </Link>
-          ) : null}
-        </div>
+        {/* 오른쪽은 비워 둔다. 종은 눌러도 더보기로 갔는데, 왼쪽 햄버거와
+            아래 「더보기」 탭도 같은 곳이라 같은 방에 문이 셋이었다.
+            알림함도 읽지 않은 표시도 없어서 종이 가리킬 내용이 없었다. */}
+        <div className="w-11 shrink-0" />
       </header>
 
       {/* Any screen that is part of the session flow gets the step indicator

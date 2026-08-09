@@ -36,7 +36,6 @@ export default function InterviewPage() {
 
   return (
     <Screen
-      bell
       title="인터뷰 진행 중"
       subtitle="질문을 천천히 읽고 이야기를 들어요"
       decoration={<Ornaments variant="notes" />}

@@ -26,9 +26,6 @@ export default function QuestionLevelPage() {
 
   return (
     <Screen
-      menu
-      back={false}
-      bell
       title="질문 방식 선택"
       subtitle="어르신 상태에 맞는 질문 단계를 고르세요"
       decoration={<Ornaments variant="leafRight" />}

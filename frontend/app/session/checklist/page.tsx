@@ -20,9 +20,6 @@ export default function ChecklistPage() {
 
   return (
     <Screen
-      menu
-      back={false}
-      bell
       title="회기 시작 체크리스트"
       subtitle="오늘 진행 전에 함께 확인해요"
       decoration={<Ornaments variant="leafRight" />}

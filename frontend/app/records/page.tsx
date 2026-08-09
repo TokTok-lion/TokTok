@@ -32,9 +32,7 @@ export default function RecordsPage() {
 
   return (
     <Screen
-      back={false}
-      menu
-      bell
+      root
       title="기록"
       subtitle="완성된 노래와 지난 기록을 모았어요"
       decoration={<Ornaments variant="leafRight" />}

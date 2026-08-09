@@ -62,9 +62,7 @@ export default function TodayPage() {
 
   return (
     <Screen
-      back={false}
-      menu
-      bell
+      root
       title="오늘"
       subtitle="지금 이어서 할 일을 알려드려요"
       decoration={<Ornaments variant="leafRight" />}

@@ -29,9 +29,6 @@ export default function LibraryPage() {
 
   return (
     <Screen
-      menu
-      back={false}
-      bell
       title="내 노래 보관함"
       subtitle="기억을 담은 나만의 노래들을 만나보세요"
       decoration={<Ornaments variant="leafRight" />}

@@ -28,9 +28,6 @@ export default function SessionsPage() {
 
   return (
     <Screen
-      menu
-      back={false}
-      bell
       title="회기 일정"
       subtitle="오늘의 세션 일정을 편하게 확인해요"
       decoration={<Ornaments variant="notes" />}
