@@ -27,6 +27,12 @@ export type TenantRow = {
   type: string;
   region: string | null;
   status: 'active' | 'suspended' | 'closed';
+  /** free | starter | pro — 0004 에서 추가 */
+  plan: string;
+  /** 월 곡 생성 한도. 곡이 유일하게 비싼 자원이라 여기만 센다. */
+  song_quota: number;
+  /** 곡 보관 상한(일). 기본 3년 — 0003 에서 추가 */
+  song_retention_days: number;
   created_at: string;
 };
 

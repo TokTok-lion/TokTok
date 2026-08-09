@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { CenterCostLive } from '@/components/CenterCostLive';
+import { CenterReport } from '@/components/CenterReport';
 import {
   CBtn,
   CenterShell,
@@ -57,8 +59,11 @@ export default function AnalyticsPage() {
       code="CM-ANL"
       title="운영·ROI 분석"
       lead="운영 지표를 같은 정의로 비교합니다. 치료 효과가 아니라 업무 시간과 비용을 봅니다."
-      actions={<CBtn tone="solid">리포트 내보내기</CBtn>}
     >
+      {/* 서버가 실제로 아는 값. 아래 시연 지표와 섞이지 않게 먼저 둔다. */}
+      <CenterCostLive />
+      <CenterReport />
+
       <SampleBadge>
         아래 수치는 예시입니다. 기준선을 실제로 측정한 뒤에 다시 계산하세요.
       </SampleBadge>

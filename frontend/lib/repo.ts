@@ -235,6 +235,39 @@ export type CenterStats = {
   recent: { id: string; topic: string; status: string; at: string }[];
 };
 
+/** 직원 한 사람이 실제로 무엇을 했는지 — 점수가 아니라 개수만 센다. */
+export type StaffLoad = {
+  membershipId: string;
+  role: StaffRole;
+  /** 이번 달 맡은 회기 수 */
+  sessionsThisMonth: number;
+  /** 아직 확정하지 않은 활동일지 */
+  logsPending: number;
+  /** 마지막으로 회기를 진행한 날 */
+  lastActive: string | null;
+};
+
+/**
+ * 곡을 몇 개 만들었고 요금이 얼마나 나갔는지.
+ *
+ * 실측값으로 계산한다 — 90초 곡 하나가 1,125크레딧이고, Starter 39,935
+ * 크레딧이 $6 이므로 크레딧당 약 0.00015달러다. 전사·읽어주기·가사는
+ * 곡에 비하면 없는 수준이라 따로 세지 않고 그렇게 적는다.
+ *
+ * 어림값이라는 것을 화면에서 감추지 않는다. 청구서가 아니라 가늠자다.
+ */
+export type CostEstimate = {
+  songs: number;
+  credits: number;
+  krw: number;
+  quotaLeft: number | null;
+  quota: number | null;
+};
+
+const CREDITS_PER_SONG = 1125;
+const USD_PER_CREDIT = 6 / 39_935;
+const KRW_PER_USD = 1400;
+
 /**
  * 콘솔이 쓰는 집계.
  *
@@ -287,6 +320,93 @@ export async function centerStats(): Promise<CenterStats | null> {
       status: r.status,
       at: r.created_at,
     })),
+  };
+}
+
+/**
+ * 직원별 업무량.
+ *
+ * 개수만 센다. 점수나 순위는 만들지 않는다 — 복지사를 줄 세우는 도구가 되면
+ * 어르신께 쓸 시간을 기록 채우는 데 쓰게 된다(명세서의 직원 지표 제약).
+ */
+export async function staffLoads(): Promise<StaffLoad[]> {
+  const sb = getSupabase();
+  const t = tenant();
+  if (!sb || !t) return [];
+
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [members, sessions, logs] = await Promise.all([
+    sb.from('memberships').select('id, role').eq('tenant_id', t).eq('status', 'active'),
+    sb.from('sessions').select('facilitator, created_at').eq('tenant_id', t),
+    sb.from('activity_logs').select('session_id, confirmed_at').eq('tenant_id', t),
+  ]);
+
+  // 회기를 세션 id 로 이어 붙여야 "누구의 미확정 일지"인지 알 수 있다
+  const sessionOwner = new Map<string, string | null>();
+  const { data: allSessions } = await sb
+    .from('sessions')
+    .select('id, facilitator')
+    .eq('tenant_id', t);
+  for (const s of allSessions ?? []) sessionOwner.set(s.id, s.facilitator);
+
+  const pendingBy = new Map<string, number>();
+  for (const l of logs.data ?? []) {
+    if (l.confirmed_at) continue;
+    const owner = sessionOwner.get(l.session_id ?? '');
+    if (!owner) continue;
+    pendingBy.set(owner, (pendingBy.get(owner) ?? 0) + 1);
+  }
+
+  return (members.data ?? []).map((m) => {
+    const mine = (sessions.data ?? []).filter((s) => s.facilitator === m.id);
+    const thisMonth = mine.filter(
+      (s) => new Date(s.created_at) >= monthStart,
+    ).length;
+    const last = mine
+      .map((s) => s.created_at)
+      .sort()
+      .at(-1);
+    return {
+      membershipId: m.id,
+      role: m.role,
+      sessionsThisMonth: thisMonth,
+      logsPending: pendingBy.get(m.id) ?? 0,
+      lastActive: last ?? null,
+    };
+  });
+}
+
+/** 이번 달 곡 사용량과 어림 요금. */
+export async function costEstimate(): Promise<CostEstimate | null> {
+  const sb = getSupabase();
+  const t = tenant();
+  if (!sb || !t) return null;
+
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [{ count }, quotaRes, tenantRes] = await Promise.all([
+    sb
+      .from('songs')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', t)
+      .gte('created_at', monthStart.toISOString()),
+    sb.rpc('song_quota_left'),
+    sb.from('tenants').select('song_quota').eq('id', t).maybeSingle(),
+  ]);
+
+  const songs = count ?? 0;
+  const credits = songs * CREDITS_PER_SONG;
+  return {
+    songs,
+    credits,
+    krw: Math.round(credits * USD_PER_CREDIT * KRW_PER_USD),
+    quotaLeft: typeof quotaRes.data === 'number' ? quotaRes.data : null,
+    quota: tenantRes.data?.song_quota ?? null,
   };
 }
 

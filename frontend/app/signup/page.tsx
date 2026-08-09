@@ -130,7 +130,9 @@ export default function SignupPage() {
             busy || !ready ? 'pointer-events-none bg-surface-sunk text-ink-500' : ''
           }`}
         >
-          {busy ? '등록하는 중…' : '무료로 시작하기'}
+          {/* 첫 화면의 "무료로 시작하기"를 눌러 온 자리다. 여기서 또 같은
+              말이면 누르면 어디로 또 가는 줄 안다. 이 버튼이 하는 일은 등록이다. */}
+          {busy ? '등록하는 중…' : '기관 등록하기'}
         </button>
       </form>
 

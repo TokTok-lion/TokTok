@@ -19,6 +19,7 @@ import {
   ROLE_SUMMARY,
   type StaffRole,
 } from '@/lib/center';
+import { CenterStaffLive } from '@/components/CenterStaffLive';
 import { STAFF } from '@/lib/center-seed';
 
 /** 직원 관리 (CM-STAFF · 8 functions) */
@@ -44,7 +45,10 @@ export default function StaffPage() {
       title="직원 관리"
       lead="역할과 접근 권한을 관리합니다. 기본은 최소 권한입니다."
     >
-      <div className="grid gap-3 sm:grid-cols-3">
+      {/* 실제 기록에서 센 값. 아래 표는 아직 시연 데이터다. */}
+      <CenterStaffLive />
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Kpi label="활동 중인 직원" value={active.length} unit="명" />
         <Kpi
           label="MFA 미설정 (필수 역할)"
