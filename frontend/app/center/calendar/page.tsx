@@ -1,22 +1,28 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import {
   CBtn,
   CenterShell,
+  Checking,
   Kpi,
   LimitNote,
   Panel,
   Pill,
-  TableWrap,
-  Td,
-  Th,
 } from '@/components/CenterShell';
-import { SESSION_OUTCOME, STAFF } from '@/lib/center-seed';
+import { useAccount } from '@/lib/auth';
+import { SESSION_OUTCOME } from '@/lib/center-seed';
 
 const WEEK = ['월', '화', '수', '목', '금'];
 
-/** 주간 보드. 어르신은 가명, 내용은 표시하지 않는다 (개인정보 최소표시). */
+/**
+ * 예시 주간 보드. 어르신은 가명, 내용은 표시하지 않는다 (개인정보 최소표시).
+ *
+ * 서버에는 일정 표도 API 도 없다 — 이 배열이 이 화면 안에서 만들어낸 유일한
+ * 근거다. 그래서 로그인한 기관에서는 그리지 않는다. '일정 충돌 1건' 같은
+ * 빨간 경고는 실제 운영 문제로 읽히는데, 실제로는 존재한 적 없는 일정이다.
+ */
 const BOARD: { day: number; time: string; elder: string; worker: string; kind: string }[] = [
   { day: 0, time: '10:00', elder: '김○○', worker: '박서준', kind: '인터뷰' },
   { day: 0, time: '14:00', elder: '박○○', worker: '박서준', kind: '노래 듣기' },
@@ -37,6 +43,9 @@ const APPROVAL_STEPS = [
 
 /** 운영 계획 관리 (CM-CAL · 8 functions) */
 export default function CalendarPage() {
+  const { account } = useAccount();
+  const live = account.status === 'in';
+  const checking = account.status === 'loading';
   const [approvals, setApprovals] = useState(APPROVAL_STEPS);
 
   // F-CM-CAL-005 · 같은 시간에 같은 직원이 둘 이상 배정된 건을 찾는다.
@@ -46,82 +55,136 @@ export default function CalendarPage() {
         .length > 1,
   );
 
+  // 씨앗 보드는 둘러보기에서만 그린다. 확인 중일 때도 그리지 않는다 —
+  // 로그인한 센터장이 화면을 여는 첫 순간에 남의 일정이 스치면 안 된다.
+  const showSample = !live && !checking;
+
   return (
     <CenterShell
       code="CM-CAL"
       title="운영 계획 관리"
       lead="센터 전체 일정과 승인 정책을 관리합니다."
-      actions={<CBtn tone="solid">12주 계획 만들기</CBtn>}
+      actions={
+        <CBtn disabled title="아직 준비되지 않았습니다">
+          12주 계획 만들기
+        </CBtn>
+      }
+      data={{
+        kind: 'seedWhileBrowsing',
+        what: '아래 주간 일정·충돌·분기 실적은 예시입니다. 서버에는 일정 표가 아직 없어서, 실제 기관 계정에서는 이 숫자들이 표시되지 않습니다.',
+      }}
     >
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="이번 주 일정" value={BOARD.length} unit="건" />
-        <Kpi
-          label="일정 충돌"
-          value={conflicts.length}
-          unit="건"
-          tone={conflicts.length ? 'danger' : 'leaf'}
-          note={conflicts.length ? '같은 직원·같은 시간' : '충돌 없음'}
-        />
-        <Kpi
-          label="이번 분기 완료"
-          value={SESSION_OUTCOME.completed}
-          unit="회"
-          tone="leaf"
-          note={`계획 ${SESSION_OUTCOME.planned}회`}
-        />
-      </div>
+      {/* 확인이 끝날 때까지 화면 위쪽이 통째로 비면 고장으로 보인다. 아래
+          live 갈래와 같은 자리·같은 제목으로 기다리는 중이라고만 적는다. */}
+      {checking ? (
+        <Panel title="이 기관의 일정" code="F-CM-CAL-001">
+          <Checking />
+        </Panel>
+      ) : null}
 
-      {/* F-CM-CAL-001 센터 캘린더 */}
-      <Panel className="mt-4" title="주간 일정" code="F-CM-CAL-001">
-        <div className="-mx-4 overflow-x-auto px-4">
-          <div className="grid min-w-[720px] grid-cols-5 gap-3">
-            {WEEK.map((w, i) => (
-              <div key={w}>
-                <p className="border-b border-hairline pb-2 text-[0.875rem] font-bold text-ink-500">
-                  {w}
-                </p>
-                <div className="mt-2 space-y-2">
-                  {BOARD.filter((b) => b.day === i).map((b, j) => {
-                    const clash = conflicts.includes(b);
-                    return (
-                      <div
-                        key={j}
-                        className={`rounded-[10px] border px-2.5 py-2 ${
-                          clash
-                            ? 'border-danger-600 bg-[#fbe3dd]'
-                            : 'border-hairline bg-surface'
-                        }`}
-                      >
-                        {/* on the pale danger tint, brand-700 only reaches
-                            4.2:1 — the dark ink keeps AA while the border and
-                            the warning below carry the signal */}
-                        <p
-                          className={`text-[0.8125rem] font-bold ${
-                            clash ? 'text-ink-900' : 'text-brand-700'
-                          }`}
-                        >
-                          {b.time}
-                        </p>
-                        <p className="text-[0.9375rem] font-bold text-ink-900">{b.elder}</p>
-                        <p className="text-[0.75rem] text-ink-500">
-                          {b.kind} · {b.worker}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {conflicts.length > 0 ? (
-          <p className="mt-3 rounded-[10px] bg-[#fbe3dd] px-3.5 py-2.5 text-[0.875rem] font-semibold text-danger-600">
-            같은 직원이 같은 시간에 두 건을 맡고 있습니다. 경고만 표시하며,
-            사정이 있으면 그대로 진행할 수 있습니다.
+      {live ? (
+        <Panel title="이 기관의 일정" code="F-CM-CAL-001" desc="서버 미연동">
+          <LimitNote>
+            회기 일정을 서버에 저장하는 기능이 아직 없습니다. 그래서 이번 주
+            일정 건수도, 담당자 충돌 건수도 계산해 드릴 수 없습니다. 없는 수치를
+            예시로 채워 보여주면 그대로 운영 판단에 쓰이므로 비워 둡니다.
+          </LimitNote>
+          <p className="mt-3 text-[0.9375rem] leading-relaxed text-ink-700">
+            지금은 기관에서 쓰던 일정표를 그대로 쓰셔야 합니다. 어느 어르신이
+            어느 단계에 있는지는{' '}
+            <Link href="/center" className="font-bold underline">
+              운영 콘솔
+            </Link>
+            의 진행 단계 보드에서, 직원별 담당 건수는{' '}
+            <Link href="/center/staff" className="font-bold underline">
+              직원 관리
+            </Link>
+            에서 확인할 수 있습니다.
           </p>
-        ) : null}
-      </Panel>
+        </Panel>
+      ) : null}
+
+      {showSample ? (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Kpi label="이번 주 일정" value={BOARD.length} unit="건" />
+            <Kpi
+              label="일정 충돌"
+              value={conflicts.length}
+              unit="건"
+              tone={conflicts.length ? 'danger' : 'leaf'}
+              note={conflicts.length ? '같은 직원·같은 시간' : '충돌 없음'}
+            />
+            <Kpi
+              label="이번 분기 완료"
+              value={SESSION_OUTCOME.completed}
+              unit="회"
+              tone="leaf"
+              note={`계획 ${SESSION_OUTCOME.planned}회`}
+            />
+          </div>
+
+          {/* F-CM-CAL-001 센터 캘린더 */}
+          <Panel
+            className="mt-4"
+            title="주간 일정"
+            code="F-CM-CAL-001"
+            actions={<Pill tone="amber">예시</Pill>}
+          >
+            <div className="-mx-4 overflow-x-auto px-4">
+              <div className="grid min-w-[720px] grid-cols-5 gap-3">
+                {WEEK.map((w, i) => (
+                  <div key={w}>
+                    <p className="border-b border-hairline pb-2 text-[0.875rem] font-bold text-ink-500">
+                      {w}
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {BOARD.filter((b) => b.day === i).map((b, j) => {
+                        const clash = conflicts.includes(b);
+                        return (
+                          <div
+                            key={j}
+                            className={`rounded-[10px] border px-2.5 py-2 ${
+                              clash
+                                ? 'border-danger-600 bg-[#fbe3dd]'
+                                : 'border-hairline bg-surface'
+                            }`}
+                          >
+                            {/* on the pale danger tint, brand-700 only reaches
+                                4.2:1 — the dark ink keeps AA while the border and
+                                the warning below carry the signal */}
+                            <p
+                              className={`text-[0.8125rem] font-bold ${
+                                clash ? 'text-ink-900' : 'text-brand-700'
+                              }`}
+                            >
+                              {b.time}
+                            </p>
+                            <p className="text-[0.9375rem] font-bold text-ink-900">
+                              {b.elder}
+                            </p>
+                            <p className="text-[0.75rem] text-ink-500">
+                              {b.kind} · {b.worker}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {conflicts.length > 0 ? (
+              <p className="mt-3 rounded-[10px] bg-[#fbe3dd] px-3.5 py-2.5 text-[0.875rem] font-semibold text-danger-600">
+                예시 일정에서 같은 직원이 같은 시간에 두 건을 맡고 있습니다.
+                실제 서비스에서도 경고만 표시하며, 사정이 있으면 그대로 진행할 수
+                있습니다.
+              </p>
+            ) : null}
+          </Panel>
+        </>
+      ) : null}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         {/* F-CM-CAL-003 세션 승인 정책 */}
@@ -165,6 +228,12 @@ export default function CalendarPage() {
               </li>
             ))}
           </ul>
+          {/* 토글은 화면에서만 움직인다. 저장된 줄 알고 창을 닫으면
+              설정이 바뀐 줄 알게 되므로, 안 남는다는 사실을 적어 둔다. */}
+          <p className="mt-3 text-[0.875rem] leading-relaxed text-ink-500">
+            이 설정은 아직 저장되지 않습니다. 새로고침하면 처음 값으로
+            돌아가고, 복지사 앱의 회기 흐름도 이 설정을 읽지 않습니다.
+          </p>
           <div className="mt-3">
             <LimitNote>
               승인 단계를 늘릴수록 현장이 느려집니다. 어르신 본인의 확인은 어떤
@@ -173,7 +242,7 @@ export default function CalendarPage() {
           </div>
         </Panel>
 
-        {/* F-CM-CAL-004 · 006 · 007 */}
+        {/* F-CM-CAL-002 · 004 · 006 · 007 */}
         <Panel title="계획 도구" code="F-CM-CAL-002 · 004 · 006 · 007">
           <div className="space-y-3">
             {[
@@ -186,37 +255,35 @@ export default function CalendarPage() {
                 <p className="text-[0.9375rem] font-bold text-ink-900">{x.t}</p>
                 <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">{x.d}</p>
                 <div className="mt-2.5">
-                  <CBtn>열기</CBtn>
+                  <CBtn disabled title="아직 준비되지 않았습니다">
+                    열기
+                  </CBtn>
                 </div>
               </div>
             ))}
           </div>
+          <p className="mt-3 text-[0.8125rem] leading-relaxed text-ink-500">
+            네 가지 모두 일정 저장 기능이 생긴 뒤에 열립니다. 지금은 어느
+            것도 눌러 볼 수 없습니다.
+          </p>
         </Panel>
       </div>
 
       {/* F-CM-STAFF-004 담당자 배정 규칙 (계획 화면에서 함께 다룬다) */}
       <Panel className="mt-4" title="담당자 배정 규칙" code="F-CM-STAFF-004">
-        <TableWrap>
-          <thead>
-            <tr>
-              <Th>직원</Th>
-              <Th>기본 담당 요일</Th>
-              <Th className="text-right">담당 어르신</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {STAFF.filter((s) => s.active && s.role === 'worker').map((s) => (
-              <tr key={s.id}>
-                <Td className="font-bold">{s.name}</Td>
-                <Td className="text-ink-700">월 · 수 · 금</Td>
-                <Td className="text-right tabular-nums">{s.assigned}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </TableWrap>
-        <p className="mt-3 text-[0.8125rem] text-ink-500">
-          일정을 만들 때 기본값으로 제안할 뿐입니다. 담당자는 언제든 바꿀 수
-          있습니다.
+        {/* 예전에는 여기에 직원별 '기본 담당 요일: 월·수·금' 표가 있었다.
+            어디에도 저장된 적 없는 값을 전 직원에게 똑같이 찍은 것이라
+            규칙처럼 읽히기만 했다. 규칙이 없으면 없다고 적는다. */}
+        <p className="text-[0.9375rem] leading-relaxed text-ink-700">
+          기본 담당 요일이나 자동 배정 규칙은 아직 없습니다. 회기마다 담당자를
+          직접 정하고 있습니다.
+        </p>
+        <p className="mt-2 text-[0.9375rem] leading-relaxed text-ink-700">
+          직원별 담당 어르신 수와 미확정 일지는{' '}
+          <Link href="/center/staff" className="font-bold underline">
+            직원 관리
+          </Link>
+          에서 봅니다.
         </p>
       </Panel>
     </CenterShell>

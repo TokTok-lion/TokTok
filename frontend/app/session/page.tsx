@@ -2,12 +2,10 @@
 
 import Link from 'next/link';
 import { ArtBox } from '@/components/Art';
-import { ElderCardSkeleton, NoElderCard } from '@/components/NoElderCard';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, PrimaryButton } from '@/components/ui';
 import { STEPS, flowState, isStepDone } from '@/lib/flow';
 import { useSession } from '@/lib/store';
-import { useActiveElder } from '@/lib/useActiveElder';
 import type { ArtKey } from '@/lib/art';
 
 /**
@@ -16,33 +14,14 @@ import type { ArtKey } from '@/lib/art';
  * This is the only place the nine steps are listed. 오늘 shows just the next
  * one; 기록 shows what came out the other end. A step already finished stays
  * tappable, because going back to re-check something is normal work.
+ *
+ * 어르신 잠금은 여기 없다. 이 화면만 막으면 아래 단계 화면들이 그대로 열려
+ * 있어서, 자물쇠는 회기 폴더 전체를 덮는 layout.tsx 한 곳에 뒀다. 여기까지
+ * 그려졌다는 것은 가리킬 어르신이 있다는 뜻이다.
  */
 export default function SessionFlowPage() {
   const { s } = useSession();
   const flow = flowState(s);
-  const elder = useActiveElder();
-
-  // 홈에서 막아도 아래 탭으로 바로 들어올 수 있다. 같은 문에는 같은 자물쇠.
-  if (elder !== 'ok') {
-    return (
-      <Screen
-        root
-        title="오늘의 회기"
-        subtitle={
-          elder === 'checking'
-            ? '회기를 불러오는 중이에요'
-            : '어르신을 고르면 아홉 단계가 여기 펼쳐져요'
-        }
-        decoration={<Ornaments variant="leafRight" />}
-      >
-        {elder === 'checking' ? (
-          <ElderCardSkeleton />
-        ) : (
-          <NoElderCard deleted={Boolean(s.remoteParticipantId)} />
-        )}
-      </Screen>
-    );
-  }
 
   return (
     <Screen

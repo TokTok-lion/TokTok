@@ -156,14 +156,6 @@ export function scheduleAt(
   );
 }
 
-/** 'HH:MM' 을 오늘 날짜의 Date 로. */
-export function todayAt(hhmm: string): Date {
-  const [h, m] = hhmm.split(':').map(Number);
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d;
-}
-
 /* ------------------------------------------------------------ 훅 */
 
 export function useNotify() {

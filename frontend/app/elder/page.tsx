@@ -39,7 +39,7 @@ const MIN_QUERY = 2;
  * information, so search covers name, code and topic only.
  */
 export default function ElderListPage() {
-  const { s, set } = useSession();
+  const { s } = useSession();
   const router = useRouter();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<ServiceStatus | 'all'>('all');
@@ -69,6 +69,12 @@ export default function ElderListPage() {
    * 녹음이 다음 회기에 그대로 따라왔고, 그 상태로 곡을 만들면 다른 분의
    * 생애가 들어갔다. beginSession 이 작업대를 비운다.
    *
+   * 더 나빴던 것은 그 다음이다. 작업대는 비웠는데 이 자리에서 `...s.elder`
+   * 로 앞 어르신 객체를 펼쳐 넘기는 바람에 동의·선호·회피 주제가 조용히
+   * 따라갔다. 박 어르신을 골라도 김 어르신의 '외부 AI 전송 허용'이 켜진 채로
+   * 시작되고, 그 값 하나가 원음성 전송의 문이다. 이제는 신원 표시만 넘긴다 —
+   * 동의는 beginSession 이 어르신별로 새로 세운다.
+   *
    * 다만 말없이 비우지는 않는다. 30분짜리 인터뷰가 잘못 누른 한 번에
    * 사라지면 안 된다.
    */
@@ -79,7 +85,6 @@ export default function ElderListPage() {
       participantId: live ? e.id : null,
       topic: e.topic,
       elder: {
-        ...s.elder,
         id: e.id,
         displayName: e.displayName,
         honorific: `${e.displayName} 어르신`,

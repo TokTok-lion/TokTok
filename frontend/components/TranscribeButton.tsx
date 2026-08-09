@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Card } from './ui';
-import { CONSENT_FALLBACK, hasConsent } from '@/lib/domain';
+import { ConsentGate, missingConsents } from './ConsentGate';
+import { hasConsent } from '@/lib/domain';
 import { settled } from '@/lib/longJob';
 import { loadRecording } from '@/lib/recordingStore';
 import { mmss } from '@/lib/recorder';
@@ -29,20 +31,28 @@ export function TranscribeButton() {
   const canRecord = hasConsent(s.elder.consents, 'recording');
   const canSend = hasConsent(s.elder.consents, 'externalAi');
 
+  // 못 하는 이유만 적고 끝내면 회기가 여기서 멈춘다. 동의를 여쭈러 갈 자리와,
+  // 동의 없이 오늘 회기를 이어 갈 자리를 같은 화면에서 가리킨다.
   if (!canRecord || !canSend) {
     return (
-      <Card className="mt-3 p-4">
-        <p className="text-[1rem] font-bold text-ink-900">자동 전사를 하지 않아요</p>
-        <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-          {!canRecord
-            ? CONSENT_FALLBACK.recording
-            : CONSENT_FALLBACK.externalAi}
+      <ConsentGate
+        missing={missingConsents(s.elder.consents, ['recording', 'externalAi'])}
+        title="자동 전사를 하지 않아요"
+        why="자동 전사는 어르신 목소리를 외부로 보내야 해서, 녹음과 외부 AI 전송에 모두 동의하셨을 때만 씁니다."
+      >
+        <p className="mt-3 border-t border-hairline pt-3 text-[0.9375rem] leading-relaxed text-ink-700">
+          동의 없이 오늘 회기를 이어 가셔도 됩니다. 아래 &lsquo;전사 없이
+          다음으로&rsquo;를 누르시면{' '}
+          <Link
+            href="/session/story"
+            className="font-bold text-brand-700 underline"
+          >
+            이야기 정리
+          </Link>
+          로 가고, 거기서 어르신 말씀을 복지사가 직접 적어 이야기로 남길 수
+          있어요.
         </p>
-        <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-500">
-          자동 전사는 어르신 목소리를 외부로 보내야 해서, 녹음과 외부 AI 전송에
-          모두 동의하셨을 때만 씁니다.
-        </p>
-      </Card>
+      </ConsentGate>
     );
   }
 

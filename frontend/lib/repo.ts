@@ -3,12 +3,20 @@
 import { getSupabase } from './supabase';
 import { accountReady, currentAccount } from './auth';
 import type {
+  ConsentKind as DbConsentKind,
   ParticipantRow,
   SessionRow,
   SourceKind as DbSourceKind,
   StaffRole,
 } from './db.types';
-import type { SourceKind, StoryItem } from './domain';
+import { DEFAULT_CONSENTS } from './domain';
+import type {
+  ConsentKind,
+  ConsentState,
+  Consents,
+  SourceKind,
+  StoryItem,
+} from './domain';
 import type { SessionState } from './store';
 
 /**
@@ -21,6 +29,23 @@ const SOURCE_KIND_TO_DB: Record<SourceKind, DbSourceKind> = {
   card: 'card',
   staffNote: 'staff_note',
   family: 'family',
+};
+
+/** 같은 이유로 동의 종류도 여기서만 맞춘다. 앱은 externalAi, DB 는 external_ai. */
+const CONSENT_KIND_TO_DB: Record<ConsentKind, DbConsentKind> = {
+  recording: 'recording',
+  externalAi: 'external_ai',
+  facilityPlay: 'facility_play',
+  familyShare: 'family_share',
+  promotion: 'promotion',
+};
+
+const CONSENT_KIND_FROM_DB: Record<DbConsentKind, ConsentKind> = {
+  recording: 'recording',
+  external_ai: 'externalAi',
+  facility_play: 'facilityPlay',
+  family_share: 'familyShare',
+  promotion: 'promotion',
 };
 
 /**
@@ -111,6 +136,109 @@ export async function createParticipant(
   return { ok: true, id: data.id };
 }
 
+/* ------------------------------------------------- 어르신별 동의·선호 */
+
+/** 어르신 한 분에게 붙는 값들. 기기가 아니라 사람에게 귀속된다. */
+export type ParticipantRecord = {
+  consents: Consents;
+  communication: string[];
+  musicPreferences: string[];
+  avoidTopics: string[];
+};
+
+/**
+ * 이 어르신의 동의와 선호를 서버에서 읽는다.
+ *
+ * 스키마에는 참가자별 consents 테이블이 처음부터 있었는데 앱이 한 번도 읽지
+ * 않았다. 그래서 동의가 "이 어르신의 것"이 아니라 "이 기기의 현재 세션"에
+ * 붙어 있었고, 어르신을 바꾸면 앞분의 granted 가 그대로 따라왔다. 동의한 적
+ * 없는 분의 원음성이 외부로 나가는 길이었다.
+ *
+ * 읽지 못하면 null 이다. 부르는 쪽은 전부 unset 으로 두어야 한다 — 모르는 것은
+ * 허용이 아니라 미동의다(hasConsent 가 unset 을 false 로 본다).
+ */
+export async function readParticipantRecord(
+  participantId: string,
+): Promise<ParticipantRecord | null> {
+  const sb = getSupabase();
+  const t = tenant();
+  if (!sb || !t) return null;
+
+  const [consentRes, participantRes] = await Promise.all([
+    sb
+      .from('consents')
+      .select('*')
+      .eq('tenant_id', t)
+      .eq('participant_id', participantId),
+    sb
+      .from('participants')
+      .select('*')
+      .eq('tenant_id', t)
+      .eq('id', participantId)
+      .maybeSingle(),
+  ]);
+  // 동의를 못 읽었으면 선호만 채우고 넘어가지 않는다. 절반만 맞는 상태보다
+  // "아직 모른다"가 안전하다.
+  if (consentRes.error) return null;
+
+  const consents: Consents = { ...DEFAULT_CONSENTS };
+  const now = Date.now();
+  for (const row of consentRes.data ?? []) {
+    const kind = CONSENT_KIND_FROM_DB[row.kind];
+    if (!kind) continue;
+    // 기간이 지난 동의는 동의가 아니다. 목록 화면이 "동의 D-3"을 띄우면서
+    // 만료된 granted 를 그대로 읽으면 그 경고는 장식이 된다.
+    const expired =
+      row.expires_at !== null && new Date(row.expires_at).getTime() <= now;
+    consents[kind] = row.state === 'granted' && expired ? 'unset' : row.state;
+  }
+
+  const p = participantRes.data;
+  return {
+    consents,
+    communication: p?.comm_prefs ?? [],
+    musicPreferences: p?.music_prefs ?? [],
+    avoidTopics: p?.avoid_topics ?? [],
+  };
+}
+
+/**
+ * 동의 한 건을 이 어르신 기록에 남긴다.
+ *
+ * /더보기의 스위치가 "이 기기"가 아니라 "이 어르신"의 동의가 되려면 여기까지
+ * 와야 한다. 결과를 돌려주는 이유는 부르는 쪽이 방향에 따라 다르게 처리해야
+ * 하기 때문이다 — 허용은 기록이 남아야 허용이고, 철회는 기록에 실패해도
+ * 철회다.
+ */
+export async function writeConsent(
+  participantId: string,
+  kind: ConsentKind,
+  state: ConsentState,
+): Promise<{ ok: boolean; reason?: string }> {
+  const sb = getSupabase();
+  const t = tenant();
+  if (!sb || !t) return { ok: false, reason: '로그인이 필요합니다.' };
+
+  // (participant_id, kind) 가 유일키라 같은 항목을 여러 번 켰다 꺼도 행이
+  // 늘지 않고 마지막 결정만 남는다.
+  const { error } = await sb.from('consents').upsert(
+    {
+      tenant_id: t,
+      participant_id: participantId,
+      kind: CONSENT_KIND_TO_DB[kind],
+      state,
+      method: 'app',
+      decided_at: new Date().toISOString(),
+    },
+    { onConflict: 'participant_id,kind' },
+  );
+  if (error) return { ok: false, reason: '동의 기록을 저장하지 못했습니다.' };
+
+  // 동의 변경은 흔적이 남아야 한다 (NFR-OPS-003).
+  void audit(`consent.${state}`, `participant:${participantId}`, kind);
+  return { ok: true };
+}
+
 /* --------------------------------------------------------- 회기 저장 */
 
 /**
@@ -142,16 +270,27 @@ export async function saveSession(s: SessionState): Promise<SaveResult> {
     topic: s.topic,
     status: s.logSaved ? ('done' as const) : ('running' as const),
     step: s.remoteStep,
-    started_at: s.remoteStartedAt ?? new Date().toISOString(),
     ended_at: s.logSaved ? new Date().toISOString() : null,
   };
 
   let sessionId = s.remoteSessionId;
   if (sessionId) {
+    // started_at 은 갱신에서 뺀다. 회기 시작 시각은 저장 버튼을 누른 시각이
+    // 아니다 — 저장할 때마다 시작이 뒤로 밀리면 소요시간이 계속 줄어든다.
     const { error } = await sb.from('sessions').update(row).eq('id', sessionId);
     if (error) return { ok: false, reason: '회기를 저장하지 못했습니다.' };
   } else {
-    const { data, error } = await sb.from('sessions').insert(row).select('id').single();
+    // 저장 버튼은 활동일지를 확정한 뒤에만 눌리므로, 여기서 시각을 찍으면
+    // started_at 과 ended_at 이 같은 순간이 되어 모든 회기가 0분이 된다.
+    // 어르신을 고른 시점(beginSession)에 남겨 둔 값을 쓴다.
+    const { data, error } = await sb
+      .from('sessions')
+      .insert({
+        ...row,
+        started_at: s.remoteStartedAt ?? new Date().toISOString(),
+      })
+      .select('id')
+      .single();
     if (error || !data) return { ok: false, reason: '회기를 만들지 못했습니다.' };
     sessionId = data.id;
   }
@@ -178,6 +317,10 @@ export async function saveSession(s: SessionState): Promise<SaveResult> {
       tenant_id: t,
       session_id: sessionId,
       draft: s.logDraft,
+      // 다음 추천 주제는 아직 아무것도 계산하지 않는다. 실제 회기에서는
+      // 비어 있고(store.beginSession), 비어 있으면 기록에도 넣지 않는다 —
+      // 한 번도 계산된 적 없는 고정 문자열이 기관 활동일지에 'AI 추천'으로
+      // 남는 것이 이 자리에서 벌어지던 일이다.
       next_topic: s.nextTopic || null,
       confirmed_by: s.logSaved ? facilitator : null,
       confirmed_at: s.logSaved ? new Date().toISOString() : null,

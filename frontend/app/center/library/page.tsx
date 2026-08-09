@@ -26,6 +26,10 @@ export default function LibraryPage() {
       title="프로그램 템플릿"
       lead="질문 카드와 진행안을 관리합니다. 어르신의 생애사는 템플릿에 담기지 않습니다."
       actions={<CBtn tone="solid">기관 템플릿 만들기</CBtn>}
+      data={{
+        kind: 'seed',
+        what: '아래 템플릿 목록과 사용 횟수는 예시입니다. 만들기·복제·공유 신청은 아직 서버에 연결되어 있지 않아, 눌러도 이 화면 밖에는 아무것도 남지 않습니다.',
+      }}
     >
       <div className="flex gap-2">
         {(['전체', '공식', '기관'] as const).map((f) => (

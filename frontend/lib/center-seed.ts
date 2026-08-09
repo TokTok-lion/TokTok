@@ -12,12 +12,25 @@ import type {
 } from './center';
 
 /**
- * Sample data for the 센터장 console.
+ * 센터장 콘솔(/center)의 샘플 데이터.
+ * 규모는 첫 고객에 맞췄다 — 정원 30명 이하 주야간보호, 직원 5명 안팎.
  *
- * F-CM-DASH-008 requires operating figures to be labelled as samples until a
- * pilot supplies real measurements, so every screen that reads from here shows
- * the 샘플 데이터 badge. Scale matches the first customer: a day-care centre of
- * 30 or fewer, roughly 5 staff.
+ * F-CM-DASH-008 은 파일럿 실측이 나오기 전까지 운영지표를 샘플로 명시하라고
+ * 요구한다. 그 표시는 이제 화면마다 손으로 붙이지 않는다. components/
+ * CenterShell.tsx 의 CenterShell 이 `data` prop 을 필수로 받아 화면 맨 위에
+ * 직접 그린다. 이 파일에서 무언가를 꺼내 쓰는 화면은 그 prop 을 적지 않으면
+ * 컴파일되지 않는다.
+ *
+ * 여기에 '어느 화면이 표시를 달았는지' 목록을 두지 않는다. 예전 이 자리의
+ * 주석이 그 목록을 손으로 유지하려다 두 번 다 틀린 숫자를 말했기 때문이다
+ * (한 번은 "모든 화면", 한 번은 "10개 중 4개" — 실제로는 7개였다). 세어 둔
+ * 목록은 코드보다 먼저 낡고, 낡은 목록을 본 다음 사람은 '이미 다 붙었다'고
+ * 믿고 지나간다.
+ *
+ * 다만 문구가 하나는 아니다. CONSENT_POLICIES · RETENTION_DEFAULTS 는 지어낸
+ * 측정값이 아니라 기관이 조정하는 설정 기본값이라 "실제 청구·성과 수치가
+ * 아닙니다"가 맞지 않는다. 그래서 ConsoleData 에 `kind: 'defaults'` 가 따로
+ * 있다.
  */
 
 export const CENTER = {
@@ -258,11 +271,22 @@ export const RECIPES = [
   { id: 'r4', title: '봄나들이 회상', origin: '기관', uses: 5, updated: '2025-05-16', cards: 5 },
 ];
 
-export const PROVIDER_STATUS = [
-  { name: '전사(STT) 제공자', state: 'ok' as const, note: '정상' },
-  { name: 'LLM 제공자', state: 'ok' as const, note: '정상' },
-  { name: '음악 생성 제공자', state: 'degraded' as const, note: '생성 지연 (평균 4분 → 11분)' },
-  { name: '결제 대행사', state: 'ok' as const, note: '정상' },
+/**
+ * 이 서비스가 기대고 있는 외부 제공자. 상태가 아니라 의존 관계다.
+ *
+ * 예전에는 여기에 state('ok'/'degraded')와 '생성 지연 (평균 4분 → 11분)'
+ * 같은 수치가 함께 들어 있었다. 그런데 제공자 상태를 확인하는 코드는 어디에도
+ * 없다 — 지어낸 장애였다. 게다가 그 줄은 /center/support 에 아무 표시 없이
+ * 그려져서, 센터장이 오늘의 장애로 읽고 어르신 일정을 미룰 수 있었다.
+ *
+ * 그래서 상태를 지웠다. 확인하지 않은 것을 '정상'이라고 적는 것도 같은 종류의
+ * 거짓이라, 네 줄 모두에서 뺐다. 무엇에 기대고 있는지만 남긴다.
+ */
+export const PROVIDERS_USED = [
+  { name: '전사(STT) 제공자', purpose: '음성을 글로 옮깁니다' },
+  { name: 'LLM 제공자', purpose: '이야기 구조화·가사 초안' },
+  { name: '음악 생성 제공자', purpose: '반주·보컬 합성' },
+  { name: '결제 대행사', purpose: '구독료 청구' },
 ];
 
 export const TICKETS = [

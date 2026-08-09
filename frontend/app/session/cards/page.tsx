@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, IconCircle, PrimaryButton } from '@/components/ui';
@@ -38,18 +39,33 @@ export default function MemoryCardsPage() {
           <p className="text-[1.25rem] font-extrabold text-ink-900">
             {s.elder.honorific}
           </p>
+          {/* 주제는 이 회기의 실제 값이다. 예전에는 '어린 시절 가장 행복했던
+              순간'이 박혀 있어서, 직전 체크리스트 화면이 보여준 주제와 두 화면
+              연속으로 어긋났다.
+              실제 기관 회기는 주제 없이 시작한다(lib/useElders.ts). 그때
+              '주제: —'를 적는 대신, 이 화면에서 무엇을 하면 되는지 적는다 —
+              여기서 고른 카드가 곧 오늘의 질문이 된다. */}
           <p className="mt-1 text-[0.9375rem] text-ink-500">
-            <span className="font-bold text-leaf-700">주제:</span> 어린 시절 가장
-            행복했던 순간
+            {s.topic ? (
+              <>
+                <span className="font-bold text-leaf-700">주제:</span> {s.topic}
+              </>
+            ) : (
+              '오늘 주제는 없어요. 아래에서 고른 기억 카드가 질문이 됩니다.'
+            )}
           </p>
         </div>
-        <button
-          type="button"
+        {/* 주제는 어르신 목록에서 회기를 시작할 때 정해진다 — 앱 안에 따로
+            고치는 화면이 없으므로 그 자리로 보낸다. 예전에는 아무 데도 가지
+            않는 버튼이었다. */}
+        <Link
+          href="/elder"
+          aria-label="어르신과 오늘 주제 바꾸기"
           className="flex h-[54px] w-[54px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-full bg-leaf-100 text-leaf-700"
         >
           <IconPeople size={19} />
           <span className="text-[0.75rem] font-bold">변경</span>
-        </button>
+        </Link>
       </Card>
 
       <fieldset className="mt-4">

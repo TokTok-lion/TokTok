@@ -6,12 +6,24 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, PrimaryButton } from '@/components/ui';
 import { IconMusicNote } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
+import { sceneForTopic, songTitleForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
 /** 음악 스타일 선택 (deck p.14) */
 export default function StylePage() {
   const { s, set } = useSession();
+
+  // 만들려는 곡의 제목·그림은 회기 주제에서 나온다(형제 화면 /session/song 과
+  // 같은 해석기). 예전에는 '우리 가족의 탄생' + 부부 그림이 박혀 있어서,
+  // 첫 월급 이야기를 만드는 중에도 다른 곡을 만드는 것처럼 보였다.
+  //
+  // 주제가 없는 회기는 제목이 '오늘의 노래', 그림은 기본 장면이 된다
+  // (lib/scenes.ts). 서버에서 온 어르신에게 '—'가 붙던 시절에는 이 자리에
+  // '— 이야기'가 곡 제목으로 떴는데, 이제 주제는 비어서 온다(lib/useElders.ts).
+  const scene = sceneForTopic(s.topic);
+  const title = songTitleForTopic(s.topic);
+  const styleName = MUSIC_STYLES.find((m) => m.id === s.style)?.name;
 
   return (
     <Screen
@@ -29,16 +41,20 @@ export default function StylePage() {
       }
     >
       <Card className="flex items-center gap-3 p-3.5">
+        {/* 주제마다 그림 비율이 달라(가로 560x193 ~ 세로 464x560) 폭만 잡으면
+            카드 높이가 주제에 따라 널뛴다. 상자를 고정하고 안에서 맞춘다. */}
         <ArtBox
-          name="scene_couple_reading"
-          className="w-[124px] shrink-0"
+          key={scene.id}
+          name={scene.art}
+          alt={scene.alt}
+          className="h-[92px] w-[124px] shrink-0"
           fit="contain"
         />
         <div className="min-w-0 flex-1 text-center">
-          <p className="text-[1.3125rem] font-extrabold text-ink-900">
-            우리 가족의 탄생
+          <p className="text-[1.3125rem] font-extrabold text-ink-900">{title}</p>
+          <p className="mt-1 text-[1.0625rem] font-bold text-brand-700">
+            {styleName ?? '분위기를 골라 주세요'}
           </p>
-          <p className="mt-1 text-[1.0625rem] font-bold text-brand-700">따뜻한 이야기</p>
         </div>
       </Card>
 

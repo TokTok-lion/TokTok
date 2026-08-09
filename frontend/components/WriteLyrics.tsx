@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { CONSENT_FALLBACK, hasConsent } from '@/lib/domain';
+import { ConsentGate, missingConsents } from './ConsentGate';
+import { hasConsent, type LyricSection } from '@/lib/domain';
 import { findContradictions } from '@/lib/contradiction';
 import { useLifeStory } from '@/lib/useLifeStory';
 import { useSession } from '@/lib/store';
@@ -26,12 +27,25 @@ export function WriteLyrics() {
   const basis = scope === 'all' ? life.all : life.thisSession;
   const allowed = hasConsent(s.elder.consents, 'externalAi');
 
+  /*
+   * 동의가 없으면 자동 생성은 하지 않는다. 다만 여기서 끝내지 않는다.
+   *
+   * 예전에는 이 자리에 안내 한 줄만 있었다. 그런데 이 화면의 아래쪽 버튼은
+   * 가사가 없으면 '먼저 가사를 만들어 주세요'로 잠긴다 — 외부 AI 전송에
+   * 동의하지 않으신 어르신은 6단계에서 나갈 방법이 하나도 없었다. 게다가 그
+   * 안내에 붙던 CONSENT_FALLBACK.externalAi 는 "복지사가 직접 가사를 작성할
+   * 수 있어요"라고 약속하는데 그런 화면이 없었다. 없는 기능을 안내하느니
+   * 만든다 — 아래 HandwrittenLyrics 가 그 약속이다.
+   */
   if (!allowed) {
     return (
-      <p className="mt-3 rounded-[12px] bg-surface-sunk px-3.5 py-3 text-[0.875rem] leading-relaxed text-ink-700">
-        <strong>외부 AI 전송</strong>에 동의하지 않으셔서 가사는 자동으로 만들지
-        않아요. {CONSENT_FALLBACK.externalAi}
-      </p>
+      <ConsentGate
+        missing={missingConsents(s.elder.consents, ['externalAi'])}
+        title="가사를 자동으로 만들지 않아요"
+        why="가사 생성은 어르신 이야기를 외부 사업자에 보내야 해서, 외부 AI 전송에 동의하셨을 때만 씁니다."
+      >
+        <HandwrittenLyrics />
+      </ConsentGate>
     );
   }
 
@@ -174,5 +188,118 @@ export function WriteLyrics() {
         </p>
       ) : null}
     </>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * 손으로 가사 쓰기
+ * ------------------------------------------------------------------ */
+
+/** 빈 줄로 나눈 덩어리 하나를 절로 본다. */
+function parseLyrics(text: string): LyricSection[] {
+  let verse = 0;
+  return text
+    .split(/\n\s*\n/)
+    .map((block) => {
+      const lines = block
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+      // 첫 줄에 '후렴'이라고 적으면 후렴으로 본다. 절 번호는 후렴을 건너뛴다.
+      const chorus = lines.length > 0 && /^후렴/.test(lines[0]);
+      const body = chorus ? lines.slice(1) : lines;
+      if (!chorus && body.length > 0) verse += 1;
+      return {
+        label: chorus ? '후렴' : `${verse}절`,
+        tone: chorus ? ('chorus' as const) : ('verse' as const),
+        lines: body,
+      };
+    })
+    .filter((sec) => sec.lines.length > 0);
+}
+
+/** 저장된 가사를 다시 글상자에 넣을 수 있는 모양으로. */
+function lyricsToText(sections: LyricSection[]): string {
+  return sections
+    .map((sec) => (sec.tone === 'chorus' ? '후렴\n' : '') + sec.lines.join('\n'))
+    .join('\n\n');
+}
+
+/**
+ * 복지사가 직접 쓰는 가사.
+ *
+ * 외부 AI 전송에 동의하지 않으신 어르신도 노래까지 갈 수 있어야 한다.
+ * 동의를 거절한 대가가 "여기서 끝"이면 그건 자유로운 선택이 아니다
+ * (원칙 4 · F-SW-CONS-009).
+ *
+ * 여기서 쓴 글은 사람이 쓴 것이므로 AI 초안 검수 절차를 따로 두지 않는다.
+ * 다음 화면의 '이 가사 확정'이 그대로 사람 검수의 도장이 된다(원칙 3).
+ */
+function HandwrittenLyrics() {
+  const { s, set } = useSession();
+  // 이미 써 둔 가사가 있으면 이어서 고친다. 다시 처음부터 치게 하면 회기
+  // 중간에 손으로 쓴 것을 잃는다.
+  const [text, setText] = useState(() => lyricsToText(s.lyrics));
+  const [saved, setSaved] = useState(false);
+
+  const sections = parseLyrics(text);
+  const lineCount = sections.reduce((n, sec) => n + sec.lines.length, 0);
+
+  return (
+    <div className="mt-4 border-t border-hairline pt-4">
+      <p className="text-[1.0625rem] font-extrabold text-ink-900">
+        손으로 가사 쓰기
+      </p>
+      <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">
+        어르신이 확인해 주신 이야기를 보면서 복지사가 직접 적어 주세요. 여기에
+        적은 글은 기기 밖으로 나가지 않아요.
+      </p>
+
+      <label htmlFor="handwritten-lyrics" className="sr-only">
+        가사
+      </label>
+      <textarea
+        id="handwritten-lyrics"
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          setSaved(false);
+        }}
+        rows={10}
+        placeholder={
+          '첫 월급을 받던 날\n어머니 신발을 샀네\n\n후렴\n그 마음이 오래 남아\n오늘도 노래가 되네'
+        }
+        className="mt-2.5 w-full rounded-[14px] border-2 border-hairline bg-surface-strong px-3.5 py-3 text-[1.0625rem] font-semibold leading-[1.7] text-ink-900 outline-none focus-visible:border-brand-500"
+      />
+      <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink-500">
+        빈 줄을 넣으면 절이 나뉘어요. 후렴은 첫 줄에 <strong>후렴</strong>이라고
+        적어 주세요.
+      </p>
+
+      <button
+        type="button"
+        disabled={sections.length === 0}
+        onClick={() => {
+          set('lyrics', sections);
+          setSaved(true);
+        }}
+        className={`mt-3 min-h-[52px] w-full rounded-[14px] text-[1rem] font-bold ${
+          sections.length === 0
+            ? 'pointer-events-none bg-surface-sunk text-ink-500'
+            : 'bg-brand-700 text-white'
+        }`}
+      >
+        {sections.length === 0
+          ? '가사를 적어 주세요'
+          : `이 가사 저장 (${sections.length}묶음 · ${lineCount}줄)`}
+      </button>
+
+      {saved ? (
+        <p className="mt-2 rounded-[12px] bg-leaf-50 px-3.5 py-2.5 text-[0.875rem] font-bold leading-relaxed text-leaf-800">
+          저장했어요. 위쪽에서 가사를 확인하시고, 아래 &lsquo;이 가사 확정&rsquo;을
+          누르면 다음 단계로 갑니다.
+        </p>
+      ) : null}
+    </div>
   );
 }

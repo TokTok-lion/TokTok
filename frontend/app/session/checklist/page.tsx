@@ -1,22 +1,62 @@
 'use client';
 
 import { Art } from '@/components/Art';
+import { ConsentAsk, CONSENT_ORDER } from '@/components/ConsentGate';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, NoteBar, PrimaryButton } from '@/components/ui';
-import { IconChat, IconClock, IconEdit, IconImage, IconInfo, IconMic } from '@/components/icons';
+import { IconChat, IconClock, IconEdit, IconImage, IconInfo, IconMic, IconShield } from '@/components/icons';
 import { useSession } from '@/lib/store';
+import { PREP_CHECKS, type PrepCheck } from '@/lib/flow';
+import type { ArtKey } from '@/lib/art';
+import type { ComponentType } from 'react';
 
-const ITEMS = [
-  { key: 'elder', label: '어르신 선택 완료', Icon: IconChat, tone: 'leaf' as const },
-  { key: 'cards', label: '기억 카드 준비 완료', Icon: IconImage, tone: 'leaf' as const },
-  { key: 'familyNote', label: '가족 메모 확인 완료', Icon: IconEdit, tone: 'leaf' as const },
-  { key: 'mic', label: '마이크 테스트 필요', Icon: IconMic, tone: 'amber' as const },
-];
+/*
+ * 점검할 항목의 목록은 흐름표(lib/flow.ts)가 들고 있다.
+ *
+ * 여기 배열과 저기 완료 판정이 따로 살아 있어서, 한쪽만 고치면 이 화면은
+ * '4건 남음'이라 말하고 회기 화면은 같은 1단계를 '완료'로 그리게 된다.
+ * Record 로 받으면 항목을 빠뜨렸을 때 타입이 먼저 잡는다.
+ */
+const ITEMS: Record<
+  PrepCheck,
+  {
+    label: string;
+    Icon: ComponentType<{ size?: number; className?: string }>;
+    tone: 'leaf' | 'amber';
+  }
+> = {
+  elder: { label: '어르신 선택 완료', Icon: IconChat, tone: 'leaf' },
+  cards: { label: '기억 카드 준비 완료', Icon: IconImage, tone: 'leaf' },
+  familyNote: { label: '가족 메모 확인 완료', Icon: IconEdit, tone: 'leaf' },
+  mic: { label: '마이크 테스트 필요', Icon: IconMic, tone: 'amber' },
+};
+
+/** ISO 시각 → '오전 10:05'. 기기 시간대를 그대로 쓴다. */
+function clockLabel(iso: string): string {
+  const d = new Date(iso);
+  const h = d.getHours();
+  const half = h < 12 ? '오전' : '오후';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${half} ${h12}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 /** 회기 시작 체크리스트 (deck p.20) */
 export default function ChecklistPage() {
-  const { s, toggleChecklist } = useSession();
-  const pending = ITEMS.filter((i) => !s.checklist[i.key]).length;
+  const { s, set, setConsent, toggleChecklist } = useSession();
+
+  /*
+   * 아직 여쭙지 못한 동의도 '남은 일'이다.
+   *
+   * 회기는 어르신마다 동의 unset 으로 시작한다. 그 상태로 인터뷰까지 가면
+   * 녹음·전사·사실 추출·가사·곡 생성이 차례로 막히고, 6단계에서는 나갈 길이
+   * 아예 없다. 마주 앉기 전에 여쭤야 할 일이라 준비물과 같은 자리에서 세고,
+   * 같은 숫자로 보여 준다.
+   */
+  const unasked = CONSENT_ORDER.filter(
+    (kind) => (s.elder.consents[kind] ?? 'unset') === 'unset',
+  ).length;
+  const pending =
+    PREP_CHECKS.filter((key) => !s.checklist[key]).length + unasked;
 
   return (
     <Screen
@@ -24,13 +64,26 @@ export default function ChecklistPage() {
       subtitle="오늘 진행 전에 함께 확인해요"
       decoration={<Ornaments variant="leafRight" />}
       footer={
-        <PrimaryButton href="/session/cards">
+        <PrimaryButton
+          href="/session/cards"
+          onClick={() => {
+            // 회기 시작 시각을 여기서 찍는다. 활동일지의 '진행 시간'이 기관
+            // 서식으로 나가는 값인데 잴 방법이 없어 30분으로 박혀 있었다 —
+            // 준비를 마치고 어르신과 마주 앉는 이 순간이 그 기준점이다.
+            // 이미 찍혀 있으면 덮지 않는다. 체크리스트로 되돌아왔다고 해서
+            // 회기가 다시 시작되는 것은 아니다.
+            if (!s.remoteStartedAt) set('remoteStartedAt', new Date().toISOString());
+          }}
+        >
           인터뷰 시작 {pending > 0 ? `(${pending}건 남음)` : ''}
         </PrimaryButton>
       }
     >
       <Card className="flex items-center gap-4 p-4">
-        <Art name="avatar_grandmother" size={104} alt="" className="shrink-0" />
+        {/* 등록 화면에서 고른 아바타를 쓴다. 이름은 김○○ 어르신인데 그림은
+            늘 할머니였다 — 어르신을 눈으로 확인하는 자리에서 그림이 다른 분을
+            가리키면 화면을 믿을 수 없게 된다. */}
+        <Art name={s.elder.avatar as ArtKey} size={104} alt="" className="shrink-0" />
         <div className="min-w-0">
           <p className="text-[1.625rem] font-extrabold leading-tight text-ink-900">
             {s.elder.honorific}
@@ -40,24 +93,35 @@ export default function ChecklistPage() {
             <span className="flex-1 text-ink-500">오늘의 주제</span>
             <span className="font-extrabold text-brand-700">{s.topic}</span>
           </p>
+          {/* 예약 시각을 아는 값이 세션에 없어서 '오전 10:00'이 박혀 있었다.
+              지어낸 시각 대신 실제로 아는 것만 적는다 — 인터뷰를 시작하면
+              그때 찍힌 시각이 여기에 뜨고, 활동일지의 진행 시간도 이 값에서
+              나온다. */}
           <p className="mt-2 flex items-center gap-2 text-[0.9375rem]">
             <IconClock size={19} className="shrink-0 text-brand-600" />
-            <span className="flex-1 text-ink-500">시간</span>
-            <span className="font-extrabold text-brand-700">오전 10:00</span>
+            <span className="flex-1 text-ink-500">시작 시각</span>
+            {s.remoteStartedAt ? (
+              <span className="font-extrabold text-brand-700">
+                {clockLabel(s.remoteStartedAt)}
+              </span>
+            ) : (
+              <span className="font-bold text-ink-500">아직 시작 전</span>
+            )}
           </p>
         </div>
       </Card>
 
       <ul className="mt-4 space-y-3">
-        {ITEMS.map((it) => {
-          const done = !!s.checklist[it.key];
+        {PREP_CHECKS.map((key) => {
+          const it = ITEMS[key];
+          const done = !!s.checklist[key];
           return (
-            <li key={it.key}>
+            <li key={key}>
               <button
                 type="button"
                 role="switch"
                 aria-checked={done}
-                onClick={() => toggleChecklist(it.key)}
+                onClick={() => toggleChecklist(key)}
                 className="flex min-h-[80px] w-full items-center gap-4 rounded-[20px] bg-surface px-4 text-left shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
               >
                 <IconCircle tone={done ? 'leaf' : it.tone} size={54}>
@@ -87,6 +151,49 @@ export default function ChecklistPage() {
             </li>
           );
         })}
+      </ul>
+
+      {/*
+        동의를 여쭙는 자리.
+
+        예전에는 이 앱에서 동의를 켤 수 있는 곳이 「더보기」 설정의 스위치
+        다섯 개뿐이었다. 정작 동의가 필요한 회기 화면들은 "동의가 없어 하지
+        않아요"라고만 하고 그 스위치를 가리키지 않았다. 동의를 받는 자리는
+        어르신과 마주 앉기 직전인 여기가 맞다 — 화면 이름이 이미 '회기 시작
+        체크리스트'이고, 흐름표(lib/flow.ts)도 1단계를 '동의와 장비를
+        점검해요'라고 적어 두었다.
+
+        묶음 동의 버튼은 두지 않는다. 다섯 가지는 쓰임이 서로 달라서, 한 번에
+        받으면 어르신은 무엇에 동의했는지 알 수 없다 (원칙 4 · F-SW-CONS-009).
+      */}
+      <h2 className="mt-6 flex items-center gap-2 text-[1.1875rem] font-extrabold text-ink-900">
+        <IconShield size={22} className="text-leaf-600" />
+        동의 확인
+        <span className="ml-auto rounded-full bg-surface-sunk px-3 py-1 text-[0.875rem] font-bold text-ink-700">
+          {CONSENT_ORDER.length - unasked} / {CONSENT_ORDER.length} 여쭘
+        </span>
+      </h2>
+      <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-500">
+        {s.elder.honorific}께 목적마다 따로 여쭙고, 그대로 기록해요. 하나를
+        거절하셔도 회기는 계속할 수 있어요.
+      </p>
+      <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">
+        {/* 어디에 남는지까지 말해야 어르신께 설명할 수 있다. 서버에 남기지
+            못하는 상태를 남는 것처럼 적지 않는다. */}
+        {s.remoteParticipantId
+          ? '받은 동의는 이 어르신 기록에 남고, 「더보기」에서 언제든 거두실 수 있어요. 눌렀는데 표시가 되돌아가면 기록에 남기지 못한 것이니 통신을 확인하고 다시 눌러 주세요.'
+          : '아직 기관 계정으로 고른 어르신이 아니라, 이 동의는 이 기기에만 남아요.'}
+      </p>
+
+      <ul className="mt-3 space-y-3">
+        {CONSENT_ORDER.map((kind) => (
+          <ConsentAsk
+            key={kind}
+            kind={kind}
+            state={s.elder.consents[kind] ?? 'unset'}
+            onDecide={(granted) => setConsent(kind, granted)}
+          />
+        ))}
       </ul>
 
       <div className="mt-4">

@@ -8,7 +8,6 @@ import {
   LimitNote,
   Panel,
   Pill,
-  SampleBadge,
   TableWrap,
   Td,
   Th,
@@ -56,11 +55,14 @@ export default function CenterDashboard() {
       title="운영 콘솔"
       lead="이번 주 진행 상황과 오늘 처리할 일을 한 화면에서 확인합니다."
       actions={<CBtn href="/center/analytics">운영·ROI 분석</CBtn>}
+      data={{
+        kind: 'seed',
+        what: '바로 아래 「기관 데이터」만 서버에서 읽은 값입니다. 그 밖의 주간 현황·진행 단계·업무량·비용 요약은 파일럿 실측 전까지 표시되는 예시이며, 실제 청구·성과 수치가 아닙니다.',
+      }}
     >
-      <SampleBadge />
-
       {/* 서버가 실제로 아는 값. 아래 지표들과 섞이지 않도록 먼저 둔다 —
-          어느 숫자가 진짜인지 화면에서 구분되어야 한다. */}
+          어느 숫자가 진짜인지 화면에서 구분되어야 한다. 맨 위 띠도 이 패널을
+          이름으로 가리킨다. */}
       <CenterLive />
 
       {/* F-CM-DASH-001 주간 운영 현황 (아래는 아직 시연용 데이터) */}

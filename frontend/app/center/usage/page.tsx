@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {
   CBtn,
   CenterShell,
@@ -7,7 +8,6 @@ import {
   LimitNote,
   Panel,
   Pill,
-  SampleBadge,
   TableWrap,
   Td,
   Th,
@@ -28,17 +28,29 @@ export default function UsagePage() {
   const warned = billable.filter((u) => quotaState(u) !== 'ok');
   const aiTotal = AI_COST.reduce((a, b) => a + b.amount, 0);
 
+  // 이 화면은 위에서 아래까지 전부 예시라 막다른 길이 되기 쉽다. 실제로 쓴
+  // 양을 확인할 수 있는 곳이 한 군데 있으므로, 맨 위 띠에서 그리로 보낸다.
   return (
     <CenterShell
       code="CM-USE"
       title="요금·쿼터"
       lead="플랜 사용량과 청구 상태를 봅니다."
       actions={<CBtn tone="solid">추가 크레딧 구매</CBtn>}
+      data={{
+        kind: 'seed',
+        what: (
+          <>
+            이 화면의 플랜·사용량·금액·청구서는 모두 예시입니다. 실제 요금제는
+            출시 전 확정되며, 여기의 구매·결제 버튼은 아무것도 청구하지
+            않습니다. 실제로 만든 곡 수와 어림 요금은{' '}
+            <Link href="/center/analytics" className="font-extrabold underline">
+              운영·ROI 분석
+            </Link>
+            의 「이번 달 AI 사용량」에서 봅니다.
+          </>
+        ),
+      }}
     >
-      <SampleBadge>
-        사용량과 금액은 예시입니다. 실제 요금제는 출시 전 확정됩니다.
-      </SampleBadge>
-
       {/* F-CM-USE-001 플랜 조회 */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Kpi label="현재 플랜" value="기관 스탠다드" note="월 30곡 · 50GB · 직원 10명" />

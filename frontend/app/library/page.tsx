@@ -6,8 +6,10 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, PrimaryButton } from '@/components/ui';
 import { IconMusicNote, IconPlus } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
+import { sceneForTopic, songTitleForTopic } from '@/lib/scenes';
 import { useDeviceSong } from '@/lib/useDeviceSong';
 import { useSession } from '@/lib/store';
+import { useActiveElder } from '@/lib/useActiveElder';
 import type { ArtKey } from '@/lib/art';
 
 /**
@@ -23,9 +25,18 @@ import type { ArtKey } from '@/lib/art';
 export default function LibraryPage() {
   const { s } = useSession();
   const mine = useDeviceSong();
+  const elder = useActiveElder();
 
   const styleName =
     MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '만든 분위기';
+
+  // 표지와 제목은 회기 화면(/session/song)과 같은 규칙(lib/scenes.ts)을 쓴다.
+  // 여기만 서류가방 그림 한 장으로 고정돼 있어서, 같은 곡이 화면을 옮길 때마다
+  // 다른 표지를 달고 나타났다.
+  // 서버 어르신은 아직 주제가 '—'로 오므로(useElders.toSummary) 빈 값으로 본다.
+  const topic = s.topic === '—' ? '' : s.topic;
+  const scene = sceneForTopic(topic);
+  const songTitle = songTitleForTopic(topic);
 
   return (
     <Screen
@@ -33,16 +44,29 @@ export default function LibraryPage() {
       subtitle="기억을 담은 나만의 노래들을 만나보세요"
       decoration={<Ornaments variant="leafRight" />}
       footer={
-        <PrimaryButton
-          href="/session/checklist"
-          leading={
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/90">
-              <IconPlus size={16} />
-            </span>
-          }
-        >
-          새 노래 만들기
-        </PrimaryButton>
+        // 어르신을 고르지 않은 채로 이 문을 열면 회기 1단계가 참가자 없이
+        // 시작된다. 그러면 7단계에서 songQuotaLeft() 가 null 을 돌려줘 곡
+        // 한도 검사가 통째로 건너뛰어지고, uploadSong 도 실패해 서버 중복
+        // 확인이 걸리지 않는다 — 기관 계정에서 크레딧만 계속 나간다.
+        // /home·/session 과 같은 자물쇠를 여기에도 건다.
+        elder === 'checking' ? (
+          <PrimaryButton disabled>불러오는 중…</PrimaryButton>
+        ) : elder === 'missing' ? (
+          <PrimaryButton href="/elder">
+            먼저 어르신을 골라 주세요
+          </PrimaryButton>
+        ) : (
+          <PrimaryButton
+            href="/session/checklist"
+            leading={
+              <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/90">
+                <IconPlus size={16} />
+              </span>
+            }
+          >
+            새 노래 만들기
+          </PrimaryButton>
+        )
       }
     >
       <h2 className="text-[1.1875rem] font-extrabold text-ink-900">만든 노래</h2>
@@ -51,13 +75,13 @@ export default function LibraryPage() {
         <Card className="mt-3 p-3.5">
           <div className="flex items-center gap-3.5">
             <ArtBox
-              name={'album_briefcase_coins' as ArtKey}
+              name={scene.art as ArtKey}
               alt=""
               className="h-[76px] w-[76px] shrink-0 rounded-[16px] object-cover"
             />
             <div className="min-w-0 flex-1">
               <h3 className="text-[1.0625rem] font-extrabold leading-tight text-ink-900">
-                {s.topic}
+                {songTitle}
               </h3>
               <span className="mt-1 inline-block rounded-full bg-leaf-100 px-2.5 py-0.5 text-[0.8125rem] font-bold text-leaf-700">
                 이 기기에 있음

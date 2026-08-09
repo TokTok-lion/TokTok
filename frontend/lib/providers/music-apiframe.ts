@@ -1,4 +1,4 @@
-import { fail, type Job, type MusicProvider, type MusicResult } from './types';
+import { fail, type MusicProvider } from './types';
 
 /**
  * 곡 만들기 (Suno — APIFRAME v2 경유).

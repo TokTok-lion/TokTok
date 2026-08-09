@@ -10,7 +10,6 @@ import {
   LimitNote,
   Panel,
   Pill,
-  SampleBadge,
   TableWrap,
   Td,
   Th,
@@ -59,17 +58,18 @@ export default function AnalyticsPage() {
       code="CM-ANL"
       title="운영·ROI 분석"
       lead="운영 지표를 같은 정의로 비교합니다. 치료 효과가 아니라 업무 시간과 비용을 봅니다."
+      data={{
+        kind: 'seed',
+        what: '바로 아래 「이번 달 AI 사용량」과 「리포트 내보내기」만 서버에서 읽은 값입니다. 그 밖의 세션 결과·ROI·참여 요약은 예시이니, 기준선을 실제로 측정한 뒤에 다시 계산하세요.',
+      }}
     >
-      {/* 서버가 실제로 아는 값. 아래 시연 지표와 섞이지 않게 먼저 둔다. */}
+      {/* 서버가 실제로 아는 값. 아래 시연 지표와 섞이지 않게 먼저 둔다.
+          맨 위 띠도 이 두 패널을 이름으로 가리킨다. */}
       <CenterCostLive />
       <CenterReport />
 
-      <SampleBadge>
-        아래 수치는 예시입니다. 기준선을 실제로 측정한 뒤에 다시 계산하세요.
-      </SampleBadge>
-
       {/* F-CM-ANL-004 세션 완료율 */}
-      <Panel title="세션 진행 결과" code="F-CM-ANL-004">
+      <Panel className="mt-4" title="세션 진행 결과" code="F-CM-ANL-004">
         <div className="grid gap-3 sm:grid-cols-4">
           <Kpi label="완료" value={`${rate(SESSION_OUTCOME.completed)}%`} tone="leaf" note={`${SESSION_OUTCOME.completed}회`} />
           <Kpi label="중단" value={`${rate(SESSION_OUTCOME.stopped)}%`} note={`${SESSION_OUTCOME.stopped}회`} />

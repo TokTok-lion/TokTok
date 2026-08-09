@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { Art } from '@/components/Art';
 import { ServerSaveNote } from '@/components/ServerSaveNote';
 import { Ornaments, Screen } from '@/components/Shell';
-import { Card, Chevron, Chip, IconCircle, OutlineButton, PrimaryButton } from '@/components/ui';
+import { Card, Chip, IconCircle, OutlineButton, PrimaryButton } from '@/components/ui';
 import { IconCopy, IconExport } from '@/components/icons';
 import {
   CONSENT_FALLBACK,
@@ -17,6 +17,28 @@ import { useSession } from '@/lib/store';
 import { useServerSave } from '@/lib/useServerSave';
 
 const MAX = 1000;
+
+/**
+ * 자동 계산을 믿을 수 있는 최대 길이(분).
+ *
+ * 회기는 며칠에 걸쳐 이어지기도 한다(lib/flow.ts). 사흘 전에 시작한 회기의
+ * 경과 시간은 '진행 시간'이 아니므로, 이보다 길면 재지 않고 복지사에게
+ * 넘긴다.
+ */
+const MAX_AUTO_MINUTES = 180;
+
+/** 회기 시작부터 화면을 연 순간까지 몇 분인가. 못 믿을 값이면 null. */
+function elapsedMinutes(startedAt: string, openedAt: number): number | null {
+  const mins = Math.round((openedAt - new Date(startedAt).getTime()) / 60000);
+  if (!Number.isFinite(mins) || mins < 0 || mins > MAX_AUTO_MINUTES) return null;
+  return Math.max(1, mins);
+}
+
+// 구독은 아무것도 알리지 않는다 — 진행 시간은 화면을 여는 순간 한 번만
+// 필요하고, 매 분 다시 그릴 이유가 없다.
+const noSubscribe = () => () => {};
+// 서버가 미리 그리는 화면에는 기기 시계가 없다. 비워 두고 기기에서만 채운다.
+const noMinutes = () => null;
 
 /**
  * 활동일지 편집 (deck p.10)
@@ -45,7 +67,10 @@ export default function LogPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topic: s.topic,
+          // 주제가 없는 회기가 있다(lib/useElders.ts). 빈 문자열을 보내면
+          // 프롬프트에 '회기 주제: ' 만 남아 무엇이 빠진 건지 모델도 모른다 —
+          // 아예 빼면 서버가 '(없음)'으로 적는다.
+          topic: s.topic || undefined,
           // 확인된 이야기만 나간다. 미확인·제외 항목과 어르신 이름은 보내지 않는다.
           facts: lyricInputs(s.story).map((i) => i.text),
           reactions: selected.map((r) => r.label),
@@ -66,13 +91,78 @@ export default function LogPage() {
     }
   };
 
+  /* 진행 시간 — 기관 서식으로 나가는 값이라 지어내지 않는다.
+   *
+   * 예전에는 '30분'이 리터럴로 박혀 CSV·인쇄본에 그대로 실렸다. 10분짜리
+   * 회기도 50분짜리 회기도 30분으로 남는 셈이라, 서비스 제공 실적을 증빙하는
+   * 문서에 재 본 적 없는 숫자가 들어갔다.
+   *
+   * 이제는 체크리스트에서 '인터뷰 시작'을 누른 시각(remoteStartedAt)부터
+   * 지금까지를 재서 채운다. 잴 수 없으면 비워 두고 복지사가 직접 적는다.
+   * 빈 칸은 '—'로 나간다 — 모르는 것은 모른다고 두는 편이 낫다.
+   *
+   * 기기 시계로만 알 수 있는 값이라 서버가 미리 그리는 화면에는 없다. 이
+   * 저장소는 그런 값을 useSyncExternalStore 로 읽는다(app/home/page.tsx 의
+   * 오늘 날짜). 예전에는 이펙트에서 재서 setState 를 불렀는데, 그 한 줄이
+   * 저장소 전체에서 유일한 ESLint 에러(react-hooks/set-state-in-effect)라
+   * npm run lint 가 그것 하나로 깨졌다.
+   *
+   * 잰 시각을 화면을 연 순간(openedAt)으로 고정하는 이유는 두 가지다. 하나는
+   * getSnapshot 이 부를 때마다 같은 값을 돌려줘야 하기 때문이고(값이 흔들리면
+   * React 가 계속 다시 그린다), 하나는 복지사가 이 화면에서 글을 다듬는 동안
+   * 칸의 숫자가 저 혼자 올라가면 안 되기 때문이다.
+   */
+  const startedAt = s.remoteStartedAt;
+  const [openedAt] = useState(() => Date.now());
+  const autoMinutes = useSyncExternalStore(
+    noSubscribe,
+    () => (startedAt ? elapsedMinutes(startedAt, openedAt) : null),
+    noMinutes,
+  );
+
+  // null 은 "복지사가 아직 손대지 않음"이고 '' 는 "복지사가 지웠음"이다. 둘을
+  // 구분해야 지운 칸을 잰 값으로 도로 채우지 않는다.
+  const [typed, setTyped] = useState<string | null>(null);
+  const minutes = typed ?? (autoMinutes === null ? '' : String(autoMinutes));
+  const timeSource =
+    typed !== null
+      ? 'typed'
+      : autoMinutes !== null
+        ? 'measured'
+        : startedAt
+          ? 'spread'
+          : 'none';
+
+  const durationValue = minutes.trim() ? `${minutes.trim()}분` : '—';
+
+  /* 안내는 한 문장 묶음으로만 나간다.
+   *
+   * 예전에는 칸을 비우면 '복지사가 직접 적은 값이에요'와 '비워 두면 —로
+   * 나갑니다'가 나란히 떴다. 적었다면서 비었다고 하니 어느 쪽이 맞는지 알 수
+   * 없었다. 칸이 비어 있으면 비었을 때 할 말만 한다. */
+  const durationNote = minutes.trim()
+    ? timeSource === 'measured'
+      ? '인터뷰를 시작한 시각부터 재서 채웠어요. 실제와 다르면 고쳐 주세요.'
+      : '복지사가 직접 적은 값이에요.'
+    : `${
+        timeSource === 'spread'
+          ? '회기가 하루를 넘겨 이어져서 자동으로 재지 않았어요.'
+          : timeSource === 'none'
+            ? '회기 시작 시각이 남아 있지 않아 자동으로 재지 못했어요.'
+            : '진행 시간이 비어 있어요.'
+      } 오늘 진행한 시간을 적어 주세요. 비워 두면 내보내는 서식에 “—”로 나갑니다.`;
+
   const rows: LogRow[] = [
-    { label: '프로그램명', value: s.topic },
-    { label: '진행 시간', value: '30분' },
+    // 주제 없이 진행한 회기가 있다(lib/useElders.ts). 서식의 빈 칸은 '—'로
+    // 채운다 — 진행 시간과 같은 표기라 읽는 사람이 헷갈리지 않는다.
+    { label: '프로그램명', value: s.topic || '—' },
+    { label: '진행 시간', value: durationValue },
     { label: '어르신', value: s.elder.displayName },
     { label: '관찰된 반응', value: selected.map((r) => r.label).join(', ') || '기록 없음' },
     { label: '활동일지', value: s.logDraft },
-    { label: '다음 추천 주제', value: s.nextTopic },
+    // '추천'이 아니라 복지사가 정한 주제다. 앱에는 다음 주제를 고르는 계산이
+    // 없는데 라벨만 추천이라, 서식에 나간 값이 AI가 판단한 것처럼 읽혔다.
+    { label: '다음 회기 주제', value: s.nextTopic || '—' },
   ];
 
   const copy = async () => {
@@ -120,15 +210,38 @@ export default function LogPage() {
           <Art name="ui_program" size={26} alt="" />
         </IconCircle>
         <span className="flex-1 text-[1.125rem] font-bold text-ink-900">프로그램명</span>
-        <span className="text-[1.125rem] font-extrabold text-ink-900">{s.topic}</span>
+        {/* 주제가 없는 회기는 화면에도 서식과 같은 '—'로 보인다. 빈 자리를
+            그냥 두면 값을 못 불러온 것처럼 보인다. */}
+        <span
+          className={`text-[1.125rem] font-extrabold ${s.topic ? 'text-ink-900' : 'text-ink-500'}`}
+        >
+          {s.topic || '—'}
+        </span>
       </Card>
 
-      <Card className="mt-3 flex min-h-[72px] items-center gap-3.5 px-4">
-        <IconCircle tone="brand" size={48}>
-          <Art name="ui_duration" size={26} alt="" />
-        </IconCircle>
-        <span className="flex-1 text-[1.125rem] font-bold text-ink-900">진행 시간</span>
-        <span className="text-[1.25rem] font-extrabold text-ink-900">30분</span>
+      <Card className="mt-3 p-4">
+        <div className="flex min-h-[56px] items-center gap-3.5">
+          <IconCircle tone="brand" size={48}>
+            <Art name="ui_duration" size={26} alt="" />
+          </IconCircle>
+          <label htmlFor="minutes" className="flex-1 text-[1.125rem] font-bold text-ink-900">
+            진행 시간
+          </label>
+          <input
+            id="minutes"
+            type="text"
+            inputMode="numeric"
+            value={minutes}
+            onChange={(e) => setTyped(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+            placeholder="—"
+            aria-describedby="minutes-note"
+            className="h-[52px] w-[88px] rounded-[14px] border border-hairline bg-surface-strong px-3 text-right text-[1.25rem] font-extrabold text-ink-900 placeholder:font-bold placeholder:text-ink-500"
+          />
+          <span className="text-[1.125rem] font-bold text-ink-900">분</span>
+        </div>
+        <p id="minutes-note" className="mt-2 text-[0.8125rem] leading-relaxed text-ink-500">
+          {durationNote}
+        </p>
       </Card>
 
       <Card className="mt-3 p-4">
@@ -153,19 +266,31 @@ export default function LogPage() {
         </div>
       </Card>
 
-      <Card className="mt-3 flex min-h-[72px] items-center gap-3.5 px-4">
-        <IconCircle tone="leaf" size={48}>
-          <Art name="ui_next_topic" size={26} alt="" />
-        </IconCircle>
-        {/* Korean keeps whole words together, so a flexible label wraps hard in
-            this row. The label holds its line; the topic takes the slack. */}
-        <span className="shrink-0 whitespace-nowrap text-[1.0625rem] font-bold text-ink-900">
-          다음 추천 주제
-        </span>
-        <span className="min-w-0 flex-1 text-right text-[1rem] font-extrabold text-ink-900">
-          {s.nextTopic}
-        </span>
-        <Chevron className="shrink-0 text-ink-300" />
+      {/* 다음 주제는 앱이 고르지 않는다. 예전에는 씨앗 문자열이 '다음 추천
+          주제'라는 이름으로 화면에도 뜨고 서식·서버 기록에도 그대로 실려서,
+          누구의 어떤 회기든 늘 같은 주제가 추천된 것처럼 남았다. 어르신을
+          만난 사람이 직접 적게 하고, 안 적으면 비워 둔다. */}
+      <Card className="mt-3 p-4">
+        <div className="flex min-h-[56px] items-center gap-3.5">
+          <IconCircle tone="leaf" size={48}>
+            <Art name="ui_next_topic" size={26} alt="" />
+          </IconCircle>
+          <label
+            htmlFor="next-topic"
+            className="shrink-0 whitespace-nowrap text-[1.0625rem] font-bold text-ink-900"
+          >
+            다음 회기 주제
+          </label>
+          <input
+            id="next-topic"
+            type="text"
+            value={s.nextTopic}
+            maxLength={40}
+            onChange={(e) => set('nextTopic', e.target.value)}
+            placeholder="예: 고향의 여름"
+            className="h-[52px] min-w-0 flex-1 rounded-[14px] border border-hairline bg-surface-strong px-3 text-right text-[1rem] font-extrabold text-ink-900 placeholder:font-medium placeholder:text-ink-500"
+          />
+        </div>
       </Card>
 
       <Card className="mt-3 p-4">

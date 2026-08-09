@@ -2,11 +2,13 @@
 
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { forgetRecording } from './recorder';
+import { readParticipantRecord, writeConsent } from './repo';
 import { deleteSong } from './songStore';
 import {
   DEFAULT_CONSENTS,
   type Consents,
   type ConsentKind,
+  type ConsentState,
   type Elder,
   type FamilyContribution,
   type FamilyMissionKind,
@@ -43,7 +45,16 @@ import {
  * cascades.
  * ------------------------------------------------------------------ */
 
-const KEY = 'toktok.session.v1';
+/*
+ * v1 은 버린다.
+ *
+ * v1 로 저장된 회기의 elder.consents 는 앞 어르신(또는 씨앗)에게서 승계된
+ * 값이라 누구의 동의인지 알 수 없다. 그 상태를 복원하면 고친 의미가 없으므로
+ * 키를 올려 끊고, 남은 v1 기록은 기기에서 지운다 — 출처를 모르는 동의는
+ * 남겨 둘 이유가 없다.
+ */
+const KEY = 'toktok.session.v2';
+const LEGACY_KEYS = ['toktok.session.v1'];
 
 export type SessionState = {
   elder: Elder;
@@ -60,7 +71,6 @@ export type SessionState = {
   lyricsApproved: boolean;
   style: MusicStyleId | null;
   songStatus: SongStatus;
-  previewChoice: 'A' | 'B' | 'C' | null;
   /** 함께 부르기 활동을 실제로 진행하고 마무리한 시점 */
   sangTogether: boolean;
   reactions: ReactionId[];
@@ -127,8 +137,20 @@ function seedState(): SessionState {
   return {
     elder: SEED_ELDER,
     topic: '첫 직장과 첫 월급',
-    // the deck opens with 놀이 and 따뜻한 발라드 already chosen
-    memoryCard: 'play',
+    /*
+     * 기억 카드는 오늘 주제와 이어져야 한다.
+     *
+     * 여기 오래 '놀이'(deck 이 그렇게 그렸다)가 들어 있었다. 그래서 시연을
+     * 열면 인터뷰 화면이 '첫 직장과 첫 월급' 칩 아래에 "어릴 때는 뛰노는
+     * 놀이가 좋으셨어요?"를 띄웠고, 바로 다음 화면의 전사·이야기(공장·첫
+     * 월급·어머니께 신발)와도 이어지지 않았다. 한 화면 안에서 어긋나는
+     * 것이라 시연 동선에서 제일 먼저 눈에 띈다.
+     *
+     * '가족' 카드가 이 회기의 실제 내용과 맞는다 — 씨앗 이야기가 첫 월급으로
+     * 어머니께 신발을 사드린 기억이고, 그 카드의 보조 질문(누가 함께 계셨어요·
+     * 그때 마음이 어떠셨어요)도 그 이야기를 이어 묻는다.
+     */
+    memoryCard: 'family',
     questionLevel: 1,
     // The demo opens mid-session: 준비·기억카드·인터뷰가 끝나고 전사 교정
     // 차례. Steps read in order rather than looking randomly scattered.
@@ -142,7 +164,6 @@ function seedState(): SessionState {
     lyricsApproved: false,
     style: 'ballad',
     songStatus: 'draft',
-    previewChoice: 'B',
     sangTogether: false,
     reactions: ['speak', 'smile', 'clap'],
     reactionNote: '',
@@ -173,6 +194,7 @@ const listeners = new Set<() => void>();
 
 function load(): SessionState {
   try {
+    for (const old of LEGACY_KEYS) localStorage.removeItem(old);
     const raw = localStorage.getItem(KEY);
     if (!raw) return seedState();
     const saved = JSON.parse(raw) as Partial<SessionState>;
@@ -244,6 +266,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 }
 
 /**
+ * 어르신을 고를 때 화면이 아는 것 — 신원 표시뿐이다.
+ *
+ * 타입을 이렇게 좁혀 둔 이유가 있다. 예전에는 Elder 를 통째로 받았고, 호출부는
+ * 손에 있던 앞 어르신 객체를 `...s.elder` 로 펼쳐서 이름표만 갈아 끼워 넘겼다.
+ * 그래서 동의·선호·회피 주제가 조용히 따라왔다. 넘길 수 없게 만들면 다시
+ * 그럴 수 없다.
+ */
+export type ElderIdentity = Pick<
+  Elder,
+  'id' | 'displayName' | 'honorific' | 'avatar' | 'stage' | 'nextTopic'
+>;
+
+/**
  * 어르신을 바꾸면 작업대를 비운다.
  *
  * 예전에는 elder 만 갈아 끼웠다. 그래서 김 어르신 인터뷰를 하고 박 어르신을
@@ -258,20 +293,48 @@ export function SessionProvider({ children }: { children: ReactNode }) {
  * 주려고 만든 화면이 빈 채로 뜨면 그건 그것대로 고장으로 보인다.
  */
 export function beginSession(next: {
-  elder: Elder;
+  elder: ElderIdentity;
   topic: string;
   participantId: string | null;
 }): void {
   const seed = seedState();
   const live = next.participantId !== null;
 
+  /*
+   * 동의·선호·회피 주제는 회기가 아니라 사람에게 붙는 값이다.
+   *
+   * 여기가 가장 오래 새던 구멍이다. 작업대는 비웠는데 elder 객체는 통째로
+   * 받아 넣었고, 그 안의 consents 가 앞 어르신(초기화 직후에는 씨앗 김○○의
+   * '전부 허용')에게서 그대로 넘어왔다. 그 값 하나가 원음성 전사·사실 추출·
+   * 가사·곡 생성의 게이트라, 동의한 적 없는 분의 목소리가 실제로 외부로
+   * 나갈 수 있었다. 빠뜨린 것이 아니라 명시적으로 복사해 온 값이었다는 점이
+   * 더 나쁘다 — 안 넘겼더라면 DEFAULT_CONSENTS 가 전부 unset 이라 저절로
+   * 막혔을 자리다.
+   *
+   * 그래서 신원만 받고 나머지는 여기서 새로 만든다. 실제 기관 회기는 전부
+   * unset 으로 시작하고, 서버에 남아 있는 이 어르신의 동의를 읽어 채운다.
+   */
+  const elder: Elder = live
+    ? {
+        ...next.elder,
+        communication: [],
+        musicPreferences: [],
+        avoidTopics: [],
+        consents: DEFAULT_CONSENTS,
+      }
+    : // 시연 기기는 씨앗 프로필 위에 고른 분의 이름표를 얹는다.
+      { ...SEED_ELDER, ...next.elder };
+
   update({
     ...seed,
     // 사람이 고른 설정은 회기와 무관하므로 넘어간다.
     textScale: state.textScale,
-    elder: next.elder,
+    elder,
     topic: next.topic,
     remoteParticipantId: next.participantId,
+    // 회기가 시작된 시각은 지금이다. 저장할 때 찍으면 시작과 끝이 같은
+    // 순간이 되어, 서버에 남는 모든 회기의 소요시간이 0 이 된다.
+    remoteStartedAt: new Date().toISOString(),
     ...(live
       ? {
           transcript: [],
@@ -291,6 +354,10 @@ export function beginSession(next: {
           familyReplies: [],
           songKey: null,
           songStatus: 'draft' as SessionState['songStatus'],
+          // 다음 추천 주제를 계산하는 코드는 아직 없다. 씨앗 문자열을 그대로
+          // 두면 '가장 자랑스러운 순간'이 모든 어르신의 활동일지·CSV·인쇄본에
+          // AI 추천인 척 박힌다. 없는 것은 비워 둔다.
+          nextTopic: '',
         }
       : {}),
   });
@@ -298,7 +365,34 @@ export function beginSession(next: {
   if (live) {
     void forgetRecording();
     void deleteSong();
+    void hydrateElderRecord(next.participantId!);
   }
+}
+
+/**
+ * 서버에 남아 있는 이 어르신의 동의와 선호를 뒤늦게 채운다.
+ *
+ * 회기는 이것을 기다리지 않는다. 못 읽으면 unset 인 채로 둔다 — 모르는 것은
+ * 허용이 아니므로, 화면이 동의를 다시 받는 쪽이 맞다(hasConsent 가 unset 을
+ * false 로 본다). 통신이 끊긴 센터에서 "서버를 못 읽었으니 일단 허용"은
+ * 있어서는 안 되는 기본값이다.
+ */
+async function hydrateElderRecord(participantId: string): Promise<void> {
+  const record = await readParticipantRecord(participantId);
+  if (!record) return;
+  // 읽는 사이에 다른 어르신으로 넘어갔으면 버린다. 늦게 도착한 응답이 남의
+  // 동의를 덮어쓰는 것이야말로 이 함수가 막으려던 사고다.
+  if (state.remoteParticipantId !== participantId) return;
+  update({
+    ...state,
+    elder: {
+      ...state.elder,
+      consents: record.consents,
+      communication: record.communication,
+      musicPreferences: record.musicPreferences,
+      avoidTopics: record.avoidTopics,
+    },
+  });
 }
 
 export function useSession() {
@@ -319,16 +413,44 @@ export function useSession() {
   }, []);
 
   const setConsent = useCallback((kind: ConsentKind, granted: boolean) => {
-    const consents: Consents = {
-      ...DEFAULT_CONSENTS,
-      ...state.elder.consents,
-      [kind]: granted ? 'granted' : 'withdrawn',
-    };
-    update({ ...state, elder: { ...state.elder, consents } });
+    const before: Consents = { ...DEFAULT_CONSENTS, ...state.elder.consents };
+    const decision: ConsentState = granted ? 'granted' : 'withdrawn';
+    update({
+      ...state,
+      elder: { ...state.elder, consents: { ...before, [kind]: decision } },
+    });
 
     // 녹음 동의를 거두면 기기에 저장된 음성도 지운다. 동의를 거뒀는데 소리가
     // 남아 있으면 그 동의는 말뿐이다 — 철회는 화면 표시가 아니라 삭제다.
     if (kind === 'recording' && !granted) void forgetRecording();
+
+    const participantId = state.remoteParticipantId;
+    // 시연 기기에는 남길 곳이 없다. 기기 안에서만 켜졌다 꺼진다.
+    if (participantId === null) return;
+
+    /*
+     * 실제 기관이면 어르신 기록에 남긴다. 여기까지 와야 스위치가 "이 기기"가
+     * 아니라 "이 어르신"의 동의가 된다 — 남기지 않으면 어르신을 바꿨다 돌아온
+     * 순간 서버에서 unset 을 다시 읽어 와 방금 받은 동의가 사라진다.
+     */
+    void writeConsent(participantId, kind, decision).then((r) => {
+      if (r.ok) return;
+      // 그 사이 어르신이 바뀌었으면 남의 스위치를 건드리지 않는다.
+      if (state.remoteParticipantId !== participantId) return;
+      // 그 사이 같은 항목을 다시 눌렀으면 그쪽 결정이 최신이다.
+      if (state.elder.consents[kind] !== decision) return;
+      // 철회는 기록에 실패해도 철회다. 허용은 반대다 — 기록이 남아야 허용이고,
+      // 못 남긴 채 켜 두면 동의 기록 없이 외부 전송이 열린다. 그래서 허용만
+      // 되돌린다. 스위치가 도로 꺼지는 것이 복지사에게 보이는 신호다.
+      if (!granted) return;
+      update({
+        ...state,
+        elder: {
+          ...state.elder,
+          consents: { ...state.elder.consents, [kind]: before[kind] },
+        },
+      });
+    });
   }, []);
 
   const toggleReaction = useCallback((id: ReactionId) => {

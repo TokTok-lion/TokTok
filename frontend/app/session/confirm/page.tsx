@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { Art } from '@/components/Art';
+import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, CheckCircle, Chevron, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconChat, IconShield } from '@/components/icons';
 import { lyricInputs } from '@/lib/domain';
+import { sceneForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
@@ -14,6 +15,12 @@ export default function ConfirmPage() {
   const { s } = useSession();
   const verified = lyricInputs(s.story);
   const followUps = s.story.filter((i) => i.status === 'unverified' && i.followUp);
+
+  // 그림은 오늘 이야기에서 나온다(/records·/session/song 과 같은 해석기).
+  // 여기만 'album_briefcase_coins' 한 장이 박혀 있어서, 손주 이야기를 확인하는
+  // 화면에도 서류가방이 떴다. 주제가 없으면 특정 사건을 그리지 않는 기본
+  // 그림이 나오므로 어르신의 이야기를 잘못 대변하지 않는다.
+  const scene = sceneForTopic(s.topic);
 
   return (
     <Screen
@@ -43,11 +50,27 @@ export default function ConfirmPage() {
         <Art name={s.elder.avatar as ArtKey} size={80} alt="" className="shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-[1.0625rem] text-ink-500">{s.elder.honorific}</p>
-          <p className="mt-0.5 text-[1.375rem] font-extrabold leading-tight text-ink-900">
-            {s.topic}
-          </p>
+          {/* 주제 없이 진행한 회기가 있다(lib/useElders.ts). 화면에서 가장 큰
+              글씨 자리라 비워 두면 불러오다 만 것처럼 보인다. */}
+          {s.topic ? (
+            <p className="mt-0.5 text-[1.375rem] font-extrabold leading-tight text-ink-900">
+              {s.topic}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-[1.0625rem] font-bold leading-snug text-ink-700">
+              오늘 주제 없이 들은 이야기예요
+            </p>
+          )}
         </div>
-        <Art name="album_briefcase_coins" size={84} alt="" className="shrink-0" />
+        {/* 주제마다 그림 비율이 달라 폭만 잡으면 카드 높이가 주제에 따라
+            널뛴다(/session/style 과 같은 처리). 상자를 고정하고 안에서 맞춘다. */}
+        <ArtBox
+          key={scene.id}
+          name={scene.art}
+          alt=""
+          className="h-[76px] w-[88px] shrink-0"
+          fit="contain"
+        />
       </Card>
 
       <h2 className="mt-5 flex items-center gap-2 text-[1.125rem] font-extrabold text-leaf-700">

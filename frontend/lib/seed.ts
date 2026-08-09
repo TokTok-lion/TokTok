@@ -12,6 +12,15 @@ import type {
  *
  * Names are stored the way the deck prints them — 김○○ — because the spec's
  * 최소수집 principle keeps full legal names out of the product surface.
+ *
+ * 여기 남은 것은 화면이 실제로 import 하는 씨앗뿐이다.
+ *
+ * 화면들이 씨앗 대신 이 회기의 값을 쓰도록 바뀌면서 쓰이지 않게 된 배열이
+ * 여럿 남아 있었다(예시 곡 목록·이어보기 카드·후렴·가사 카드 네 줄·추천
+ * 질문…). export 는 ESLint 가 미사용으로 잡아 주지 않아서, 남아 있는 동안은
+ * 다음 사람이 살아 있는 자료로 읽는다 — 실제로 "이 앱에는 예시 곡이 세 곡
+ * 있다"는 오해가 화면 문구까지 갔던 적이 있다. 그래서 참조가 0건이 된
+ * 씨앗은 그때그때 지운다. 다시 필요하면 그 화면이 쓰는 값에서 만들면 된다.
  */
 
 const GRANTED: Consents = {
@@ -96,9 +105,6 @@ export const SEED_TRANSCRIPT = [
   { id: 't3', text: '그날 정말 뿌듯했어요', at: 96 },
 ];
 
-/** STT가 자신 없어 한 단어 — 복지사가 확인한다. */
-export const SEED_UNCERTAIN_WORDS = ['신발', '공장'];
-
 /**
  * 이야기 정리(SW-STORY). 모든 항목이 출처를 갖는다 —
  * 출처 없는 항목은 assertStoryIntegrity 가 거부한다.
@@ -174,17 +180,6 @@ export const SEED_LYRICS: LyricSection[] = [
   },
 ];
 
-/** 가사 카드(SW-LYR) — 큰 글씨로 보여주는 대표 4줄. */
-export const SEED_LYRIC_CARD = [
-  '첫 월급 봉투를',
-  '두 손에 꼭 안고',
-  '어머니께 달려가던',
-  '그날이 생각나요',
-];
-
-/** 함께 부르기(SW-KAR) 후렴. */
-export const SEED_CHORUS = ['사랑해요 고마워요', '우리 가족 늘 행복해요'];
-
 /** 가족이 남긴 이야기(SW-FAM) — 확인 전에는 사실이 아니다. */
 export const SEED_FAMILY_STORIES: FamilyContribution[] = [
   {
@@ -245,89 +240,15 @@ export const SEED_FAMILY_REPLIES: FamilyContribution[] = [
   },
 ];
 
-/** 내 노래 보관함(SW-MUS). */
-export type LibrarySong = {
-  id: string;
-  title: string;
-  style: string;
-  date: string;
-  art: string;
-  badge: '최근 재생' | '완료';
-};
-
-export const SEED_LIBRARY: LibrarySong[] = [
-  {
-    id: 'song-1',
-    title: '첫 월급 이야기',
-    style: '힘찬 트로트',
-    date: '2025-05-20',
-    art: 'album_briefcase_coins',
-    badge: '최근 재생',
-  },
-  {
-    id: 'song-2',
-    title: '고향의 바닷바람',
-    style: '따뜻한 발라드',
-    date: '2025-04-12',
-    art: 'album_lighthouse',
-    badge: '완료',
-  },
-  {
-    id: 'song-3',
-    title: '가족에게 남기는 노래',
-    style: '감성 포크',
-    date: '2025-03-08',
-    art: 'album_family',
-    badge: '완료',
-  },
-];
-
-/** 이전 회기 이어보기(SW-DASH). */
-export type ResumeCard = {
-  id: string;
-  title: string;
-  status: string;
-  statusTone: 'brand' | 'leaf' | 'amber';
-  detail: string;
-  art: string;
-  cta: '이어하기' | '보기';
-  done: boolean;
-};
-
-export const SEED_RESUME: ResumeCard[] = [
-  {
-    id: 'r-sea',
-    title: '고향의 바닷바람',
-    status: '노래 생성 전',
-    statusTone: 'brand',
-    detail: '기억 카드 선택까지 완료',
-    art: 'album_seaside_flowers',
-    cta: '이어하기',
-    done: false,
-  },
-  {
-    id: 'r-family',
-    title: '우리 가족의 탄생',
-    status: '가사 검수 중',
-    statusTone: 'amber',
-    detail: '가족 답장 2개 확인됨',
-    art: 'album_family_house',
-    cta: '이어하기',
-    done: false,
-  },
-  {
-    id: 'r-proud',
-    title: '가장 자랑스러운 순간',
-    status: '활동일지 초안 있음',
-    statusTone: 'leaf',
-    detail: '다음 회기 추천 저장됨',
-    art: 'album_trophy',
-    cta: '보기',
-    done: true,
-  },
-];
-
-/** 회기 일정(SW-PLAN). */
+/**
+ * 회기 일정(SW-PLAN) — 로그인 전 둘러보기에서만 쓰는 예시.
+ *
+ * 기관 계정에서는 어느 화면도 이 배열을 그리지 않는다. 일정을 넣는 기능이
+ * 서버에도 화면에도 없어서, 어르신을 한 명도 등록하지 않은 기관에 등록한 적
+ * 없는 김○○·박○○·이○○의 오늘 일정이 뜨기 때문이다. 알림도 이 배열로는
+ * 예약하지 않는다 — 오지 않을 시각에 알림을 걸어 두는 셈이라(경위는
+ * components/NotifySettings.tsx 주석).
+ */
 export const SEED_SCHEDULE = [
   { time: '10:00', who: '김○○', what: '인터뷰', detail: '인생 이야기 듣기', kind: 'interview' as const },
   { time: '14:00', who: '박○○', what: '노래 듣기', detail: '음악 감상 및 대화', kind: 'music' as const },
@@ -342,20 +263,6 @@ export const SEED_MEMORY_CARDS = [
   { id: 'play', label: '놀이', art: 'card_play' },
   { id: 'holiday', label: '명절', art: 'card_holiday' },
 ] as const;
-
-/** 인터뷰 진행 중(SW-INT) 보조 질문. */
-export const SEED_INTERVIEW_PROMPTS = [
-  { id: 'p1', text: '누구를 먼저 떠올리셨어요?', icon: 'people' as const },
-  { id: 'p2', text: '당시 기분은 어땠나요?', icon: 'smile' as const },
-  { id: 'p3', text: '어떤 선물을 하셨어요?', icon: 'gift' as const },
-];
-
-/** AI 질문 추천(SW-INT) — 확인된 이야기에서만 파생된다. */
-export const SEED_SUGGESTED_QUESTIONS = [
-  '어머니는 어떤 반응을 보이셨나요?',
-  '어떤 신발을 사드렸나요?',
-  '당시 어르신은 어떤 기분이셨나요?',
-];
 
 /** 활동일지 초안(SW-RPT) — AI 초안이며 복지사가 확정한다. */
 export const SEED_LOG_DRAFT =

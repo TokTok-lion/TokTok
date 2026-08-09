@@ -32,9 +32,12 @@ export default function ReactionsPage() {
           <p className="text-[1.25rem] font-extrabold text-ink-900">
             {s.elder.honorific}
           </p>
+          {/* 여기 반응이 그대로 활동일지가 되고, 그 일지의 프로그램명은
+              s.topic 이다. 이 줄만 '가족에게 남기는 노래'로 고정돼 있어서
+              입력 화면과 저장된 기록이 서로 다른 프로그램을 가리켰다. */}
           <p className="mt-1 text-[1rem] text-ink-500">
             프로그램:{' '}
-            <span className="font-bold text-leaf-700">가족에게 남기는 노래</span>
+            <span className="font-bold text-leaf-700">{s.topic || '—'}</span>
           </p>
         </div>
       </Card>
@@ -111,11 +114,13 @@ export default function ReactionsPage() {
           <Art name="ui_next_topic" size={26} alt="" />
         </IconCircle>
         <span className="flex-1">
+          {/* '다음 추천'이라고 적으면 앱이 골라 준 것처럼 읽힌다. 다음 주제를
+              계산하는 코드는 없고, 활동일지 화면에서 복지사가 적는 값이다. */}
           <span className="block text-[0.9375rem] font-bold text-leaf-700">
-            다음 추천
+            다음 회기 주제
           </span>
           <span className="block text-[1.1875rem] font-extrabold text-ink-900">
-            {s.nextTopic}
+            {s.nextTopic || '아직 정하지 않았어요'}
           </span>
         </span>
         <Chevron className="text-ink-300" />
