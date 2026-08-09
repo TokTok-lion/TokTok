@@ -55,11 +55,17 @@ export function CenterCostLive() {
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi label="만든 노래" value={cost.songs} unit="곡" />
+            {/* unit 은 값에 바로 붙어 나오므로 "3/ 3" 처럼 보였다.
+                분수는 값 자체로 넘긴다. */}
             <Kpi
-              label="남은 무료 곡"
-              value={cost.quotaLeft ?? '—'}
-              unit={cost.quota !== null ? `/ ${cost.quota}` : ''}
+              label="남은 곡"
+              value={
+                cost.quota !== null
+                  ? `${cost.quotaLeft ?? 0} / ${cost.quota}`
+                  : (cost.quotaLeft ?? '—')
+              }
               tone={cost.quotaLeft === 0 ? 'danger' : 'leaf'}
+              note="이번 달 한도"
             />
             <Kpi
               label="쓴 크레딧"

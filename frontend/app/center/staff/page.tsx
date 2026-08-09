@@ -8,6 +8,7 @@ import {
   LimitNote,
   Panel,
   Pill,
+  SampleBadge,
   TableWrap,
   Td,
   Th,
@@ -45,8 +46,17 @@ export default function StaffPage() {
       title="직원 관리"
       lead="역할과 접근 권한을 관리합니다. 기본은 최소 권한입니다."
     >
-      {/* 실제 기록에서 센 값. 아래 표는 아직 시연 데이터다. */}
+      {/* 실제 기록에서 센 값 */}
       <CenterStaffLive />
+
+      {/* 위는 진짜, 아래는 시연이다. 경계를 안 그으면 "센터장 1명"과 "5명"이
+          나란히 보여서, 어느 쪽을 믿어야 할지 모른 채 둘 다 못 믿게 된다. */}
+      <div className="mt-6">
+        <SampleBadge>
+          여기부터 아래는 예시 데이터입니다. 초대·권한 화면을 보여주기 위한
+          것으로, 위의 「직원 현황」이 실제 기록입니다.
+        </SampleBadge>
+      </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Kpi label="활동 중인 직원" value={active.length} unit="명" />
