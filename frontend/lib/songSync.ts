@@ -103,6 +103,20 @@ export async function uploadSong(
   return !error;
 }
 
+/**
+ * 이번 달 남은 곡 수.
+ *
+ * 곡을 만들기 **전에** 본다. 만든 뒤에 막으면 크레딧은 이미 나간 뒤다.
+ * 서버를 안 쓰면 null — 그때는 한도가 없다(기기에서만 도는 시연 모드).
+ */
+export async function songQuotaLeft(): Promise<number | null> {
+  const c = ctx();
+  if (!c) return null;
+  const { data, error } = await c.sb.rpc('song_quota_left');
+  if (error || typeof data !== 'number') return null;
+  return data;
+}
+
 /** 서버에 올려 둔 곡을 지운다 — 삭제 요청에 응할 수 있어야 한다. */
 export async function deleteServerSongs(): Promise<void> {
   const c = ctx();

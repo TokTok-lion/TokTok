@@ -35,7 +35,9 @@ export default function GeneratingPage() {
   const music = useMusic();
   const started = useRef(false);
   const failed =
-    music.state.kind === 'error' || music.state.kind === 'needsPaidPlan';
+    music.state.kind === 'error' ||
+    music.state.kind === 'needsPaidPlan' ||
+    music.state.kind === 'quotaSpent';
 
   // 곡 만들기는 한 번만 시작한다. 이중 마운트에서 두 번 부르면 요금이 두 번
   // 나가고, 둘 중 어느 결과가 남는지도 알 수 없다.
@@ -82,7 +84,9 @@ export default function GeneratingPage() {
               role="alert"
               className="mb-2.5 rounded-[12px] bg-surface-sunk px-3.5 py-3 text-[0.9375rem] font-bold leading-relaxed text-ink-900"
             >
-              {music.state.kind === 'needsPaidPlan' || music.state.kind === 'error'
+              {music.state.kind === 'needsPaidPlan' ||
+              music.state.kind === 'error' ||
+              music.state.kind === 'quotaSpent'
                 ? music.state.message
                 : ''}
             </p>

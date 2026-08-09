@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { MUSIC_STYLES, hasConsent } from './domain';
 import { loadSong, saveSong } from './songStore';
-import { findServerSong, lyricsHash, uploadSong } from './songSync';
+import { findServerSong, lyricsHash, songQuotaLeft, uploadSong } from './songSync';
 import { currentSession, useSession } from './store';
 
 export type MusicState =
@@ -12,6 +12,8 @@ export type MusicState =
   | { kind: 'done' }
   /** 요금제 문제 — 고장이 아니므로 다르게 안내한다 */
   | { kind: 'needsPaidPlan'; message: string }
+  /** 이번 달 무료 한도를 다 씀 */
+  | { kind: 'quotaSpent'; message: string }
   | { kind: 'error'; message: string };
 
 /**
@@ -78,6 +80,20 @@ export function useMusic() {
         setState({ kind: 'done' });
         return;
       }
+    }
+
+    // 여기서부터 진짜로 크레딧이 나간다. 그 전에 이번 달 한도를 본다 —
+    // 만든 뒤에 막으면 이미 늦다. 서버를 안 쓰면 null 이고 한도도 없다.
+    const left = await songQuotaLeft();
+    if (left !== null && left <= 0) {
+      setState({
+        kind: 'quotaSpent',
+        message:
+          '이번 달 무료 노래를 다 만드셨어요. 다음 달에 다시 만드실 수 있고, ' +
+          '지금 필요하시면 요금제를 올려 주세요.',
+      });
+      set('songStatus', 'draft');
+      return;
     }
 
     try {

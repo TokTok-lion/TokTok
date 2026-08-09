@@ -199,7 +199,22 @@ export type Database = {
       audit_log: Tbl<AuditLogRow, Omit<AuditLogRow, 'id' | 'at'> & { at?: string }, Partial<AuditLogRow>>;
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      /**
+       * 가입 = 기관 생성. 기관을 만드는 유일한 통로다 — tenants 에는 INSERT
+       * 정책이 없고, 이 함수 안에서 "만든 사람만 센터장이 된다"를 강제한다.
+       * 그래서 인자로 user_id 를 받지 않는다.
+       */
+      create_my_tenant: {
+        Args: { p_name: string; p_region?: string };
+        Returns: string;
+      };
+      /** 이번 달 남은 곡 수. 소속이 없으면 아무것도 돌려주지 않는다. */
+      song_quota_left: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+    };
     Enums: {
       staff_role: StaffRole;
       consent_kind: ConsentKind;

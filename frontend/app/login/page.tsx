@@ -111,9 +111,23 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-[0.875rem] leading-relaxed text-ink-500">
-        계정은 센터장이 만들어 드립니다.
-        <br />
+      <div className="mt-6 rounded-[16px] border-2 border-brand-200 bg-brand-50 p-4 text-center">
+        <p className="text-[0.9375rem] font-bold text-ink-900">
+          아직 계정이 없으신가요?
+        </p>
+        <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-700">
+          기관을 등록하면 무료로 어르신 3분, 노래 3곡까지 만들어 보실 수 있어요.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push('/signup')}
+          className="mt-3 min-h-[52px] w-full rounded-[14px] bg-brand-700 text-[1rem] font-extrabold text-white"
+        >
+          무료로 시작하기
+        </button>
+      </div>
+
+      <p className="mt-5 text-center text-[0.875rem] leading-relaxed text-ink-500">
         로그인하지 않아도 이 기기에서 회기는 진행할 수 있어요.
       </p>
       <div className="mt-3 text-center">
