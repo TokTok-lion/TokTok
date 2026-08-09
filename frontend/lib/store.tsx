@@ -82,6 +82,15 @@ export type SessionState = {
    */
   lyrics: LyricSection[];
 
+  /**
+   * 지금 기기에 있는 곡이 어떤 가사·스타일로 만들어졌는지.
+   *
+   * 이 값이 있으면 같은 가사로는 다시 만들지 않는다. 곡 한 개가 750크레딧
+   * 이라, 곡 만드는 중 화면에서 새로고침 한 번이 그대로 요금이 된다.
+   * useRef 가드는 새로고침에 초기화되므로 저장소에 남겨야 한다.
+   */
+  songKey: string | null;
+
   /** 글자 크기 배율 (1 / 1.15 / 1.3) — NFR-A11Y-003 */
   textScale: number;
 
@@ -114,6 +123,7 @@ function seedState(): SessionState {
     story: SEED_STORY,
     storyConfirmed: false,
     lyrics: SEED_LYRICS,
+    songKey: null,
     lyricsApproved: false,
     style: 'ballad',
     songStatus: 'draft',
@@ -183,6 +193,17 @@ function subscribe(listener: () => void) {
 }
 
 const getSnapshot = () => state;
+
+/**
+ * 지금 이 순간의 상태. 화면 밖(이펙트·콜백)에서 값을 볼 때 쓴다.
+ *
+ * 훅이 주는 s 는 그 렌더 시점의 값이라, 마운트 직후 이펙트에서 읽으면 아직
+ * 저장소가 복원되기 전 값일 수 있다. 곡 재생성 방지가 그래서 한 번 뚫렸다 —
+ * songKey 가 아직 null 인 채로 판단해 매번 새로 만들었다.
+ */
+export function currentSession(): SessionState {
+  return state;
+}
 const getServerSnapshot = () => SERVER_SNAPSHOT;
 
 function applyTextScale() {

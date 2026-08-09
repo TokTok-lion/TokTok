@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import { MUSIC_STYLES, hasConsent } from './domain';
-import { saveSong } from './songStore';
-import { useSession } from './store';
+import { loadSong, saveSong } from './songStore';
+import { currentSession, useSession } from './store';
 
 export type MusicState =
   | { kind: 'idle' }
@@ -26,7 +26,12 @@ export function useMusic() {
 
   const allowed = hasConsent(s.elder.consents, 'externalAi');
 
-  const generate = useCallback(async () => {
+  /**
+   * force 는 "같은 가사로 다른 느낌의 곡을 다시 받고 싶다"는 뜻이다.
+   * 그때는 750크레딧을 다시 쓰는 것이 맞다 — 막아야 할 것은 의도치 않은
+   * 재생성이지, 사람이 일부러 누르는 다시 만들기가 아니다.
+   */
+  const generate = useCallback(async (force = false) => {
     if (!allowed) {
       setState({
         kind: 'error',
@@ -35,22 +40,35 @@ export function useMusic() {
       return;
     }
 
-    setState({ kind: 'working' });
-    set('songStatus', 'generating');
+    // 훅이 준 s 가 아니라 지금 저장소를 읽는다. 이 함수는 화면이 뜨자마자
+    // 이펙트에서 불리는데, 그 시점의 s 는 아직 복원 전 값일 수 있다.
+    const now = currentSession();
 
     // 가사 검수 화면에서 만든 그 가사가 그대로 노래가 된다.
-    const lyrics = s.lyrics
+    const lyrics = now.lyrics
       .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
       .join('\n\n');
+
+    // 같은 가사·스타일로 만든 곡이 이미 있으면 다시 만들지 않는다.
+    // 곡 하나가 750크레딧이라, 새로고침 한 번이 그대로 요금이 된다.
+    const key = `${now.style ?? 'ballad'}::${lyrics}`;
+    if (!force && now.songKey === key && (await loadSong())) {
+      set('songStatus', 'ready');
+      setState({ kind: 'done' });
+      return;
+    }
+
+    setState({ kind: 'working' });
+    set('songStatus', 'generating');
 
     try {
       const res = await fetch('/api/music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          style: s.style ?? 'ballad',
+          style: now.style ?? 'ballad',
           lyrics,
-          title: s.topic,
+          title: now.topic,
         }),
       });
 
@@ -69,13 +87,15 @@ export function useMusic() {
       }
 
       await saveSong(await res.blob());
+      set('songKey', key);
       set('songStatus', 'ready');
       setState({ kind: 'done' });
     } catch {
       setState({ kind: 'error', message: '연결하지 못했어요. 가사는 남아 있습니다.' });
       set('songStatus', 'draft');
     }
-  }, [allowed, s.lyrics, s.style, s.topic, set]);
+    // 값은 전부 currentSession() 에서 읽으므로 s 의 조각들은 의존성이 아니다.
+  }, [allowed, set]);
 
   const styleName =
     MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '따뜻한 발라드';

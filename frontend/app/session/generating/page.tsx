@@ -91,7 +91,7 @@ export default function GeneratingPage() {
                 type="button"
                 onClick={() => {
                   setPct(6);
-                  void music.generate();
+                  void music.generate(true);
                 }}
                 className="min-h-[56px] rounded-[14px] border border-hairline bg-surface text-[1rem] font-bold text-ink-700"
               >
