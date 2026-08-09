@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { Ornaments, Screen } from '@/components/Shell';
+import { TranscribeButton } from '@/components/TranscribeButton';
 import { Card, CheckCircle, PrimaryButton, Waveform } from '@/components/ui';
 import { IconEdit, IconRewind } from '@/components/icons';
 import { SEED_UNCERTAIN_WORDS } from '@/lib/seed';
@@ -10,15 +10,14 @@ import { useSession } from '@/lib/store';
 /** 전사 교정 (deck p.5) */
 export default function TranscriptPage() {
   const { s, set } = useSession();
-  const [lines, setLines] = useState(s.transcript.map((t) => t.text));
 
-  const save = () => {
-    set(
-      'transcript',
-      s.transcript.map((t, i) => ({ ...t, text: lines[i] })),
-    );
-    set('transcriptConfirmed', true);
-  };
+  // 고친 내용을 화면 안에 따로 들고 있지 않는다. 예전엔 useState 로 복사해
+  // 뒀는데, 자동 전사가 전사 내용을 통째로 바꾸면 화면이 옛 문장을 계속
+  // 보여줬다. 저장소 하나만 보면 어긋날 자리가 없다.
+  const edit = (id: string, text: string) =>
+    set('transcript', s.transcript.map((t) => (t.id === id ? { ...t, text } : t)));
+
+  const save = () => set('transcriptConfirmed', true);
 
   return (
     <Screen
@@ -35,7 +34,10 @@ export default function TranscriptPage() {
         </PrimaryButton>
       }
     >
-      <Card className="p-4">
+      {/* 녹음이 있으면 여기서 자동으로 옮기고, 아래에서 사람이 고친다 */}
+      <TranscribeButton />
+
+      <Card className="mt-3 p-4">
         <p className="text-[1rem] font-bold text-ink-500">전사 내용</p>
 
         <ul className="mt-2">
@@ -46,12 +48,8 @@ export default function TranscriptPage() {
               </label>
               <input
                 id={`line-${t.id}`}
-                value={lines[i]}
-                onChange={(e) => {
-                  const next = [...lines];
-                  next[i] = e.target.value;
-                  setLines(next);
-                }}
+                value={t.text}
+                onChange={(e) => edit(t.id, e.target.value)}
                 className="w-full bg-transparent text-[1.1875rem] font-bold leading-snug text-ink-900 outline-none focus-visible:rounded-lg focus-visible:bg-brand-50"
               />
             </li>
