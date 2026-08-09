@@ -14,6 +14,7 @@ import {
 import { useSession } from '@/lib/store';
 import { useAccount } from '@/lib/auth';
 import { NotifySettings } from '@/components/NotifySettings';
+import { StoredAudio } from '@/components/StoredAudio';
 
 const ORDER: ConsentKind[] = [
   'recording',
@@ -128,6 +129,9 @@ export default function MorePage() {
           ))}
         </div>
       </Card>
+
+      {/* 음성이 어디에 얼마나 남아 있는지 보이고, 한 번에 지울 수 있어야 한다 */}
+      <StoredAudio />
 
       <NotifySettings />
 

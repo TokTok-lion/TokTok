@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { forgetRecording } from './recorder';
 import {
   DEFAULT_CONSENTS,
   type Consents,
@@ -217,6 +218,10 @@ export function useSession() {
       [kind]: granted ? 'granted' : 'withdrawn',
     };
     update({ ...state, elder: { ...state.elder, consents } });
+
+    // 녹음 동의를 거두면 기기에 저장된 음성도 지운다. 동의를 거뒀는데 소리가
+    // 남아 있으면 그 동의는 말뿐이다 — 철회는 화면 표시가 아니라 삭제다.
+    if (kind === 'recording' && !granted) void forgetRecording();
   }, []);
 
   const toggleReaction = useCallback((id: ReactionId) => {
