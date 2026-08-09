@@ -76,7 +76,7 @@ export function CenterCostLive() {
               }
               unit="원"
               tone="brand"
-              note="구독을 다 쓴다고 봤을 때"
+              note="만든 만큼만 나갑니다"
             />
             <Kpi
               label="어림 요금"
@@ -97,9 +97,9 @@ export function CenterCostLive() {
 
           <div className="mt-3">
             <LimitNote>
-              어림값입니다. 곡 만들기 구독료를 만든 곡 수로 나눈 값이라, 곡을
-              적게 만든 달에는 실제 부담이 이보다 큽니다. 전사·읽어주기·가사는
-              곡에 비해 매우 작아 따로 세지 않았습니다.
+              어림값입니다. 곡당 단가로 계산한 것이라 환율·세금에 따라 실제
+              청구서와 다를 수 있습니다. 전사·읽어주기·가사는 곡에 비해 매우
+              작아 따로 세지 않았습니다.
             </LimitNote>
           </div>
         </>

@@ -1,6 +1,7 @@
 import { googleStt } from './stt-google';
 import { googleTts } from './tts-google';
 import { sunoMusic } from './music-suno';
+import { trebloMusic } from './music-treblo';
 import type { MusicProvider, SttProvider, TtsProvider } from './types';
 
 /**
@@ -16,10 +17,23 @@ import type { MusicProvider, SttProvider, TtsProvider } from './types';
 
 export const stt: SttProvider = pick(process.env.STT_PROVIDER, { google: googleStt }, googleStt);
 export const tts: TtsProvider = pick(process.env.TTS_PROVIDER, { google: googleTts }, googleTts);
+/*
+ * 곡은 Treblo 가 기본이다.
+ *
+ * Suno 로 가려 했지만 공개 API 가 없어서, 중계 서버가 헤드리스 브라우저로
+ * 사람인 척 접속하고 hCaptcha 를 대행 서비스로 푸는 구조였다(2025년 1월부터).
+ * 기관에 파는 서비스가 그 위에 설 수는 없다 — 계정이 막히면 그날로 멎고,
+ * 어르신 이름이 붙은 결과물의 권리 관계를 설명할 수 없다.
+ *
+ * Treblo 는 열쇠 하나로 부르고 상업적 이용권을 함께 준다. 길이도 정할 수
+ * 있어서 "회상용 노래는 90초"라는 결정을 지킬 수 있다.
+ *
+ * suno 항목은 남겨 둔다. 공식 파트너 API 가 열리면 그 파일만 고치면 된다.
+ */
 export const music: MusicProvider = pick(
   process.env.MUSIC_PROVIDER,
-  { suno: sunoMusic },
-  sunoMusic,
+  { treblo: trebloMusic, suno: sunoMusic },
+  trebloMusic,
 );
 
 function pick<T>(name: string | undefined, table: Record<string, T>, fallback: T): T {
