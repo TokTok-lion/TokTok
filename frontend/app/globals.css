@@ -151,3 +151,48 @@ body {
   letter-spacing: -0.015em;
   color: var(--color-ink-900);
 }
+
+/* ------------------------------------------------------------------ print
+   활동일지를 종이나 PDF 로 꺼내는 경로.
+
+   PDF 라이브러리를 쓰지 않는 이유는 한글 폰트다 — 라이브러리마다 폰트를
+   따로 실어야 하고 그 과정에서 글자가 깨지는 일이 잦다. 브라우저 인쇄는
+   화면에 이미 뜬 폰트를 그대로 쓰므로 깨질 일이 없고, "PDF로 저장"도
+   인쇄 대화상자 안에 있다.
+
+   화면 장치(헤더·고정 버튼·탭바)는 종이에 필요 없다. main 의 직계 자식 중
+   [data-print] 만 남기면 화면 쪽을 하나하나 고치지 않아도 된다. */
+@media print {
+  @page {
+    margin: 15mm;
+  }
+
+  header,
+  nav,
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  main > *:not([data-print]) {
+    display: none !important;
+  }
+
+  [data-print] {
+    display: block !important;
+  }
+
+  /* 배경 그림과 잉크를 아끼고, 본문은 검게 */
+  .tk-page-bg,
+  body {
+    background: #fff !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  [data-screen] {
+    max-width: none !important;
+    min-height: 0 !important;
+  }
+}

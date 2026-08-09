@@ -280,6 +280,7 @@ export function Screen({
       {footer ? (
         <div
           ref={footerRef}
+          data-print-hide
           className="fixed inset-x-0 z-20 mx-auto max-w-[440px] px-5 pb-4 pt-4"
           style={{
             bottom: `calc(${tabs ? 'var(--tab-h)' : '0px'} + env(safe-area-inset-bottom))`,
@@ -303,7 +304,11 @@ export function Ornaments({
   variant?: 'both' | 'leafRight' | 'leafLeft' | 'notes';
 }) {
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden>
+    <div
+      data-print-hide
+      className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+      aria-hidden
+    >
       {(variant === 'both' || variant === 'leafRight') && (
         <Image
           src="/art/leaf-branch-1.webp"
