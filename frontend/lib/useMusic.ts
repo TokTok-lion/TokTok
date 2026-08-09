@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { MUSIC_STYLES, hasConsent } from './domain';
 import { loadSong, saveSong } from './songStore';
+import { findServerSong, lyricsHash, uploadSong } from './songSync';
 import { currentSession, useSession } from './store';
 
 export type MusicState =
@@ -49,9 +50,15 @@ export function useMusic() {
       .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
       .join('\n\n');
 
-    // 같은 가사·스타일로 만든 곡이 이미 있으면 다시 만들지 않는다.
-    // 곡 하나가 750크레딧이라, 새로고침 한 번이 그대로 요금이 된다.
-    const key = `${now.style ?? 'ballad'}::${lyrics}`;
+    const style = now.style ?? 'ballad';
+    const key = `${style}::${lyrics}`;
+
+    // 곡 하나가 1,125크레딧이라, 만들기 전에 두 곳을 먼저 본다.
+    //
+    //   1) 이 기기  — 새로고침이나 뒤로가기로 다시 들어온 경우
+    //   2) 기관 서버 — 다른 태블릿에서 이미 만든 경우
+    //
+    // 2가 없으면 태블릿을 바꿀 때마다 같은 곡에 요금이 또 나간다.
     if (!force && now.songKey === key && (await loadSong())) {
       set('songStatus', 'ready');
       setState({ kind: 'done' });
@@ -60,6 +67,18 @@ export function useMusic() {
 
     setState({ kind: 'working' });
     set('songStatus', 'generating');
+
+    const hash = await lyricsHash(lyrics, style);
+    if (!force) {
+      const fromServer = await findServerSong(hash);
+      if (fromServer) {
+        await saveSong(fromServer);
+        set('songKey', key);
+        set('songStatus', 'ready');
+        setState({ kind: 'done' });
+        return;
+      }
+    }
 
     try {
       const res = await fetch('/api/music', {
@@ -86,10 +105,20 @@ export function useMusic() {
         return;
       }
 
-      await saveSong(await res.blob());
+      const blob = await res.blob();
+      await saveSong(blob);
       set('songKey', key);
       set('songStatus', 'ready');
       setState({ kind: 'done' });
+
+      // 기관 저장소에도 올린다. 실패해도 회기를 막지 않는다 — 곡은 이미
+      // 기기에 있고, 다음에 로그인된 상태로 열면 다시 올라간다.
+      void uploadSong(blob, hash, {
+        title: now.topic,
+        style,
+        lengthMs: Number(res.headers.get('X-Music-Length-Ms')) || 0,
+        sessionId: now.remoteSessionId,
+      });
     } catch {
       setState({ kind: 'error', message: '연결하지 못했어요. 가사는 남아 있습니다.' });
       set('songStatus', 'draft');

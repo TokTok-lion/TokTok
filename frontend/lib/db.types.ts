@@ -118,7 +118,9 @@ export type LyricRow = {
 export type SongRow = {
   id: string;
   tenant_id: string;
-  session_id: string;
+  /** 곡의 임자는 회기가 아니라 어르신이다. 회기 없이도 곡은 존재할 수 있다. */
+  session_id: string | null;
+  participant_id: string | null;
   lyric_id: string | null;
   title: string;
   style: string | null;
@@ -127,6 +129,9 @@ export type SongRow = {
   art_key: string | null;
   provider: string | null;
   idem_key: string | null;
+  /** 같은 어르신·같은 가사면 다시 만들지 않기 위한 지문 */
+  lyrics_hash: string | null;
+  length_ms: number | null;
   created_at: string;
 };
 
@@ -186,7 +191,7 @@ export type Database = {
       story_facts: Tbl<StoryFactRow, Partial<StoryFactRow> & { tenant_id: string; session_id: string; participant_id: string; text: string }, Partial<StoryFactRow>>;
       fact_sources: Tbl<FactSourceRow, Partial<FactSourceRow> & { fact_id: string; kind: SourceKind; label: string }, Partial<FactSourceRow>>;
       lyrics: Tbl<LyricRow, Partial<LyricRow> & { tenant_id: string; session_id: string; sections: unknown }, Partial<LyricRow>>;
-      songs: Tbl<SongRow, Partial<SongRow> & { tenant_id: string; session_id: string; title: string }, Partial<SongRow>>;
+      songs: Tbl<SongRow, Partial<SongRow> & { tenant_id: string; title: string }, Partial<SongRow>>;
       observations: Tbl<ObservationRow, Partial<ObservationRow> & { tenant_id: string; session_id: string }, Partial<ObservationRow>>;
       activity_logs: Tbl<ActivityLogRow, Partial<ActivityLogRow> & { tenant_id: string; session_id: string; draft: string }, Partial<ActivityLogRow>>;
       // Update 를 막는 것은 타입이 아니라 RLS 다. 감사로그에는 UPDATE 정책이

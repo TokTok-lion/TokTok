@@ -134,7 +134,12 @@ export async function POST(req: Request) {
 
     const audio = await res.arrayBuffer();
     return new NextResponse(audio, {
-      headers: { 'Content-Type': 'audio/mpeg' },
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        // 길이는 서버가 정한다. 곡을 기관 저장소에 기록할 때 필요하므로
+        // 클라이언트가 되짚어 계산하지 않도록 함께 내려 준다.
+        'X-Music-Length-Ms': String(LENGTH_MS),
+      },
     });
   } catch (e) {
     const aborted = e instanceof Error && e.name === 'AbortError';
