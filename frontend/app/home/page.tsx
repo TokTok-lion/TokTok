@@ -11,6 +11,7 @@ import {
   IconChat,
   IconClock,
 } from '@/components/icons';
+import { useAccount } from '@/lib/auth';
 import { flowState } from '@/lib/flow';
 import { SEED_RESUME, SEED_SCHEDULE } from '@/lib/seed';
 import { useSession } from '@/lib/store';
@@ -37,6 +38,8 @@ export default function TodayPage() {
   const router = useRouter();
   const flow = flowState(s);
   const elder = useActiveElder();
+  const { account } = useAccount();
+  const live = account.status === 'in';
 
   const pendingFamily = s.familyStories.filter((f) => f.state === 'pending').length;
   const unverified = s.story.filter((i) => i.status === 'unverified').length;
@@ -78,7 +81,7 @@ export default function TodayPage() {
       {/* 지금 할 일 — 화면에서 가장 큰 한 가지.
           단, 가리킬 어르신이 없으면 진행 중인 척하지 않는다. */}
       {elder === 'missing' ? (
-        <NoElderCard deleted={Boolean(s.remoteParticipantId)} />
+        <NoElderCard deleted={Boolean(s.remoteParticipantId)} actions={false} />
       ) : (
       <Card className="p-4">
         <div className="flex items-center gap-3">
@@ -132,6 +135,15 @@ export default function TodayPage() {
           전체 일정
         </Link>
       </div>
+
+      {/* 일정을 서버에 넣는 기능은 아직 없다. 그런데 기관으로 로그인한
+          화면에서 이 목록은 진짜처럼 보인다 — 어르신이 0명인데 "김○○
+          인터뷰 10:00"이 떠 있으면, 이 화면의 다른 숫자도 못 믿게 된다. */}
+      {live ? (
+        <p className="mt-2 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.8125rem] leading-relaxed text-ink-700">
+          아래 일정은 <strong>예시</strong>예요. 일정을 직접 넣는 기능은 준비 중입니다.
+        </p>
+      ) : null}
       <ul className="mt-3 space-y-2.5">
         {SEED_SCHEDULE.map((item) => {
           const art = KIND_ART[item.kind];
