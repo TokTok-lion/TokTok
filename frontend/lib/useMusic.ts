@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from 'react';
 import { MUSIC_STYLES, hasConsent } from './domain';
-import { SEED_LYRICS } from './seed';
 import { saveSong } from './songStore';
 import { useSession } from './store';
 
@@ -39,11 +38,10 @@ export function useMusic() {
     setState({ kind: 'working' });
     set('songStatus', 'generating');
 
-    // 가사는 아직 저장소가 아니라 씨앗에 있다. LLM 가사 생성을 붙이면
-    // 그 결과가 이 자리에 들어온다 — 형태는 같다.
-    const lyrics = SEED_LYRICS.map(
-      (sec) => `[${sec.label}]\n${sec.lines.join('\n')}`,
-    ).join('\n\n');
+    // 가사 검수 화면에서 만든 그 가사가 그대로 노래가 된다.
+    const lyrics = s.lyrics
+      .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
+      .join('\n\n');
 
     try {
       const res = await fetch('/api/music', {
@@ -77,7 +75,7 @@ export function useMusic() {
       setState({ kind: 'error', message: '연결하지 못했어요. 가사는 남아 있습니다.' });
       set('songStatus', 'draft');
     }
-  }, [allowed, s.style, s.topic, set]);
+  }, [allowed, s.lyrics, s.style, s.topic, set]);
 
   const styleName =
     MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? '따뜻한 발라드';

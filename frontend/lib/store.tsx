@@ -9,6 +9,7 @@ import {
   type Elder,
   type FamilyContribution,
   type FamilyMissionKind,
+  type LyricSection,
   type MusicStyleId,
   type QuestionLevel,
   type ReactionId,
@@ -21,6 +22,7 @@ import {
   SEED_FAMILY_REPLIES,
   SEED_FAMILY_STORIES,
   SEED_LOG_DRAFT,
+  SEED_LYRICS,
   SEED_STORY,
   SEED_TRANSCRIPT,
 } from './seed';
@@ -71,6 +73,15 @@ export type SessionState = {
   missionKind: FamilyMissionKind;
   missionBody: string;
   missionSent: boolean;
+  /**
+   * 가사. 확인된 이야기에서 나온다(원칙 2).
+   *
+   * 처음에는 시연용 씨앗이 들어 있고, 가사 검수 화면에서 만들면 그 결과가
+   * 여기로 들어온다. 곡 만들기는 이 값을 읽으므로, 만든 가사가 그대로
+   * 노래가 된다.
+   */
+  lyrics: LyricSection[];
+
   /** 글자 크기 배율 (1 / 1.15 / 1.3) — NFR-A11Y-003 */
   textScale: number;
 
@@ -102,6 +113,7 @@ function seedState(): SessionState {
     transcriptConfirmed: false,
     story: SEED_STORY,
     storyConfirmed: false,
+    lyrics: SEED_LYRICS,
     lyricsApproved: false,
     style: 'ballad',
     songStatus: 'draft',

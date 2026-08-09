@@ -4,7 +4,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, PrimaryButton } from '@/components/ui';
 import { IconEdit, IconInfo, IconRefresh } from '@/components/icons';
 import { lyricInputs } from '@/lib/domain';
-import { SEED_LYRICS } from '@/lib/seed';
+import { WriteLyrics } from '@/components/WriteLyrics';
 import { useSession } from '@/lib/store';
 
 /** 가사 검수 (deck p.7) */
@@ -28,7 +28,7 @@ export default function LyricsPage() {
       }
     >
       <Card className="px-4 py-5">
-        {SEED_LYRICS.map((sec, i) => (
+        {s.lyrics.map((sec, i) => (
           <div
             key={sec.label}
             className={i > 0 ? 'mt-5 border-t border-dashed border-brand-200 pt-5' : ''}
@@ -77,6 +77,9 @@ export default function LyricsPage() {
           </span>
         </button>
       </div>
+
+      {/* 확인된 이야기만 가사가 된다. 그 걸러내기가 이 서비스의 규칙이다. */}
+      <WriteLyrics />
 
       {/* 원칙 2: 가사가 어떤 사실에서 나왔는지 항상 되짚을 수 있어야 한다 */}
       <details className="mt-4 rounded-[16px] bg-brand-50 p-4">
