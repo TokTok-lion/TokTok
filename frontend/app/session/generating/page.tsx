@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card } from '@/components/ui';
 import { IconHeart, IconMusicNote } from '@/components/icons';
 import { sceneForTopic } from '@/lib/scenes';
+import { useMusic } from '@/lib/useMusic';
 import { useSession } from '@/lib/store';
 
 /**
@@ -27,25 +28,42 @@ const STEPS = [
 ];
 
 export default function GeneratingPage() {
-  const { s, set } = useSession();
+  const { s } = useSession();
   const router = useRouter();
-  const [pct, setPct] = useState(81);
+  const [pct, setPct] = useState(6);
   const scene = sceneForTopic(s.topic);
+  const music = useMusic();
+  const started = useRef(false);
+  const failed =
+    music.state.kind === 'error' || music.state.kind === 'needsPaidPlan';
 
+  // 곡 만들기는 한 번만 시작한다. 이중 마운트에서 두 번 부르면 요금이 두 번
+  // 나가고, 둘 중 어느 결과가 남는지도 알 수 없다.
   useEffect(() => {
-    set('songStatus', 'generating');
-    const t = setInterval(() => {
-      setPct((p) => (p >= 100 ? 100 : p + 1));
-    }, 400);
+    if (started.current) return;
+    started.current = true;
+    void music.generate();
+    // music 은 렌더마다 새 객체라 의존성에 넣으면 매번 다시 돈다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 진행률은 실제 값이 아니라 경과 시간이다. 서버가 중간 상태를 주지 않으므로
+  // 멈춰 보이지만 않게 올리고, 100%는 진짜 끝났을 때만 준다. 다 됐다고
+  // 해 놓고 안 끝나는 것이 제일 나쁘다.
+  useEffect(() => {
+    if (music.state.kind !== 'working') return;
+    const t = setInterval(() => setPct((p) => (p >= 96 ? 96 : p + 1)), 900);
     return () => clearInterval(t);
-  }, [set]);
+  }, [music.state.kind]);
 
   useEffect(() => {
-    if (pct < 100) return;
-    set('songStatus', 'ready');
+    if (music.state.kind !== 'done') return;
     const t = setTimeout(() => router.push('/session/preview'), 900);
     return () => clearTimeout(t);
-  }, [pct, router, set]);
+  }, [music.state.kind, router]);
+
+  // 끝났을 때의 100%는 상태에서 바로 나온다. 따로 담아 두면 둘이 어긋난다.
+  const shown = music.state.kind === 'done' ? 100 : pct;
 
   const R = 54;
   const C = 2 * Math.PI * R;
@@ -56,13 +74,47 @@ export default function GeneratingPage() {
       title="노래 만드는 중"
       decoration={<Ornaments variant="notes" />}
       footer={
-        <div className="flex min-h-[60px] items-center justify-center gap-2.5 rounded-[16px] bg-surface-sunk text-[1.125rem] font-bold text-ink-500">
-          <span
-            className="h-5 w-5 rounded-full border-[3px] border-brand-200 border-t-brand-500 motion-safe:animate-spin"
-            aria-hidden
-          />
-          {pct >= 100 ? '노래가 완성됐어요' : '노래 생성 중'}
-        </div>
+        failed ? (
+          /* 막다른 길을 두지 않는다. 곡이 안 나와도 가사 카드까지는
+             어르신께 드릴 수 있고, 그 길을 여기서 열어 준다. */
+          <>
+            <p
+              role="alert"
+              className="mb-2.5 rounded-[12px] bg-surface-sunk px-3.5 py-3 text-[0.9375rem] font-bold leading-relaxed text-ink-900"
+            >
+              {music.state.kind === 'needsPaidPlan' || music.state.kind === 'error'
+                ? music.state.message
+                : ''}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPct(6);
+                  void music.generate();
+                }}
+                className="min-h-[56px] rounded-[14px] border border-hairline bg-surface text-[1rem] font-bold text-ink-700"
+              >
+                다시 시도
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/session/lyric-card')}
+                className="tk-cta min-h-[56px] rounded-[14px] text-[1rem] font-extrabold text-white"
+              >
+                가사 카드로 진행
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex min-h-[60px] items-center justify-center gap-2.5 rounded-[16px] bg-surface-sunk text-[1.125rem] font-bold text-ink-500">
+            <span
+              className="h-5 w-5 rounded-full border-[3px] border-brand-200 border-t-brand-500 motion-safe:animate-spin"
+              aria-hidden
+            />
+            {shown >= 100 ? '노래가 완성됐어요' : '노래 생성 중'}
+          </div>
+        )
       }
     >
       <Card className="flex justify-center overflow-hidden p-3">
@@ -82,7 +134,7 @@ export default function GeneratingPage() {
       <div
         className="mt-5 flex justify-center"
         role="progressbar"
-        aria-valuenow={pct}
+        aria-valuenow={shown}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label="노래 생성 진행률"
@@ -99,14 +151,14 @@ export default function GeneratingPage() {
               strokeWidth="14"
               strokeLinecap="round"
               strokeDasharray={C}
-              strokeDashoffset={C * (1 - pct / 100)}
+              strokeDashoffset={C * (1 - shown / 100)}
               transform="rotate(-90 70 70)"
               style={{ transition: 'stroke-dashoffset .4s linear' }}
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <p className="text-[2.125rem] font-extrabold leading-none text-ink-900">
-              {pct}
+              {shown}
               <span className="text-[1.125rem]">%</span>
             </p>
             <p className="mt-1 text-[0.8125rem] font-semibold text-ink-500">
