@@ -97,7 +97,7 @@ export default function ElderListPage() {
       decoration={<Ornaments variant="leafRight" />}
       footer={
         <PrimaryButton
-          href="/elder/profile"
+          href="/elder/new"
           leading={
             <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/90">
               <IconPlus size={16} />
@@ -222,10 +222,24 @@ export default function ElderListPage() {
         ))}
       </ul>
 
+      {/* 검색해서 없는 것과, 아직 한 분도 등록 안 한 것은 다른 상황이다.
+          갓 가입한 기관에 "찾는 어르신이 없어요"만 뜨면 무엇을 해야 할지
+          알 수 없다. */}
       {list.length === 0 ? (
-        <p className="mt-10 text-center text-[1rem] font-semibold text-ink-500">
-          찾는 어르신이 없어요.
-        </p>
+        elders.length === 0 && !loading ? (
+          <div className="mt-8 text-center">
+            <p className="text-[1.0625rem] font-bold text-ink-900">
+              아직 등록된 어르신이 없어요
+            </p>
+            <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-500">
+              첫 어르신을 등록하면 회기를 시작할 수 있어요.
+            </p>
+          </div>
+        ) : (
+          <p className="mt-10 text-center text-[1rem] font-semibold text-ink-500">
+            찾는 어르신이 없어요.
+          </p>
+        )
       ) : null}
 
       <p className="mt-4 px-1 text-[0.8125rem] leading-relaxed text-ink-500">

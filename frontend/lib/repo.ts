@@ -64,7 +64,7 @@ export async function listParticipants(): Promise<ParticipantRow[]> {
 
 export async function createParticipant(
   displayName: string,
-  opts: { honorific?: string; avatarKey?: string } = {},
+  opts: { honorific?: string; avatarKey?: string; internalNo?: string } = {},
 ): Promise<{ ok: boolean; id?: string; reason?: string }> {
   const sb = getSupabase();
   const t = tenant();
@@ -76,6 +76,7 @@ export async function createParticipant(
       display_name: displayName,
       honorific: opts.honorific ?? null,
       avatar_key: opts.avatarKey ?? null,
+      internal_no: opts.internalNo ?? null,
     })
     .select('id')
     .single();
