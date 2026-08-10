@@ -432,11 +432,69 @@ export async function runTranscribe(): Promise<void> {
   }
 }
 
+
+/**
+ * 이 녹음에 사람 목소리가 담겨 있는가.
+ *
+ * 무음을 보내면 구글은 요금을 받고 "말씀이 잡히지 않았어요"를 돌려준다.
+ * 실제로 그 일이 일어났다 — 마이크가 안 잡힌 채 50초를 녹음하고, 두 화면을
+ * 지나, 한도를 한 번 쓰고 나서야 알았다. 기기에서 먼저 들어 보면 요금도
+ * 한도도 쓰지 않고 그 자리에서 말할 수 있다.
+ *
+ * 판정은 넉넉하게 한다. 어르신 목소리는 작고 방은 조용하다 — 조금이라도
+ * 사람 소리 같은 것이 있으면 보낸다. 못 들어 보는 브라우저에서는 판단하지
+ * 않고 그냥 보낸다(모르는 것을 '무음'으로 단정하지 않는다).
+ */
+async function soundless(blob: Blob): Promise<boolean> {
+  try {
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return false;
+    const ctx = new Ctx();
+    const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const ch = buf.getChannelData(0);
+    // 최댓값과 실효값을 함께 본다. 툭 하는 소리 하나로 통과시키지 않고,
+    // 고르게 낮기만 한 것도 무음으로 보지 않기 위해서다.
+    let peak = 0;
+    let sum = 0;
+    for (let i = 0; i < ch.length; i += 16) {
+      const v = Math.abs(ch[i]);
+      if (v > peak) peak = v;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / Math.ceil(ch.length / 16));
+    void ctx.close().catch(() => {});
+    return peak < 0.01 && rms < 0.002;
+  } catch {
+    // 디코딩을 못 했다. 형식이 낯선 것일 수 있고, 그건 무음과 다르다.
+    return false;
+  }
+}
+
 async function start(
   job: { blob: Blob; seconds: number; savedAt: number },
   auto: boolean,
 ): Promise<void> {
   emit({ kind: 'busy', auto, resumed: false });
+
+  // 보내기 전에 기기에서 먼저 들어 본다. 무음이면 요금도 한도도 쓰지 않는다.
+  if (await soundless(job.blob)) {
+    // 표를 남겨 자동 재시도에서 뺀다. 같은 무음을 열 때마다 다시
+    // 들어 보게 두면 화면이 매번 같은 말을 반복한다. 버튼으로는
+    // 다시 시도할 수 있다.
+    writeAttempt({ savedAt: job.savedAt, jobId: null, at: Date.now() });
+    emit({
+      kind: 'error',
+      sent: false,
+      message:
+        '이 녹음에는 소리가 담겨 있지 않아요. 마이크가 꺼져 있었거나 다른 장치가 ' +
+        '잡혔을 수 있어요 — 브라우저 주소창의 마이크 표시에서 입력 장치를 확인하신 뒤 ' +
+        '다시 녹음해 주세요. 지금 화면에서 복지사가 직접 받아 적으셔도 됩니다.',
+    });
+    return;
+  }
+
   const form = new FormData();
   form.append('file', job.blob, 'interview.webm');
 

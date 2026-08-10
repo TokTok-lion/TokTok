@@ -368,3 +368,50 @@ export function Waveform({
 export function Divider() {
   return <hr className="border-0 border-t border-hairline" />;
 }
+
+/**
+ * 마이크에 실제로 들어오는 소리.
+ *
+ * 옆의 Waveform 은 Math.sin 으로 그린 장식이다. 그림이라는 것을 알고 쓰면
+ * 문제가 없는데, 하필 마이크 옆에 놓여 있어서 "소리가 들어오고 있다"는
+ * 신호로 읽혔다. 실제로 무음을 50초 담고 다음 화면까지 간 뒤에야
+ * "말씀이 잡히지 않았어요"를 만난 일이 있었다 — 그때는 어르신이 이야기를
+ * 다 하신 뒤다.
+ *
+ * 이 막대는 진짜 값을 그린다. 조용하면 조용한 대로 낮게 눕는다.
+ */
+export function MicLevel({
+  level,
+  bars = 9,
+  height = 30,
+  className = '',
+}: {
+  level: number;
+  bars?: number;
+  height?: number;
+  className?: string;
+}) {
+  // 가운데가 높고 가장자리가 낮은 모양. 눈이 소리로 읽는 형태다.
+  const shape = (i: number) => {
+    const mid = (bars - 1) / 2;
+    return 1 - Math.abs(i - mid) / (mid + 1.2);
+  };
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex items-end gap-[3px] ${className}`}
+      style={{ height }}
+    >
+      {Array.from({ length: bars }, (_, i) => {
+        const h = Math.max(0.12, Math.min(1, level * shape(i) * 1.8));
+        return (
+          <span
+            key={i}
+            className="w-[4px] rounded-full bg-brand-400 transition-[height] duration-100"
+            style={{ height: `${h * height}px` }}
+          />
+        );
+      })}
+    </span>
+  );
+}

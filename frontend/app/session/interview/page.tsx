@@ -5,10 +5,10 @@ import { useEffect, useState } from 'react';
 import { Art } from '@/components/Art';
 import { SpeakButton } from '@/components/SpeakButton';
 import { Ornaments, Screen } from '@/components/Shell';
-import { Card, Chip, IconCircle, NoteBar, PrimaryButton, Waveform } from '@/components/ui';
+import { Card, Chip, IconCircle, MicLevel, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconInfo, IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
 import { QUESTION_LEVELS, hasConsent, type QuestionLevel } from '@/lib/domain';
-import { mmss, releaseRecording, useRecorder } from '@/lib/recorder';
+import { mmss, releaseRecording, useMicLevel, useRecorder } from '@/lib/recorder';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
 import { currentSession, setSessionField, useSession } from '@/lib/store';
 import { useTranscribeStatus } from '@/lib/transcribeJob';
@@ -140,6 +140,7 @@ function questionsFor(card: string | null, topic: string, level: QuestionLevel) 
 export default function InterviewPage() {
   const { s } = useSession();
   const rec = useRecorder();
+  const level = useMicLevel();
   const { origin } = useTranscribeStatus();
   const [asked, setAsked] = useState(0);
 
@@ -317,7 +318,7 @@ export default function InterviewPage() {
 
       {/* mic */}
       <div className="mt-5 flex items-center justify-center gap-3">
-        <Waveform bars={9} height={30} tone="muted" seed={3} />
+        <MicLevel level={listening ? level : 0} bars={9} height={30} />
         <button
           type="button"
           aria-pressed={listening}
@@ -352,12 +353,32 @@ export default function InterviewPage() {
                       : '눌러서 시작'}
           </span>
         </button>
-        <Waveform bars={9} height={30} tone="muted" seed={11} />
+        <MicLevel level={listening ? level : 0} bars={9} height={30} />
       </div>
 
       <p className="mt-2 text-center text-[0.9375rem] font-semibold tabular-nums text-ink-500">
         {mmss(rec.seconds)} 녹음됨
       </p>
+
+      {/*
+        소리가 안 들어오고 있으면 지금 말한다.
+        예전에는 마이크 옆 막대가 Math.sin 으로 그린 그림이라, 무음을 담고
+        있어도 소리가 들어오는 것처럼 보였다. 50초를 녹음하고 두 화면을
+        지난 뒤에야 "말씀이 잡히지 않았어요"를 만났는데, 그때는 어르신이
+        이야기를 다 하신 뒤였다. 다시 해 달라고 부탁드릴 수는 없다.
+
+        3초를 기다리는 이유는 마이크가 열리는 데 시간이 걸리기 때문이다.
+        누르자마자 "안 들려요"가 뜨면 그게 더 놀랍다.
+      */}
+      {listening && !rec.heard && rec.seconds >= 3 ? (
+        <div className="mt-3" role="alert">
+          <NoteBar tone="amber" icon={<IconInfo size={19} className="text-brand-600" />}>
+            <strong>소리가 들어오지 않고 있어요.</strong> 마이크가 꺼져 있거나
+            다른 장치가 잡혔을 수 있어요. 브라우저 주소창의 마이크 표시에서
+            입력 장치를 확인해 주시고, 어르신께 가까이 놓아 주세요.
+          </NoteBar>
+        </div>
+      ) : null}
 
       {rec.error ? (
         <p

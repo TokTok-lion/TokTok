@@ -29,6 +29,18 @@ type Snap = {
   /** 기기 DB 에 저장된 시각. 없으면 저장본이 없다. */
   savedAt: number | null;
   bytes: number;
+  /**
+   * 이 녹음에서 사람 목소리만 한 소리가 한 번이라도 들어왔는가.
+   *
+   * 화면의 파형은 오래 장식이었다 — Math.sin 으로 그린 막대라, 마이크가
+   * 무음을 담고 있어도 소리가 들어오는 것처럼 보였다. 실제로 50초를
+   * 녹음하고 다음 화면까지 간 뒤에야 "말씀이 잡히지 않았어요"를 만났다.
+   * 그때는 이미 어르신이 이야기를 다 하신 뒤다.
+   *
+   * 그래서 진짜 입력을 재고, 한 번도 안 들렸으면 녹음 중에 그 사실을
+   * 말한다. 마이크를 고르는 일은 어르신 앞에서 다시 하기 어렵다.
+   */
+  heard: boolean;
 };
 
 const EMPTY: Snap = {
@@ -38,10 +50,85 @@ const EMPTY: Snap = {
   error: null,
   savedAt: null,
   bytes: 0,
+  heard: false,
 };
 let snap: Snap = EMPTY;
 let restored = false;
 const listeners = new Set<() => void>();
+
+/*
+ * 입력 세기는 따로 흘린다.
+ *
+ * 초당 여러 번 바뀌는 값이라 회기 상태에 섞으면 인터뷰 화면 전체가 그만큼
+ * 다시 그려진다 — 질문 읽어주기 버튼과 카드까지 함께. 막대 하나만 다시
+ * 그리면 되는 일이다.
+ */
+let level = 0;
+const levelListeners = new Set<() => void>();
+let meterTimer: number | null = null;
+let audioCtx: AudioContext | null = null;
+let analyser: AnalyserNode | null = null;
+
+function emitLevel(next: number) {
+  level = next;
+  for (const l of levelListeners) l();
+}
+
+/** 0~1. 사람 목소리가 들어오면 대략 0.05 이상으로 올라온다. */
+export function useMicLevel(): number {
+  return useSyncExternalStore(
+    (cb) => {
+      levelListeners.add(cb);
+      return () => levelListeners.delete(cb);
+    },
+    () => level,
+    () => 0,
+  );
+}
+
+/** 마이크가 담고 있는 소리의 세기. 무음이면 0 에 붙어 있다. */
+const HEARD_AT = 0.02;
+
+function startMeter(src: MediaStream) {
+  stopMeter();
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    audioCtx = new Ctx();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    audioCtx.createMediaStreamSource(src).connect(analyser);
+    const buf = new Float32Array(analyser.fftSize);
+    meterTimer = window.setInterval(() => {
+      if (!analyser) return;
+      analyser.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (const v of buf) sum += v * v;
+      const rms = Math.sqrt(sum / buf.length);
+      emitLevel(Math.min(1, rms * 6));
+      // 한 번이라도 들렸으면 그 사실을 회기 표시에 남긴다.
+      if (rms >= HEARD_AT && !snap.heard) emit({ heard: true });
+    }, 120);
+  } catch {
+    // 레벨을 못 재도 녹음은 계속되어야 한다. 재지 못했으면 heard 를
+    // 건드리지 않는다 — 모르는 것을 '안 들렸다'로 적으면 안 된다.
+    audioCtx = null;
+    analyser = null;
+  }
+}
+
+function stopMeter() {
+  if (meterTimer !== null) window.clearInterval(meterTimer);
+  meterTimer = null;
+  analyser = null;
+  void audioCtx?.close().catch(() => {});
+  audioCtx = null;
+  emitLevel(0);
+}
+
+/** 레벨을 잴 수 있었는가. 못 쟀으면 '안 들렸다'고 단정하면 안 된다. */
+export function meterWorked(): boolean {
+  return analyser !== null || snap.heard;
+}
 
 let recorder: MediaRecorder | null = null;
 // MediaRecorder 는 언제나 Blob 을 준다. BlobPart 로 두면 조각을 DB 에
@@ -156,14 +243,26 @@ export async function startRecording(): Promise<void> {
   };
 
   recorder.start(1000); // 1초마다 조각을 받아 둬야 중간에 죽어도 남는다
-  emit({ state: 'recording', seconds: 0, url: null, error: null, savedAt: null, bytes: 0 });
+  emit({
+    state: 'recording',
+    seconds: 0,
+    url: null,
+    error: null,
+    savedAt: null,
+    bytes: 0,
+    heard: false,
+  });
   startTicker();
+  // 진짜 입력을 잰다. 이게 없으면 무음을 담고 있는 것을 아무도 모른다.
+  startMeter(stream);
 }
 
 export function pauseRecording() {
   if (recorder?.state === 'recording') {
     recorder.pause();
     stopTicker();
+    // 멈춘 동안 막대가 흔들리면 아직 담고 있는 것처럼 보인다.
+    emitLevel(0);
     emit({ state: 'paused' });
   }
 }
@@ -178,6 +277,7 @@ export function resumeRecording() {
 
 export function stopRecording() {
   stopTicker();
+  stopMeter();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   recorder = null;
 }
@@ -185,6 +285,7 @@ export function stopRecording() {
 /** 회기를 벗어날 때 마이크를 확실히 끈다. 켜진 채로 두면 안 된다. */
 export function releaseRecording() {
   stopTicker();
+  stopMeter();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   stream?.getTracks().forEach((t) => t.stop());
   stream = null;
@@ -216,7 +317,7 @@ export function isCapturing(): boolean {
 export async function forgetRecording(): Promise<void> {
   if (snap.url) URL.revokeObjectURL(snap.url);
   await deleteRecording();
-  emit({ state: 'idle', seconds: 0, url: null, savedAt: null, bytes: 0 });
+  emit({ state: 'idle', seconds: 0, url: null, savedAt: null, bytes: 0, heard: false });
 }
 
 export function recordingUrl(): string | null {
