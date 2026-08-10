@@ -239,7 +239,7 @@ export default function InterviewPage() {
         */}
         <p className="mt-1 text-center text-[0.875rem] font-semibold text-ink-500">
           {at === 0
-            ? `${levelName(question.level)}으로 엽니다 — 말문이 트이시면 아래에서 다음 질문으로`
+            ? `${levelName(question.level)}으로 엽니다 — 말문이 트이시면 아래 「다음 질문」으로`
             : '천천히 하나씩 여쭤 주세요. 어려워하시면 넘기셔도 됩니다'}
         </p>
 
@@ -292,6 +292,53 @@ export default function InterviewPage() {
           </p>
         ) : null}
       </Card>
+
+      {/*
+        질문 사이를 오간다.
+        예전에는 '건너뛰기' 하나뿐이라 한 방향으로만 갈 수 있었다. 어르신이
+        앞 질문에 다시 답하려 하시면 되돌아갈 길이 없었고, 회기당 질문이
+        셋이라 몇 분 만에 바닥났다. 지금은 아홉 개 안팎을 앞뒤로 오간다.
+
+        자리도 옮겼다. 처음에는 마이크 아래에 뒀는데, 정작 바뀌는 것은 화면
+        맨 위의 질문이라 누르고 나서 다시 위로 올라가 읽어야 했다. 어르신
+        앞에서 화면을 오르내리는 그 몇 초가 대화를 끊는다. 바꾸는 버튼은
+        바뀌는 것 옆에 둔다.
+      */}
+      <div className="mt-3 grid grid-cols-2 gap-2.5">
+        <button
+          type="button"
+          onClick={() => setAsked((v) => Math.max(0, v - 1))}
+          disabled={at === 0}
+          className="flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.0625rem] font-bold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
+        >
+          <IconBack size={19} />
+          앞 질문
+        </button>
+        <button
+          type="button"
+          onClick={() => setAsked((v) => Math.min(flow.length - 1, v + 1))}
+          disabled={at >= flow.length - 1}
+          className="flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.0625rem] font-bold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
+        >
+          다음 질문
+          <IconSkip size={19} />
+        </button>
+      </div>
+
+      {/* 마지막 질문에서 길이 끊기지 않게 한다. 여기가 회기의 끝은 아니다 —
+          더 여쭙고 싶으시면 기억 카드를 바꿔 다른 이야기로 들어가면 된다. */}
+      {at >= flow.length - 1 ? (
+        <p className="mt-2 text-center text-[0.875rem] leading-relaxed text-ink-500">
+          여쭐 것을 다 물으셨어요. 더 이야기하고 싶어 하시면{' '}
+          <Link
+            href="/session/cards"
+            className="font-bold text-leaf-700 underline underline-offset-2"
+          >
+            기억 카드
+          </Link>
+          를 바꿔 다른 이야기로 들어가셔도 돼요. 녹음은 계속됩니다.
+        </p>
+      ) : null}
 
       {/* 누르기 전에 말한다. 누른 뒤에 뜨는 안내는 사과문이지 안내가 아니다. */}
       {replacing ? (
@@ -438,47 +485,6 @@ export default function InterviewPage() {
         </p>
       ) : null}
 
-      {/*
-        질문 사이를 오간다.
-        예전에는 '건너뛰기' 하나뿐이라 한 방향으로만 갈 수 있었다. 어르신이
-        앞 질문에 다시 답하려 하시면 되돌아갈 길이 없었고, 회기당 질문이
-        셋이라 몇 분 만에 바닥났다. 지금은 아홉 개 안팎을 앞뒤로 오간다.
-      */}
-      <div className="mt-3 grid grid-cols-2 gap-2.5">
-        <button
-          type="button"
-          onClick={() => setAsked((v) => Math.max(0, v - 1))}
-          disabled={at === 0}
-          className="flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.0625rem] font-bold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
-        >
-          <IconBack size={19} />
-          앞 질문
-        </button>
-        <button
-          type="button"
-          onClick={() => setAsked((v) => Math.min(flow.length - 1, v + 1))}
-          disabled={at >= flow.length - 1}
-          className="flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.0625rem] font-bold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
-        >
-          다음 질문
-          <IconSkip size={19} />
-        </button>
-      </div>
-
-      {/* 마지막 질문에서 길이 끊기지 않게 한다. 여기가 회기의 끝은 아니다 —
-          더 여쭙고 싶으시면 기억 카드를 바꿔 다른 이야기로 들어가면 된다. */}
-      {at >= flow.length - 1 ? (
-        <p className="mt-2 text-center text-[0.875rem] leading-relaxed text-ink-500">
-          여쭐 것을 다 물으셨어요. 더 이야기하고 싶어 하시면{' '}
-          <Link
-            href="/session/cards"
-            className="font-bold text-leaf-700 underline underline-offset-2"
-          >
-            기억 카드
-          </Link>
-          를 바꿔 다른 이야기로 들어가셔도 돼요. 녹음은 계속됩니다.
-        </p>
-      ) : null}
 
       <div className="mt-4">
         {canRecord ? (
