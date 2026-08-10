@@ -101,6 +101,18 @@ export type StoryItem = {
   sources: Source[];
   /** unverified 인 경우 어르신에게 되물을 질문. */
   followUp?: string;
+  /**
+   * 둘러보기용 예시 항목인가.
+   *
+   * 씨앗 이야기는 화면 모양을 보여 주려고 넣어 둔 것인데, 실제 추출 결과와
+   * 생김새가 똑같았다. '출처 · 어르신 음성 0:42'까지 붙어 있어서, 직접
+   * 녹음해 본 사람이 "내 녹음이 반영된 건가?" 하고 물었다. 실제로 그런
+   * 질문을 받았다 — 화면이 구별을 안 해 주면 만든 사람도 헷갈린다.
+   *
+   * 이 표가 붙은 항목은 화면에 '예시'라고 적히고, 진짜 전사가 들어오는
+   * 순간 목록에서 빠진다.
+   */
+  example?: true;
 };
 
 export const STORY_STATUS_LABELS: Record<StoryStatus, string> = {

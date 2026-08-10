@@ -98,11 +98,23 @@ export const SEED_ELDERS: ElderSummary[] = [
   { id: 'elder-jang', displayName: '장○○', code: 'A-08', avatar: 'avatar_grandmother', worker: '김하늘', status: 'ended', family: 'none', step: 9, topic: '학창시절 친구들', nextSession: '—', consentExpiresInDays: null },
 ];
 
-/** 전사 교정 화면(SW-STT)의 전사 문장. */
-export const SEED_TRANSCRIPT = [
-  { id: 't1', text: '첫 월급으로 어머니께 신발을 사드렸어요', at: 42 },
-  { id: 't2', text: '공장에서 처음 일을 시작했어요', at: 18 },
-  { id: 't3', text: '그날 정말 뿌듯했어요', at: 96 },
+/**
+ * 전사 교정 화면(SW-STT)의 전사 문장.
+ *
+ * example 표를 달아 둔다. 이 줄들이 입력칸에 담겨 나오는 바람에, 직접
+ * 녹음해 본 사람이 자기 말이 옮겨진 줄로 읽었다. 표가 있어야 화면이
+ * '예시'라고 적을 수 있다. 타입을 적어 두지 않으면 example 이 boolean 으로
+ * 넓어져 저장소 타입과 어긋난다.
+ */
+export const SEED_TRANSCRIPT: {
+  id: string;
+  text: string;
+  at: number;
+  example?: true;
+}[] = [
+  { id: 't1', text: '첫 월급으로 어머니께 신발을 사드렸어요', at: 42, example: true },
+  { id: 't2', text: '공장에서 처음 일을 시작했어요', at: 18, example: true },
+  { id: 't3', text: '그날 정말 뿌듯했어요', at: 96, example: true },
 ];
 
 /**
@@ -112,30 +124,35 @@ export const SEED_TRANSCRIPT = [
 export const SEED_STORY: StoryItem[] = [
   {
     id: 's0',
+    example: true,
     text: '열아홉에 공장에 들어갔어요',
     status: 'verified',
     sources: [{ kind: 'voice', at: 11, label: '어르신 음성 0:11' }],
   },
   {
     id: 's1',
+    example: true,
     text: '첫 직장은 공장이었어요',
     status: 'verified',
     sources: [{ kind: 'voice', at: 18, label: '어르신 음성 0:18' }],
   },
   {
     id: 's2',
+    example: true,
     text: '첫 월급으로 어머니께 신발을 사드렸어요',
     status: 'verified',
     sources: [{ kind: 'voice', at: 42, label: '어르신 음성 0:42' }],
   },
   {
     id: 's3',
+    example: true,
     text: '그날의 기분은 뿌듯했어요',
     status: 'verified',
     sources: [{ kind: 'voice', at: 96, label: '어르신 음성 1:36' }],
   },
   {
     id: 's4',
+    example: true,
     text: '그 신발은 어떤 신발이었나요?',
     status: 'unverified',
     sources: [{ kind: 'card', label: '기억 카드 · 첫 직장' }],
@@ -143,6 +160,7 @@ export const SEED_STORY: StoryItem[] = [
   },
   {
     id: 's5',
+    example: true,
     text: '당시 어머니의 반응은 어땠나요?',
     status: 'unverified',
     sources: [{ kind: 'family', label: '가족 제보 · 며느리' }],
@@ -150,6 +168,7 @@ export const SEED_STORY: StoryItem[] = [
   },
   {
     id: 's6',
+    example: true,
     text: '어릴 때 자주 가던 동네 놀이터 이야기',
     status: 'excluded',
     sources: [{ kind: 'voice', at: 130, label: '어르신 음성 2:10' }],

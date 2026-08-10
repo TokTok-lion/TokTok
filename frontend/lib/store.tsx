@@ -63,7 +63,9 @@ export type SessionState = {
   memoryCard: string | null;
   questionLevel: QuestionLevel;
   checklist: Record<string, boolean>;
-  transcript: { id: string; text: string; at: number }[];
+  // example 은 둘러보기용 씨앗 줄에만 붙는다. 화면이 '예시'라고 적고,
+  // 진짜 전사가 들어오면 통째로 교체되므로 저절로 사라진다.
+  transcript: { id: string; text: string; at: number; example?: true }[];
   transcriptConfirmed: boolean;
   story: StoryItem[];
   /** 복지사가 사실 확인을 끝내고 가사로 넘긴 시점 (원칙 3 · 사람 검수) */

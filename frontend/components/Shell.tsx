@@ -286,10 +286,31 @@ export function Screen({
           </Link>
         </div>
 
-        {/* 오른쪽은 비워 둔다. 종은 눌러도 더보기로 갔는데, 왼쪽 햄버거와
-            아래 「더보기」 탭도 같은 곳이라 같은 방에 문이 셋이었다.
-            알림함도 읽지 않은 표시도 없어서 종이 가리킬 내용이 없었다. */}
-        <div className="w-11 shrink-0" />
+        {/*
+          오른쪽은 첫 화면으로 나가는 문이다.
+
+          한동안 비워 두었다 — 종이 있었는데 눌러도 「더보기」로 갔고, 왼쪽
+          햄버거와 아래 탭도 같은 곳이라 한 방에 문이 셋이었다. 그런데 정작
+          없어서 불편한 문이 하나 있었다: 로그인하고 들어오면 첫 화면으로
+          돌아갈 길이 없다. 가운데 로고는 「오늘」로 가고, 아래 탭 다섯 개도
+          전부 앱 안이다. 주소를 직접 치는 수밖에 없었다.
+
+          아이콘 대신 글자를 쓴다. 집 모양은 아래 탭의 「오늘」이 이미 쓰고
+          있어서, 같은 그림이 두 곳을 가리키면 어느 쪽인지 알 수 없다.
+          탭 루트에서만 내놓는다 — 회기 화면에서는 왼쪽 뒤로가기가 할 일이고,
+          한 화면에 나가는 문이 둘이면 다시 셋이 된다.
+        */}
+        <div className="flex w-11 shrink-0 justify-end">
+          {root ? (
+            <Link
+              href="/"
+              aria-label="첫 화면으로"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-[0.8125rem] font-extrabold text-ink-700"
+            >
+              처음
+            </Link>
+          ) : null}
+        </div>
       </header>
 
       {/* Any screen that is part of the session flow gets the step indicator

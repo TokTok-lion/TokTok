@@ -8,7 +8,7 @@ import { hasConsent } from '@/lib/domain';
 import { settled } from '@/lib/longJob';
 import { loadRecording } from '@/lib/recordingStore';
 import { mmss } from '@/lib/recorder';
-import { useSession } from '@/lib/store';
+import { currentSession, useSession } from '@/lib/store';
 
 /**
  * 녹음을 글로 옮기기.
@@ -88,6 +88,17 @@ export function TranscribeButton() {
         return;
       }
       set('transcript', json.segments);
+      /*
+       * 진짜 전사가 들어왔으면 둘러보기용 예시 이야기는 물러난다.
+       *
+       * 전사는 통째로 교체되는데 이야기 목록은 '이야기 뽑기'를 눌러야 바뀐다.
+       * 그 사이에 내 녹음에서 나온 전사와 씨앗 이야기 일곱 건이 한 회기에
+       * 나란히 놓였고, 씨앗 쪽에도 '출처 · 어르신 음성 0:42'가 붙어 있어서
+       * 어느 것이 자기 녹음인지 알 수 없었다. 실제로 그 질문을 받았다.
+       * 예시는 화면 모양을 보여 주는 동안까지만 쓸모가 있다.
+       */
+      const kept = currentSession().story.filter((i) => !i.example);
+      if (kept.length !== currentSession().story.length) set('story', kept);
       setInfo(`${json.segments.length}줄 · 녹음 ${mmss(rec.seconds)}`);
       setState('done');
     } catch {

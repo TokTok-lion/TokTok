@@ -12,6 +12,7 @@ export default function TranscriptPage() {
   const { s, set } = useSession();
   const rec = useRecorder();
   const empty = s.transcript.length === 0;
+  const examples = s.transcript.filter((t) => t.example).length;
 
   // 고친 내용을 화면 안에 따로 들고 있지 않는다. 예전엔 useState 로 복사해
   // 뒀는데, 자동 전사가 전사 내용을 통째로 바꾸면 화면이 옛 문장을 계속
@@ -47,6 +48,17 @@ export default function TranscriptPage() {
 
       <Card className="mt-3 p-4">
         <p className="text-[1rem] font-bold text-ink-500">전사 내용</p>
+
+        {/* 둘러보기 기기에는 예시 전사 세 줄이 미리 들어 있다. 고칠 수 있는
+            입력칸에 담겨 있어서, 방금 녹음한 사람이 자기 말이 옮겨진 줄로
+            읽는다. 위 '녹음에서 옮기기'가 성공하면 통째로 교체되므로 이
+            안내도 같이 사라진다. */}
+        {examples > 0 ? (
+          <p className="mt-2 rounded-[12px] bg-surface-sunk px-3 py-2 text-[0.8125rem] font-bold leading-relaxed text-ink-700">
+            아래 {examples}줄은 둘러보기용 <strong>예시</strong>예요 — 실제 녹음을
+            옮긴 것이 아닙니다. 위에서 녹음을 옮기면 이 줄들은 사라집니다.
+          </p>
+        ) : null}
 
         {empty ? (
           <p className="mt-2 text-[0.9375rem] leading-relaxed text-ink-500">

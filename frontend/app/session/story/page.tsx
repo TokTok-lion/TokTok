@@ -5,7 +5,7 @@ import { ExtractFacts } from '@/components/ExtractFacts';
 import { Ornaments, Screen } from '@/components/Shell';
 import { SourceChips } from '@/components/SourcePlayer';
 import { Card, Chevron, NoteBar, PrimaryButton } from '@/components/ui';
-import { IconHeart, IconMinus, IconQuestion } from '@/components/icons';
+import { IconHeart, IconInfo, IconMinus, IconQuestion } from '@/components/icons';
 import {
   STORY_STATUS_LABELS,
   lyricInputs,
@@ -29,6 +29,7 @@ const GROUPS: {
 export default function StoryPage() {
   const { s, set, setStoryStatus } = useSession();
   const ready = lyricInputs(s.story).length > 0;
+  const examples = s.story.filter((i) => i.example).length;
 
   return (
     <Screen
@@ -46,6 +47,17 @@ export default function StoryPage() {
         </PrimaryButton>
       }
     >
+      {/* 둘러보기 기기에는 씨앗 이야기가 미리 들어 있다. 화면 모양을 보여
+          주려고 넣은 것인데 실제 추출 결과와 생김새가 같아서, 직접 녹음해
+          본 사람이 "내 녹음이 반영된 건가?" 하고 묻는 일이 실제로 있었다.
+          목록 위에서 한 번, 항목마다 한 번 더 밝힌다. */}
+      {examples > 0 ? (
+        <NoteBar tone="amber" icon={<IconInfo size={19} className="text-brand-600" />}>
+          아래 {examples}건은 <strong>둘러보기용 예시</strong>예요. 녹음에서 이야기를
+          뽑으면 예시는 사라지고 어르신 말씀만 남습니다.
+        </NoteBar>
+      ) : null}
+
       {/* 지난 회기와 어긋나는 곳부터 보여준다 — 정리하기 전에 알아야 한다 */}
       <Contradictions />
 
@@ -115,6 +127,14 @@ function StoryRow({
         <span className="block text-[1.0625rem] font-bold leading-snug text-ink-900">
           {item.text}
         </span>
+        {/* 예시라는 말을 항목 안에 붙인다. 목록 위 안내문만으로는 부족했다 —
+            줄마다 '출처 · 어르신 음성 0:42'가 붙어 있어서, 방금 녹음한
+            사람이 자기 녹음이 반영된 줄로 읽는다. */}
+        {item.example ? (
+          <span className="mt-1 inline-block rounded-full bg-surface-sunk px-2 py-0.5 text-[0.75rem] font-extrabold text-ink-700">
+            예시 · 실제 녹음이 아니에요
+          </span>
+        ) : null}
         {/* 출처를 글자로만 적어 두면 주장이다. 눌러서 그 대목을 들을 수
             있어야 근거가 된다. */}
         <span className="mt-1 block">
