@@ -34,7 +34,7 @@ import { StoredAudio } from '@/components/StoredAudio';
  */
 export default function MorePage() {
   const { s, setConsent, set, reset } = useSession();
-  const { account } = useAccount();
+  const { account, signOut } = useAccount();
   const [confirmReset, setConfirmReset] = useState(false);
   /** 지우고 난 뒤 어디로 가면 되는지 알려주기 위한 표시 */
   const [cleared, setCleared] = useState(false);
@@ -437,6 +437,40 @@ export default function MorePage() {
             어르신 목록으로 가기
           </Link>
         </div>
+      ) : null}
+
+      {/*
+        로그아웃이 /login 화면에만 있었다.
+        앱 안에서 그리로 가는 링크가 하나도 없어서, 로그인한 사람은 주소를
+        직접 치지 않는 한 나갈 방법이 없었다. 태블릿을 다른 복지사에게
+        넘길 때도, 센터장께 가입 화면부터 보여드릴 때도 필요한 문이다.
+
+        지금 어느 기관으로 들어와 있는지 함께 적는다 — 태블릿을 여럿이
+        쓰는 자리라 "누구로 로그인돼 있는지"가 먼저 보여야 한다.
+      */}
+      {account.status === 'in' ? (
+        <section className="mt-7">
+          <h2 className="text-[1.1875rem] font-extrabold text-ink-900">기관 계정</h2>
+          <Card className="mt-3 p-4">
+            <p className="text-[0.875rem] font-semibold text-ink-500">
+              지금 로그인한 기관
+            </p>
+            <p className="mt-0.5 text-[1.125rem] font-extrabold text-ink-900">
+              {account.tenantName}
+            </p>
+            <p className="mt-2 text-[0.875rem] leading-relaxed text-ink-500">
+              로그아웃해도 이 기기의 녹음·노래·회기 기록은 지워지지 않아요.
+              지우시려면 위 「이 기기의 기록 지우기」를 써 주세요.
+            </p>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="mt-3 flex min-h-[52px] w-full items-center justify-center rounded-[14px] border-2 border-brand-300 bg-surface-strong text-[1rem] font-bold text-brand-800"
+            >
+              로그아웃
+            </button>
+          </Card>
+        </section>
       ) : null}
 
       <p className="mt-5 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
