@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, NoteBar, PrimaryButton } from '@/components/ui';
@@ -49,6 +48,23 @@ import { useLyricCue, useSongPlayer } from '@/lib/useMusic';
  *   flat 곡이 없어 '지금 줄'이라는 것이 아예 없는 경우. 아무 줄도 크게
  *        고르지 않고 전부 같은 크기로 둔다 — 고를 근거가 없다.
  */
+/**
+ * 지금 줄을 가운데 두고 세 줄만 잘라 낸다.
+ *
+ * index 를 함께 들고 나오는 이유는, 잘라 낸 뒤에도 "이 줄이 전체에서 몇 번째
+ * 인가"를 알아야 하기 때문이다 — 절 이름표(· 후렴 ·)를 첫 줄에만 붙이는
+ * 판단이 그 번호에 걸려 있다.
+ *
+ * 맨 앞·맨 끝에서도 세 줄을 유지한다. 첫 줄에서 위가 비면 화면이 한 칸
+ * 내려앉았다가 두 번째 줄에서 다시 올라와, 어르신 눈앞에서 글자가 출렁인다.
+ */
+function window3<T>(lines: T[], at: number): (T & { index: number })[] {
+  const numbered = lines.map((l, index) => ({ ...l, index }));
+  if (numbered.length <= 3) return numbered;
+  const start = Math.min(Math.max(at - 1, 0), numbered.length - 3);
+  return numbered.slice(start, start + 3);
+}
+
 const LINE_SKIN = {
   now: 'rounded-[16px] bg-brand-100 px-3 py-3 text-[2.125rem] font-extrabold leading-[1.35] tracking-[-0.02em] text-ink-900',
   near: 'px-3 text-[1.375rem] font-bold leading-snug text-ink-700',
@@ -79,21 +95,22 @@ export default function SingPage() {
   const total = Math.round(player.total);
 
   /*
-   * 지금 줄이 접혀 있으면 노래방이 아니다.
+   * 스크롤 상자를 걷어냈다.
    *
-   * scrollIntoView 는 창까지 함께 굴린다. 복지사가 아래 '다음 줄'에 손을
-   * 얹고 있는데 페이지가 통째로 튀면 손이 엉뚱한 곳을 누른다. 그래서 가사
-   * 상자의 scrollTop 만 직접 옮긴다. 부드럽게 굴리는 것은 CSS(scroll-smooth)
-   * 에 맡긴다 — 전역 prefers-reduced-motion 규칙이 그때는 알아서 끈다.
+   * 처음에는 가사 전체를 260px 상자에 담고 지금 줄이 가운데 오도록 scrollTop
+   * 을 옮겼다. 실제 기기에서 재 보니 글자 크기를 '아주 크게'(1.3배)로 올린
+   * 순간 무너졌다 — 한 줄이 151px 인데 상자는 260px 고정이라 두 줄이 채 안
+   * 들어가고, 지금 줄이 상자 아래로 완전히 벗어난 채(scrollTop 이 0 에서
+   * 움직이지 않았다) 어르신 앞에 놓였다.
+   *
+   * 고정 높이와 글자 크기 조절은 애초에 같이 갈 수 없다. 글자를 키우라고
+   * 만든 기능인데 키우면 안 보이는 상자라면 그 상자가 틀린 것이다.
+   *
+   * 그래서 곡이 흐르는 동안에는 세 줄만 보여준다 — 지난 줄·지금 줄·다음 줄.
+   * 노래방이 그렇게 하는 데는 이유가 있다. 굴릴 것이 없으니 어느 배율에서도
+   * 지금 줄이 반드시 보이고, 상자 높이를 재는 코드도 사라진다.
+   * 가사 전체는 가사 카드 화면에서 본다.
    */
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  const nowRef = useRef<HTMLParagraphElement | null>(null);
-  useEffect(() => {
-    const box = boxRef.current;
-    const el = nowRef.current;
-    if (!box || !el) return;
-    box.scrollTop = el.offsetTop - (box.clientHeight - el.offsetHeight) / 2;
-  }, [active]);
 
   /*
    * pressed 는 "켜져 있는 상태가 있는 버튼"에만 붙인다.
@@ -170,31 +187,26 @@ export default function SingPage() {
         />
 
         {cue.lines.length > 0 ? (
-          /* 가사 상자만 굴러가고 카드 밖은 가만히 있는다. relative 는
-             scrollTop 계산의 기준(offsetParent)이기도 하다.
-
-             높이를 260px 로 묶은 것은 아래 '이전 줄/다음 줄'을 화면 안으로
-             끌어올리기 위해서다. 지금 줄이 아무리 크게 떠 있어도 맞추는
-             버튼이 화면 밖에 있으면 아무도 못 맞춘다. */
-          <div
-            ref={boxRef}
-            className="relative max-h-[260px] scroll-smooth overflow-y-auto"
-          >
-            {cue.lines.map((line, i) => {
-              const now = i === active;
+          /* 곡이 흐르면 세 줄, 아니면 전체.
+             곡이 없을 때까지 세 줄로 줄이면 가사를 읽을 수 없다 —
+             그때는 지금 줄이라는 것 자체가 없으므로 전부 고르게 보여준다. */
+          <div>
+            {(active < 0
+              ? cue.lines.map((l, index) => ({ ...l, index }))
+              : window3(cue.lines, active)
+            ).map((line) => {
+              const now = active >= 0 && line.index === active;
               const skin = now
                 ? LINE_SKIN.now
                 : active < 0
                   ? LINE_SKIN.flat
-                  : Math.abs(i - active) === 1
-                    ? LINE_SKIN.near
-                    : LINE_SKIN.far;
+                  : LINE_SKIN.near;
               return (
-                <div key={`${i}-${line.text}`}>
+                <div key={`${line.index}-${line.text}`}>
                   {line.opensSection ? (
                     <p
                       className={`text-center text-[0.9375rem] font-bold text-brand-700 ${
-                        i === 0 ? '' : 'mt-5'
+                        line.index === 0 ? '' : 'mt-5'
                       }`}
                     >
                       · {line.label} ·
@@ -203,7 +215,6 @@ export default function SingPage() {
                   {/* aria-live 는 일부러 두지 않았다. 줄이 넘어갈 때마다 읽어
                       주면 지금 나오고 있는 노래 위에 목소리가 겹친다. */}
                   <p
-                    ref={now ? nowRef : undefined}
                     aria-current={now ? 'true' : undefined}
                     className={`mt-2 text-center ${skin}`}
                   >
@@ -212,6 +223,11 @@ export default function SingPage() {
                 </div>
               );
             })}
+            {active >= 0 && cue.lines.length > 3 ? (
+              <p className="mt-4 text-center text-[0.8125rem] text-ink-500">
+                가사 전체는 가사 카드 화면에서 보실 수 있어요
+              </p>
+            ) : null}
           </div>
         ) : (
           /* 막다른 길을 두지 않는다 — 가사를 만드는 화면으로 바로 보낸다. */
