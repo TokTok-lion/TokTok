@@ -26,6 +26,10 @@ export function ExtractFacts() {
 
   const canSend = hasConsent(s.elder.consents, 'externalAi');
   const hasTranscript = s.transcript.length > 0;
+  // 자동 정리가 빈손으로 돌아온 회기에서는 받아 적는 칸을 펼쳐 준다.
+  // 오류만 띄우고 닫아 두면 여기서 회기가 멈춘다 — 아래 푸터도 '확인된
+  // 이야기가 필요해요'로 잠겨 있어서 나갈 문이 하나도 없다.
+  const [openNote, setOpenNote] = useState(false);
 
   const run = async () => {
     setState('busy');
@@ -48,7 +52,12 @@ export function ExtractFacts() {
         return;
       }
       if (!json.facts.length) {
-        setError('사실로 옮길 만한 말씀을 찾지 못했어요. 전사를 확인해 주세요.');
+        setError(
+          '사실로 옮길 만한 말씀을 찾지 못했어요. 전사가 어르신 말씀과 다르면 ' +
+            '전사 교정에서 고친 뒤 다시 뽑아 주세요. 아래 「손으로 이야기 적기」에 ' +
+            '복지사가 직접 적으셔도 됩니다.',
+        );
+        setOpenNote(true);
         setState('idle');
         return;
       }
@@ -90,7 +99,7 @@ export function ExtractFacts() {
           title="자동 정리를 하지 않아요"
           why="전사에서 사실을 뽑는 일은 어르신 말씀을 외부 사업자에 보내야 해서, 외부 AI 전송에 동의하셨을 때만 씁니다."
         />
-        <HandwrittenStory />
+        <HandwrittenStory open />
       </>
     );
   }
@@ -150,7 +159,7 @@ export function ExtractFacts() {
         </p>
       </Card>
 
-      <HandwrittenStory />
+      <HandwrittenStory open={openNote} />
     </>
   );
 }
@@ -171,11 +180,18 @@ export function ExtractFacts() {
  * 상태는 자동 추출과 똑같이 '확인 필요'로 들어간다 — 복지사가 적었다는
  * 이유로 어르신 확인을 건너뛰지 않는다(원칙 1 · 3).
  */
-function HandwrittenStory() {
+function HandwrittenStory({ open: want = false }: { open?: boolean }) {
   const { s, set } = useSession();
-  const canSend = hasConsent(s.elder.consents, 'externalAi');
-  // 자동 정리가 막힌 회기에서는 이것이 유일한 길이라 펼쳐 둔다.
-  const [open, setOpen] = useState(!canSend);
+  /*
+   * 자동 정리가 막혔거나 빈손으로 돌아왔으면 이것이 유일한 길이라 펼쳐 둔다.
+   *
+   * 처음 값으로만 받으면 안 된다 — '이야기 뽑기'가 빈손으로 돌아오는 것은
+   * 마운트가 아니라 그 뒤의 일이라, useState(want) 는 영영 닫힌 채로 남는다.
+   * 그렇다고 want 를 그대로 따르게 하면 복지사가 닫아도 다시 열린다.
+   * 그래서 손대기 전에는 want 를 따르고, 한 번 여닫은 뒤로는 그 선택을 지킨다.
+   */
+  const [choice, setChoice] = useState<boolean | null>(null);
+  const open = choice ?? want;
   const [text, setText] = useState('');
   const [added, setAdded] = useState(0);
 
@@ -197,7 +213,7 @@ function HandwrittenStory() {
   return (
     <details
       open={open}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
+      onToggle={(e) => setChoice(e.currentTarget.open)}
       className="mt-3 rounded-[20px] bg-surface p-4 shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
     >
       <summary className="cursor-pointer text-[1.0625rem] font-extrabold text-ink-900 marker:content-none">

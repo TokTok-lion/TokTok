@@ -50,18 +50,49 @@ function seconds(v: unknown): number {
   return 0;
 }
 
+/**
+ * 구글이 나눠 준 결과 하나를 화면의 한 줄로 쓴다.
+ *
+ * 예전에는 모든 단어를 한 통에 쏟아 넣고 우리가 다시 잘랐다. 60자가 넘으면
+ * 끊었는데, 한국어는 단어별 시각이 서브워드로 오기 때문에 그 자르는 자리가
+ * 단어 한가운데였다. 실제로 이렇게 나왔다:
+ *
+ *   "…어머니께 흰 고무신을 사"
+ *   "드렸어요 어머니가 오시던 모습이…"
+ *
+ * 어르신께 읽어 드릴 문장이 두 동강 나는 것도 문제지만, 더 나쁜 것은 그
+ * 다음이다 — 이 줄들이 그대로 사실 추출의 입력이 된다. "사"로 끝나는 문장
+ * 에서 뽑을 수 있는 사실은 없다.
+ *
+ * 구글은 이미 문장 단위로 results 를 나눠 주고, 각 result 의 transcript 는
+ * 띄어쓰기가 제대로 붙은 완성된 글이다. 그걸 쓰면 우리가 다시 자를 이유가
+ * 없다. 시각은 그 result 의 첫 단어에서 가져온다 — 출처 "어르신 음성 0:42"가
+ * 가리키는 자리다.
+ *
+ * 단어 시각이 아예 안 오는 경우에만 예전 방식으로 돌아간다.
+ */
 function collect(results: { alternatives?: Alt[] }[]): Segment[] {
+  const out: Segment[] = [];
   const words: { text: string; start: number }[] = [];
-  const texts: string[] = [];
+
   for (const r of results) {
     const alt = r.alternatives?.[0];
     if (!alt) continue;
-    if (alt.transcript) texts.push(alt.transcript.trim());
+
     for (const w of alt.words ?? []) {
       if (w.word) words.push({ text: w.word, start: seconds(w.startTime) });
     }
+
+    const text = (alt.transcript ?? '').trim();
+    if (!text) continue;
+    // 첫 단어의 시각. 없으면 앞 줄에 이어 붙은 것으로 보고 같은 자리를 쓴다.
+    const first = alt.words?.find((w) => w.word);
+    const at = first ? seconds(first.startTime) : (out.at(-1)?.at ?? 0);
+    out.push({ id: `seg-${out.length}`, text, at: Math.round(at) });
   }
-  return toSegments(words, texts.join(' '));
+
+  if (out.length) return out;
+  return toSegments(words);
 }
 
 async function readOperation(operation: string): Promise<Job<Segment[]>> {
