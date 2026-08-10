@@ -205,12 +205,42 @@ let state: SessionState = SERVER_SNAPSHOT;
 let hydrated = false;
 const listeners = new Set<() => void>();
 
+/**
+ * 기기에 남아 있는 씨앗 사본에 예시 표를 다시 붙인다.
+ *
+ * 예시 표(example)는 나중에 생겼는데, 저장본이 씨앗을 덮어쓴다. 그래서 그
+ * 전에 앱을 한 번이라도 연 기기에는 표 없는 씨앗이 그대로 남아, 화면이
+ * '예시'라고 적을 근거를 잃는다 — 고쳐서 배포했는데 정작 쓰던 사람 화면은
+ * 그대로였다. 실제로 그렇게 두 번 헛걸음했다.
+ *
+ * 씨앗은 id 로 알아본다. 진짜로 뽑힌 항목은 fact-0-11·note-1723... 처럼
+ * 다른 모양이라 여기 걸리지 않는다. 표만 얹고 복지사가 고친 글자는 두므로,
+ * 손으로 다듬어 둔 문장이 씨앗 문장으로 되돌아가지 않는다.
+ */
+const SEED_STORY_IDS = new Set(SEED_STORY.map((i) => i.id));
+const SEED_TRANSCRIPT_IDS = new Set(SEED_TRANSCRIPT.map((t) => t.id));
+
+function remarkSeeds(saved: Partial<SessionState>): Partial<SessionState> {
+  const out = { ...saved };
+  if (Array.isArray(saved.story)) {
+    out.story = saved.story.map((i) =>
+      !i.example && SEED_STORY_IDS.has(i.id) ? { ...i, example: true as const } : i,
+    );
+  }
+  if (Array.isArray(saved.transcript)) {
+    out.transcript = saved.transcript.map((t) =>
+      !t.example && SEED_TRANSCRIPT_IDS.has(t.id) ? { ...t, example: true as const } : t,
+    );
+  }
+  return out;
+}
+
 function load(): SessionState {
   try {
     for (const old of LEGACY_KEYS) localStorage.removeItem(old);
     const raw = localStorage.getItem(KEY);
     if (!raw) return seedState();
-    const saved = JSON.parse(raw) as Partial<SessionState>;
+    const saved = remarkSeeds(JSON.parse(raw) as Partial<SessionState>);
     const base = seedState();
     return { ...base, ...saved, elder: { ...base.elder, ...saved.elder } };
   } catch {

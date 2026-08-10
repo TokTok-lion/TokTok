@@ -1,4 +1,31 @@
 /*
+ * 서비스 워커를 라우트로 낸다.
+ *
+ * public/sw.js 로 두었을 때 문제가 하나 있었다. 파일 내용이 배포마다
+ * 똑같으니 브라우저가 "새 워커"로 보지 않는다. 새 워커가 없으면 updatefound
+ * 도 controllerchange 도 일어나지 않고, 태블릿에 띄워 둔 앱은 처음 받은
+ * 자바스크립트를 계속 쓴다. 고쳐서 배포해 놓고 "그대로인데요?"를 두 번
+ * 들은 이유가 이것이었다 — 서버에는 올라가 있고 기기만 옛것을 붙들고 있었다.
+ *
+ * 그래서 배포마다 달라지는 값을 워커 안에 박는다. 바이트가 달라지면
+ * 브라우저가 새 워커로 알아보고, skipWaiting → clients.claim 을 거쳐
+ * 화면을 넘겨받는다. 그 순간을 components/ServiceWorker.tsx 가 듣고 있다가
+ * 안전할 때 화면을 다시 연다.
+ *
+ * 이 라우트는 빌드 때 한 번 굳는다(force-static). 그래야 배포 하나에
+ * 판 번호가 하나다 — 요청마다 값이 달라지면 열 때마다 새 워커가 되어
+ * 화면이 계속 다시 열린다.
+ */
+
+export const dynamic = 'force-static';
+
+/** Vercel 이 배포마다 넣어 주는 커밋 해시. 로컬에서는 없다. */
+const BUILD =
+  process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ??
+  process.env.NEXT_PUBLIC_BUILD_ID ??
+  'dev';
+
+const SOURCE = `/*
  * 똑똑 TokTok — service worker.
  *
  * Deliberately minimal. This app holds an elder's life story in localStorage
@@ -13,9 +40,9 @@
  * connection still opens to something rather than a browser error page.
  */
 
-const VERSION = 'toktok-v1';
-const SHELL = `${VERSION}-shell`;
-const ASSETS = `${VERSION}-assets`;
+const VERSION = 'toktok-${BUILD}';
+const SHELL = VERSION + '-shell';
+const ASSETS = VERSION + '-assets';
 const OFFLINE_URL = '/home';
 
 self.addEventListener('install', (event) => {
@@ -50,6 +77,10 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  // 워커 자신은 절대 캐시에서 주지 않는다. 캐시에서 주면 새 판이 나와도
+  // 브라우저가 옛 바이트를 보고 "바뀐 게 없다"고 판단한다.
+  if (url.pathname === '/sw.js') return;
 
   // artwork and build output: cache-first, they are content-addressed
   if (isImmutableAsset(url)) {
@@ -108,3 +139,16 @@ self.addEventListener('notificationclick', (event) => {
       }),
   );
 });
+`;
+
+export function GET() {
+  return new Response(SOURCE, {
+    headers: {
+      'Content-Type': 'text/javascript; charset=utf-8',
+      // 워커 파일만은 캐시하지 않는다. 이 응답이 캐시되면 새 판을 내놓아도
+      // 브라우저가 옛 바이트를 보고 갱신을 건너뛴다.
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Service-Worker-Allowed': '/',
+    },
+  });
+}

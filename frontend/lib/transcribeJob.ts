@@ -68,6 +68,11 @@ export function useTranscribeJob(): TranscribeState {
   return useSyncExternalStore(subscribe, snapshot, serverSnapshot);
 }
 
+/** 지금 어르신 목소리를 옮기는 중인가. 화면을 다시 열면 이 일이 끊긴다. */
+export function isTranscribing(): boolean {
+  return busy;
+}
+
 /** 이 회기의 전사가 실제 녹음에서 나온 것인가 (씨앗 예시는 아니다). */
 export function hasRealTranscript(): boolean {
   return currentSession().transcript.some((t) => !t.example);

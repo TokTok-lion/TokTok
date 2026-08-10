@@ -197,6 +197,17 @@ export function hasRecording(): boolean {
 }
 
 /**
+ * 지금 마이크가 열려 있는가.
+ *
+ * 새 판이 배포됐다고 화면을 다시 여는 일이, 어르신이 말씀하시는 중에
+ * 일어나서는 안 된다. 조각은 1초마다 기기에 쌓이니 전부 날아가지는 않지만,
+ * 이야기를 듣던 중에 화면이 깜빡이면 그 자리가 끊긴다.
+ */
+export function isCapturing(): boolean {
+  return snap.state === 'recording' || snap.state === 'paused';
+}
+
+/**
  * 저장된 녹음본을 지운다.
  *
  * 녹음 동의를 거두면 반드시 불려야 한다. 동의를 거뒀는데 음성이 기기에
