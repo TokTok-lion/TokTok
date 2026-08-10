@@ -252,8 +252,22 @@ export default function InterviewPage() {
               : '주제 없이 여는 질문'}{' '}
           · {question.level}단계{' '}
           {levelName(question.level)}
-          {questions.length > 1 ? ` · 질문 ${(asked % questions.length) + 1}/${questions.length}` : ''}
         </p>
+
+        {/*
+          '질문 1/3' 이 오해를 샀다.
+          바로 아래에 보조 질문 카드가 세 장 있어서, 그 셋이 2번·3번 질문인 줄
+          알고 "3개는 어디 있냐"고 물었다. 실은 난이도 세 단계를 뜻하고,
+          나머지 둘로 가는 길은 화면 한참 아래 '질문 건너뛰기'다.
+          숫자만 적지 말고 무엇의 몇 번째인지와 어떻게 넘기는지를 함께 적는다.
+        */}
+        {questions.length > 1 ? (
+          <p className="mt-1 text-center text-[0.875rem] font-semibold text-ink-500">
+            어려워하시면 아래 <strong>질문 건너뛰기</strong>로 더 쉬운 질문으로
+            바꿀 수 있어요 (난이도 {(asked % questions.length) + 1}/
+            {questions.length})
+          </p>
+        ) : null}
 
         {/* 글씨가 잘 안 보이는 어르신께 읽어 드린다. 질문은 우리가 쓴 문장이라
             어르신 개인정보가 밖으로 나가지 않는다 — 외부 AI 동의와 무관하다. */}
@@ -263,8 +277,15 @@ export default function InterviewPage() {
 
         {/* 보조 질문은 복지사가 읽고 이어 물으라고 적어 둔 쪽지다. 예전에는
             눌리는 것처럼 생겼는데 아무 일도 하지 않았다 — 누를 수 없게 두는
-            편이 정직하다. */}
-        <ul className="mt-4 space-y-2.5">
+            편이 정직하다.
+
+            이름표를 붙인 이유가 하나 더 있다. 위의 '질문 1/3' 바로 아래에
+            카드가 셋 있으니 그 셋이 2·3번 질문으로 읽혔다. 무엇인지 적어
+            두면 그렇게 읽히지 않는다. */}
+        <p className="mt-4 text-[0.875rem] font-bold text-leaf-700">
+          말씀이 이어지면 여쭤볼 것
+        </p>
+        <ul className="mt-2 space-y-2.5">
           {followUps.map((text, i) => (
             <li
               key={text}
@@ -367,6 +388,30 @@ export default function InterviewPage() {
         고장 났다고 읽는다 — 실제로 그렇게 읽고 장치를 한참 뒤졌다.
         이유는 잠긴 것 옆에, 갈 곳은 그 자리에서.
       */}
+      {/*
+        브라우저가 마이크를 막은 경우.
+        버튼에는 '마이크 없음' 넉 자만 떴는데, 실제로는 장치가 없는 것이 아니라
+        이 사이트에 권한을 주지 않은 것이다. 둘은 푸는 방법이 완전히 다른데
+        화면이 같은 말로 뭉뚱그렸다.
+      */}
+      {canRecord && rec.state === 'denied' ? (
+        <Card className="mt-3 border-2 border-brand-300 p-4">
+          <p className="flex items-center gap-2 text-[1.0625rem] font-extrabold text-brand-800">
+            <IconInfo size={20} className="shrink-0" />
+            브라우저가 마이크를 막고 있어요
+          </p>
+          <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+            동의는 받으셨는데 브라우저 권한이 없어요. 주소창 왼쪽{' '}
+            <strong>자물쇠(또는 마이크) 표시</strong>를 누르고 마이크를{' '}
+            <strong>허용</strong>으로 바꾼 뒤, 이 화면을 새로고침해 주세요.
+          </p>
+          <p className="mt-2 text-[0.875rem] leading-relaxed text-ink-500">
+            노트북에 마이크가 여럿이면 거기서 어느 것을 쓸지도 고르실 수 있어요.
+            그래도 안 되면 동의 없이 진행하시고 복지사가 직접 받아 적으셔도 됩니다.
+          </p>
+        </Card>
+      ) : null}
+
       {!canRecord ? (
         <Card className="mt-3 border-2 border-brand-300 p-4">
           <p className="flex items-center gap-2 text-[1.0625rem] font-extrabold text-brand-800">

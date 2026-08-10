@@ -48,6 +48,33 @@ export const CONSENT_ORDER: ConsentKind[] = [
   'promotion',
 ];
 
+/**
+ * 회기를 시작하기 전에 여쭤야 하는 것.
+ *
+ * 다섯 가지를 모두 앉은 자리에서 여쭙게 했더니 회기 준비 화면에 확인할 것이
+ * 아홉 개가 됐다. 그 길이 자체가 위험하다 — 길면 읽지 않고 넘기게 되고,
+ * 그러면 동의는 형식이 된다. 묶음 동의를 금지한 이유(F-SW-CONS-009)가
+ * 정확히 그것인데, 하나씩 물어도 한꺼번에 아홉 개면 결과가 같아진다.
+ *
+ * 그래서 시점으로 나눈다. 이 둘은 지금 없으면 회기가 진행되지 않는다 —
+ * 마이크가 열리지 않고, 말씀이 글이 되지 않는다.
+ */
+export const SESSION_CONSENTS: ConsentKind[] = ['recording', 'externalAi'];
+
+/**
+ * 결과물을 어떻게 쓸지 — 곡이 나온 뒤에 여쭙는다.
+ *
+ * 시설에서 함께 들을지, 가족에게 보여드릴지, 외부에 공개할지는 전부 '만들어진
+ * 노래'에 대한 물음이다. 노래가 없는 자리에서 미리 답을 받아 두면 무엇에
+ * 동의하시는지 알 수 없는 채로 답하시게 된다. 물어야 할 것을 물어야 할 때
+ * 묻는 편이 개수를 줄이는 것보다 중요하다.
+ */
+export const RESULT_CONSENTS: ConsentKind[] = [
+  'facilityPlay',
+  'familyShare',
+  'promotion',
+];
+
 /** 무엇에 쓰는지. 목적을 말하지 않고 받은 것은 동의가 아니다. */
 export const CONSENT_PURPOSE: Record<ConsentKind, string> = {
   recording: '대화를 녹음하고 글로 옮기는 데 사용해요.',

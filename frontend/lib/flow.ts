@@ -126,7 +126,19 @@ export const TOTAL_STEPS = STEPS.length;
  * 그 화면은 이 배열을 돌면서 그리므로, 항목을 늘리거나 이름을 바꾸면 화면과
  * 완료 판정이 함께 움직인다 — 한쪽만 고쳐 어긋나는 일을 타입이 막는다.
  */
-export const PREP_CHECKS = ['elder', 'cards', 'familyNote', 'mic'] as const;
+/**
+ * 회기 준비에서 사람이 실제로 확인해야 하는 것.
+ *
+ * 넷이었다 — 어르신 선택·기억 카드·가족 메모·마이크. 그런데 앞의 셋은
+ * 확인할 것이 아니었다. 어르신 선택은 이 화면에 왔다는 사실이 곧 증거이고
+ * (안 고르면 회기가 열리지 않는다), 기억 카드는 바로 다음 화면에서 고르는
+ * 것이라 여기서 미리 체크할 대상이 아니며, 가족 메모는 제보가 있을 때만
+ * 의미가 있다. 앱이 이미 아는 것을 사람에게 다시 묻는 칸이었다.
+ *
+ * 마이크만 남긴다. 이것은 사람이 소리를 내 봐야 알 수 있고, 틀리면 어르신이
+ * 한 시간 들려주신 이야기가 통째로 사라진다 — 실제로 그렇게 무음을 담았다.
+ */
+export const PREP_CHECKS = ['mic'] as const;
 export type PrepCheck = (typeof PREP_CHECKS)[number];
 
 const BY_SCREEN = new Map<string, Step>();

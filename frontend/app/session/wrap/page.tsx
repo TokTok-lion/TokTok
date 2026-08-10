@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Art } from '@/components/Art';
 import { ServerSaveNote } from '@/components/ServerSaveNote';
+import { ConsentAsk, RESULT_CONSENTS } from '@/components/ConsentGate';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, OutlineButton, PrimaryButton } from '@/components/ui';
 import { IconDoc, IconEdit, IconSmile } from '@/components/icons';
@@ -12,7 +13,7 @@ import type { ArtKey } from '@/lib/art';
 
 /** 회기 마무리 (deck p.29) */
 export default function WrapPage() {
-  const { s, set } = useSession();
+  const { s, set, setConsent } = useSession();
   const selected = REACTIONS.filter((r) => s.reactions.includes(r.id));
 
   return (
@@ -136,6 +137,32 @@ export default function WrapPage() {
           />
         </div>
       </Card>
+
+      {/*
+        노래를 어떻게 쓸지는 노래가 나온 뒤에 여쭙는다.
+        예전에는 다섯 가지를 전부 회기 준비에서 한꺼번에 받았다. 그런데 시설
+        재생·가족 공유·홍보 공개는 전부 '만들어진 노래'에 대한 물음이라,
+        노래가 없는 자리에서 미리 답을 받으면 무엇에 동의하시는지 알 수 없는
+        채로 답하시게 된다. 개수를 줄이려는 것이 아니라 물어야 할 때 묻는
+        것이다 — 회기 준비에는 지금 없으면 진행이 안 되는 둘만 남겼다.
+      */}
+      <h2 className="mt-6 text-[1.1875rem] font-extrabold text-ink-900">
+        이 노래를 어떻게 쓸까요
+      </h2>
+      <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-500">
+        {s.elder.honorific}께 여쭙고 그대로 기록해요. 지금 정하지 않으셔도
+        되고, 「더보기」에서 언제든 바꾸실 수 있어요.
+      </p>
+      <ul className="mt-3 space-y-3">
+        {RESULT_CONSENTS.map((kind) => (
+          <ConsentAsk
+            key={kind}
+            kind={kind}
+            state={s.elder.consents[kind] ?? 'unset'}
+            onDecide={(granted) => setConsent(kind, granted)}
+          />
+        ))}
+      </ul>
     </Screen>
   );
 }

@@ -1,10 +1,10 @@
 'use client';
 
 import { Art } from '@/components/Art';
-import { ConsentAsk, CONSENT_ORDER, UnrecordedConsents } from '@/components/ConsentGate';
+import { ConsentAsk, RESULT_CONSENTS, SESSION_CONSENTS, UnrecordedConsents } from '@/components/ConsentGate';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, NoteBar, PrimaryButton } from '@/components/ui';
-import { IconChat, IconClock, IconEdit, IconImage, IconInfo, IconMic, IconShield } from '@/components/icons';
+import { IconChat, IconClock, IconInfo, IconMic, IconShield } from '@/components/icons';
 import { useSession } from '@/lib/store';
 import { PREP_CHECKS, type PrepCheck } from '@/lib/flow';
 import type { ArtKey } from '@/lib/art';
@@ -25,10 +25,11 @@ const ITEMS: Record<
     tone: 'leaf' | 'amber';
   }
 > = {
-  elder: { label: '어르신 선택 완료', Icon: IconChat, tone: 'leaf' },
-  cards: { label: '기억 카드 준비 완료', Icon: IconImage, tone: 'leaf' },
-  familyNote: { label: '가족 메모 확인 완료', Icon: IconEdit, tone: 'leaf' },
-  mic: { label: '마이크 테스트 필요', Icon: IconMic, tone: 'amber' },
+  // 넷이 있었다. 앱이 이미 아는 것(어르신 선택)과 다음 화면에서 하는 일
+  // (기억 카드)까지 사람에게 다시 체크시키던 칸들이라 지웠다 — lib/flow.ts
+  // 의 PREP_CHECKS 주석에 경위를 적었다. 남은 하나는 사람이 소리를 내 봐야
+  // 알 수 있는 것이고, 틀리면 어르신 이야기가 통째로 사라진다.
+  mic: { label: '마이크에 소리가 들어오나요?', Icon: IconMic, tone: 'amber' },
 };
 
 /** ISO 시각 → '오전 10:05'. 기기 시간대를 그대로 쓴다. */
@@ -44,6 +45,24 @@ function clockLabel(iso: string): string {
 export default function ChecklistPage() {
   const { s, set, setConsent, toggleChecklist } = useSession();
 
+  /**
+   * 아직 답하지 않은 것들. 준비 확인 + 이번 회기에 필요한 동의.
+   *
+   * 동의는 '아직 안 여쭤본 것'만 센다 — 어르신이 이미 거절하신 항목을
+   * 이 버튼이 허용으로 뒤집으면 안 된다. 그건 대신 답하는 것이 아니라
+   * 뜻을 바꾸는 것이다.
+   */
+  const undoneChecks = PREP_CHECKS.filter((k) => !s.checklist[k]);
+  const unsetConsents = SESSION_CONSENTS.filter(
+    (k) => (s.elder.consents[k] ?? 'unset') === 'unset',
+  );
+  const remaining = undoneChecks.length + unsetConsents.length;
+
+  const confirmAll = () => {
+    for (const k of undoneChecks) toggleChecklist(k);
+    for (const k of unsetConsents) setConsent(k, true);
+  };
+
   /*
    * 아직 여쭙지 못한 동의도 '남은 일'이다.
    *
@@ -52,7 +71,7 @@ export default function ChecklistPage() {
    * 아예 없다. 마주 앉기 전에 여쭤야 할 일이라 준비물과 같은 자리에서 세고,
    * 같은 숫자로 보여 준다.
    */
-  const unasked = CONSENT_ORDER.filter(
+  const unasked = SESSION_CONSENTS.filter(
     (kind) => (s.elder.consents[kind] ?? 'unset') === 'unset',
   ).length;
   const pending =
@@ -145,6 +164,31 @@ export default function ChecklistPage() {
         </p>
       )}
 
+      {/*
+        한 번에 끝내는 버튼.
+        복지사가 어르신과 마주 앉아 다섯 가지를 하나씩 누르는 것이 현장에서
+        너무 길다고 해서 만들었다. 누르면 아직 답하지 않은 것들이 한꺼번에
+        '확인·동의'로 들어간다.
+
+        버튼에 무엇을 하는지 그대로 적는다. 이 한 번이 어르신의 동의 기록이
+        되기 때문에, 누르는 사람이 무엇을 대신 답하는지 알아야 한다. 누른
+        뒤에도 항목마다 따로 바꿀 수 있고, 바꾼 것이 최종 기록이 된다.
+      */}
+      {(remaining > 0) ? (
+        <button
+          type="button"
+          onClick={confirmAll}
+          className="mt-4 flex min-h-[64px] w-full flex-col items-center justify-center rounded-[18px] bg-brand-700 px-4 text-white"
+        >
+          <span className="text-[1.125rem] font-extrabold">
+            모두 확인했어요 ({remaining}건)
+          </span>
+          <span className="mt-0.5 text-[0.8125rem] font-semibold text-white/90">
+            어르신께 여쭙고 동의를 받으신 경우에만 눌러 주세요
+          </span>
+        </button>
+      ) : null}
+
       <ul className="mt-4 space-y-3">
         {PREP_CHECKS.map((key) => {
           const it = ITEMS[key];
@@ -204,7 +248,7 @@ export default function ChecklistPage() {
         <IconShield size={22} className="text-leaf-600" />
         동의 확인
         <span className="ml-auto rounded-full bg-surface-sunk px-3 py-1 text-[0.875rem] font-bold text-ink-700">
-          {CONSENT_ORDER.length - unasked} / {CONSENT_ORDER.length} 여쭘
+          {SESSION_CONSENTS.length - unasked} / {SESSION_CONSENTS.length} 여쭘
         </span>
       </h2>
       <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-500">
@@ -224,8 +268,16 @@ export default function ChecklistPage() {
           : '아직 기관 계정으로 고른 어르신이 아니라, 이 동의는 이 기기에만 남아요.'}
       </p>
 
+      {/* 나머지는 언제 여쭙는지 여기서 밝힌다. 말없이 사라지면 복지사는
+          동의를 빠뜨린 줄 안다. */}
+      <p className="mt-2 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.8125rem] font-semibold leading-relaxed text-ink-700">
+        나머지 {RESULT_CONSENTS.length}가지(시설 재생·가족 공유·홍보 공개)는
+        노래가 나온 뒤 <strong>회기 마무리</strong>에서 여쭤요. 무엇에 동의하시는지
+        들어 보고 정하시는 편이 맞아서요.
+      </p>
+
       <ul className="mt-3 space-y-3">
-        {CONSENT_ORDER.map((kind) => (
+        {SESSION_CONSENTS.map((kind) => (
           <ConsentAsk
             key={kind}
             kind={kind}
