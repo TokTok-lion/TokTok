@@ -179,14 +179,25 @@ export default function LogPage() {
    * getSnapshot 이 부를 때마다 같은 값을 돌려줘야 하기 때문이고(값이 흔들리면
    * React 가 계속 다시 그린다), 하나는 복지사가 이 화면에서 글을 다듬는 동안
    * 칸의 숫자가 저 혼자 올라가면 안 되기 때문이다.
+   *
+   * 사람이 고친 값은 이 컴포넌트가 아니라 회기(s.logMinutes)에 남긴다.
+   *
+   * 여기 useState 로 들고 있던 동안 이런 일이 있었다. 09:30 에 인터뷰를 시작하고
+   * 11:00 에 이 화면을 열면 90분이 자동으로 채워지는데, 실제 진행이 40분이라
+   * 복지사가 40 으로 고치고 넘어간다. 인쇄를 깜빡해 되돌아오면 LogPage 가 새로
+   * 마운트되면서 고친 40분이 사라지고, 그 사이 흘러간 시간만큼 더 커진 자동값이
+   * 조용히 그 자리에 들어간다. 화면은 그걸 두고 "인터뷰를 시작한 시각부터 재서
+   * 채웠어요"라고 적고 있었다 — 고친 사람이 있는데 안 고친 것처럼 말하는 셈이다.
+   * 그 값이 CSV·인쇄본으로 기관에 나간다.
    */
   const [openedAt] = useState(() => Date.now());
   const deviceNow = useSyncExternalStore(noSubscribe, () => openedAt, noClock);
   const measured = measure(s.interviewStartedAt, deviceNow);
 
   // null 은 "복지사가 아직 손대지 않음"이고 '' 는 "복지사가 지웠음"이다. 둘을
-  // 구분해야 지운 칸을 잰 값으로 도로 채우지 않는다.
-  const [typed, setTyped] = useState<string | null>(null);
+  // 구분해야 지운 칸을 잰 값으로 도로 채우지 않는다 — 일부러 비운 칸을 다시
+  // 채우면 그것도 사람의 손을 지우는 일이다.
+  const typed = s.logMinutes;
   const minutes = typed ?? (measured.kind === 'ok' ? String(measured.minutes) : '');
   const filled = minutes.trim();
   // 칸에 든 값이 곧 화면이 할 말이다 — 잰 값이 칸에 그대로 들어 있을 때만
@@ -202,8 +213,8 @@ export default function LogPage() {
    * 없었다. 칸이 비어 있으면 비었을 때 할 말만 한다. */
   const durationNote = filled
     ? filledByClock
-      ? '인터뷰를 시작한 시각부터 재서 채웠어요. 실제와 다르면 고쳐 주세요.'
-      : '복지사가 직접 적은 값이에요.'
+      ? '인터뷰를 시작한 시각부터 재서 채웠어요. 실제와 다르면 고쳐 주세요 — 고친 값은 이 회기에 그대로 남습니다.'
+      : '복지사가 직접 적은 값이에요. 자동으로 잰 값이 이 값을 덮지 않습니다.'
     : `${emptyNote(measured, typed !== null)} 오늘 진행한 시간을 적어 주세요. 비워 두면 내보내는 서식에 “—”로 나갑니다.`;
 
   const rows: LogRow[] = [
@@ -300,7 +311,9 @@ export default function LogPage() {
             type="text"
             inputMode="numeric"
             value={minutes}
-            onChange={(e) => setTyped(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+            onChange={(e) =>
+              set('logMinutes', e.target.value.replace(/[^0-9]/g, '').slice(0, 3))
+            }
             placeholder="—"
             aria-describedby="minutes-note"
             className="h-[52px] w-[88px] rounded-[14px] border border-hairline bg-surface-strong px-3 text-right text-[1.25rem] font-extrabold text-ink-900 placeholder:font-bold placeholder:text-ink-500"

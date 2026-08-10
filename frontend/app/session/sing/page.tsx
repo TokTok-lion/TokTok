@@ -325,21 +325,40 @@ export default function SingPage() {
             다음 줄들이 다시 잡혀요.
           </p>
 
+          {/*
+            disabled 가 아니라 aria-disabled 다.
+
+            마지막 줄에 닿는 순간 '다음 줄'은 더 눌러 봐야 소용이 없는데,
+            그 버튼에 포커스가 놓인 채로 disabled 가 되면 브라우저가 포커스를
+            body 로 떨어뜨린다. 키보드로 진행하던 복지사는 방금 누르던 자리를
+            잃고, 화면 처음부터 Tab 을 다시 밟아 돌아와야 한다. 회기 중에
+            어르신을 앞에 두고 할 일이 아니다.
+
+            그래서 버튼은 계속 포커스를 받을 수 있게 두고, 누를 수 없다는
+            사실만 aria-disabled 로 알린다. 실제 동작은 아래에서 막는다 —
+            aria-disabled 는 말이지 잠금이 아니다.
+          */}
           <div className="mt-3 grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={cue.toPrev}
-              disabled={!cue.canPrev}
-              className="flex min-h-[68px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.1875rem] font-extrabold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
+              aria-disabled={!cue.canPrev}
+              onClick={() => {
+                if (!cue.canPrev) return;
+                cue.toPrev();
+              }}
+              className="flex min-h-[68px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.1875rem] font-extrabold text-brand-700 aria-disabled:cursor-default aria-disabled:border-hairline aria-disabled:bg-surface-sunk aria-disabled:text-ink-500"
             >
               <IconBack size={24} />
               이전 줄
             </button>
             <button
               type="button"
-              onClick={cue.toNext}
-              disabled={!cue.canNext}
-              className="flex min-h-[68px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.1875rem] font-extrabold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
+              aria-disabled={!cue.canNext}
+              onClick={() => {
+                if (!cue.canNext) return;
+                cue.toNext();
+              }}
+              className="flex min-h-[68px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.1875rem] font-extrabold text-brand-700 aria-disabled:cursor-default aria-disabled:border-hairline aria-disabled:bg-surface-sunk aria-disabled:text-ink-500"
             >
               다음 줄
               <IconBack size={24} className="rotate-180" />
@@ -364,8 +383,29 @@ export default function SingPage() {
                 aria-checked={cue.auto}
                 aria-label="자동으로 줄 넘기기"
                 onClick={() => cue.setAuto(!cue.auto)}
+                /*
+                 * 꺼짐은 ink-300 이었다. 그런데 그 색은 globals.css 가
+                 * "decorative dividers only" 라고 못 박아 둔 색이다 — 그걸
+                 * 스위치라는 조작 부품에 쓰는 바람에, 끄는 순간 스위치가
+                 * 어디 있는지도 손잡이가 어느 쪽인지도 보이지 않았다.
+                 * 켤 수는 있는데 껐다는 것을 못 보는 스위치였다.
+                 *
+                 * 대비 계산(WCAG 1.4.11 은 조작 부품에 3:1 을 요구한다).
+                 * 배경은 이 줄이 앉아 있는 surface-sunk #fbf1e4 (L=0.8910).
+                 *
+                 *   ink-300 #b6a08a (L=0.3693) : 배경 → 2.24:1  ✗
+                 *   흰 손잡이 : ink-300        → 2.50:1  ✗
+                 *   ink-500 #7a6450 (L=0.1383) : 배경 → 5.00:1  ✓
+                 *   흰 손잡이(L=1) : ink-500   → 5.57:1  ✓
+                 *
+                 * 켜짐 leaf-600 #5f7a2a (L=0.1652) 은 배경 4.37:1,
+                 * 흰 손잡이 4.88:1 로 원래 통과한다 — 그대로 둔다.
+                 *
+                 * 색만으로 켜짐/꺼짐을 가르지도 않는다(1.4.1). 손잡이 위치가
+                 * 다르고, 왼쪽 설명 문장이 지금 상태를 글로 적어 준다.
+                 */
                 className={`relative h-[38px] w-[68px] shrink-0 rounded-full transition-colors ${
-                  cue.auto ? 'bg-leaf-600' : 'bg-ink-300'
+                  cue.auto ? 'bg-leaf-600' : 'bg-ink-500'
                 }`}
               >
                 <span
@@ -375,6 +415,23 @@ export default function SingPage() {
                 />
               </button>
             </div>
+          ) : player.measuring ? (
+            /* 아직 곡 길이를 읽는 중이다.
+
+               예전에는 이 자리에 곧바로 "길이를 읽지 못했다"가 왔다. 길이는
+               loadedmetadata 가 와야 알 수 있는데 그 전에도 total 은 0 이라,
+               멀쩡한 곡에도 못 읽었다는 말이 한 번 스치고 지나갔다. 여러 분이
+               함께 보는 화면에서 없는 고장을 먼저 알린 셈이다.
+
+               아직 모르는 것을 모른다고 적는다. 그동안에도 위 버튼으로 줄은
+               넘길 수 있으니 막다른 길은 아니다. */
+            <p
+              role="status"
+              className="mt-3 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.875rem] font-semibold leading-relaxed text-ink-700"
+            >
+              곡 길이를 읽는 중이에요. 그동안에는 위 버튼으로 한 줄씩 넘겨
+              주세요.
+            </p>
           ) : (
             /* 길이를 못 읽는 파일에는 자동으로 넘길 근거가 아예 없다. 스위치를
                내놓고 아무 일도 안 일어나게 두는 대신, 못 한다고 적고 대신 할

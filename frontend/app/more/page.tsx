@@ -7,6 +7,7 @@ import {
   CONSENT_ORDER,
   CONSENT_PURPOSE,
   CONSENT_SCREEN,
+  UnrecordedConsents,
   consentStateLabel,
 } from '@/components/ConsentGate';
 import { Ornaments, Screen } from '@/components/Shell';
@@ -120,8 +121,12 @@ export default function MorePage() {
         서비스는 계속 쓸 수 있어요.
       </p>
       <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+        {/* "이 어르신 기록에 남아요"라고 단언하던 자리다. 통신이 끊기면 남지
+            않는데도 화면은 남았다고 말했고, 못 남긴 철회는 다음 회기에 서버의
+            허용으로 되살아났다. 단언을 걷고, 못 남겼을 때 어떻게 되는지를
+            같은 문장에서 말한다 — 그 목록은 바로 아래에 뜬다. */}
         {s.remoteParticipantId
-          ? '여기서 바꾼 내용은 이 어르신 기록에 남아요.'
+          ? '여기서 바꾼 내용은 이 어르신 기록에도 남겨요. 통신이 끊겨 남기지 못하면 아래에 그 항목을 적어 두고, 다시 시도하실 수 있어요.'
           : '아직 기관 계정으로 고른 어르신이 아니라, 바꾼 내용은 이 기기에만 남아요.'}{' '}
         <Link href={CONSENT_SCREEN} className="font-bold text-brand-700 underline">
           회기 준비
@@ -133,6 +138,14 @@ export default function MorePage() {
         {CONSENT_ORDER.map((kind) => {
           const state = s.elder.consents[kind] ?? 'unset';
           const granted = state === 'granted';
+          /* 이 항목의 결정이 기관 기록에 닿지 못했는가.
+             목록은 아래에 따로 있지만, 스위치 옆에서 한 번 더 말해야 이 칸의
+             표시를 곧이곧대로 읽지 않는다 — 여기 보이는 것과 기관 기록이
+             다른 상태다. participantId 는 빈 문자열이 아니므로 아직 어르신을
+             고르지 않았으면(null) 걸리지 않는다. */
+          const unrecorded = s.pendingConsents.find(
+            (p) => p.participantId === s.remoteParticipantId && p.kind === kind,
+          );
           return (
             <Card as="li" key={kind} className="p-4">
               <div className="flex items-start gap-3">
@@ -153,6 +166,12 @@ export default function MorePage() {
                   >
                     {consentStateLabel(state)}
                   </p>
+                  {unrecorded ? (
+                    <p className="mt-1 text-[0.875rem] font-bold leading-relaxed text-brand-700">
+                      기관 기록에는 아직 남지 않았어요 — 아래에서 다시 시도하실 수
+                      있어요
+                    </p>
+                  ) : null}
                 </div>
 
                 <button
@@ -182,6 +201,10 @@ export default function MorePage() {
           );
         })}
       </ul>
+
+      {/* 거두는 자리에 붙어 있어야 한다. 거둔 것이 기관에 닿았는지는 거둔
+          사람이 그 자리에서 알아야 하는 일이다. */}
+      <UnrecordedConsents />
 
       <h2 className="mt-6 text-[1.1875rem] font-extrabold text-ink-900">글자 크기</h2>
       <Card className="mt-3 flex items-center gap-3 p-4">
@@ -339,6 +362,17 @@ export default function MorePage() {
                   어르신)이 다시 채워져요.
                 </li>
               )}
+              {/* reset() 이 이 목록만은 남긴다. 흔적이 아니라 그 결정이 남아
+                  있는 유일한 곳이라서다 — 여기서 함께 지우면 어르신이 거둔
+                  동의가 어디에도 없게 되고, 다음 회기에 기관 기록의 허용이
+                  그대로 쓰인다. 지운 사람이 그 사실을 알아야 한다. */}
+              {s.pendingConsents.length ? (
+                <li>
+                  기관 기록에 남기지 못한 동의 {s.pendingConsents.length}건 — 이
+                  결정은 이 기기에만 있어서 함께 지우지 않아요. 위에서 다시 시도해
+                  기관 기록에 남기면 저절로 사라져요.
+                </li>
+              ) : null}
             </ul>
 
             <p className="mt-2.5 text-[0.875rem] font-bold text-ink-900">
@@ -380,6 +414,13 @@ export default function MorePage() {
               ? '녹음과 노래 파일도 함께 지웠습니다. 다음 회기는 어르신을 고르는 것부터 시작해요.'
               : '녹음과 노래 파일도 함께 지웠습니다. 시연용 예시 기록이 다시 채워졌어요.'}
           </p>
+          {/* 남긴 것이 있으면 지웠다고만 말하지 않는다. */}
+          {s.pendingConsents.length ? (
+            <p className="mt-1 text-[0.875rem] leading-relaxed text-leaf-800">
+              기관 기록에 남기지 못한 동의 {s.pendingConsents.length}건은 그대로
+              두었어요. 통신이 되면 다시 시도해 주세요.
+            </p>
+          ) : null}
           <Link
             href="/elder"
             className="mt-3 flex min-h-[52px] w-full items-center justify-center rounded-[14px] border-2 border-leaf-300 bg-surface-strong px-4 text-[1rem] font-bold text-leaf-700"

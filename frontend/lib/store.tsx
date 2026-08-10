@@ -112,6 +112,18 @@ export type SessionState = {
   reactionNote: string;
   logDraft: string;
   logSaved: boolean;
+  /**
+   * 복지사가 손으로 적은 진행 시간(분). 안 적었으면 null.
+   *
+   * 자동으로 잰 값은 화면에서만 계산한다. 그런데 그 값을 고쳐 놓고 화면을
+   * 벗어났다 돌아오면 컴포넌트가 새로 마운트되면서 고친 값이 사라지고, 그
+   * 사이 흘러간 시간만큼 더 커진 자동값이 조용히 그 자리를 채웠다 —
+   * 40분이라고 고쳐 둔 칸이 다시 열었을 때 100분이 되어 있고, 화면은
+   * '재서 채웠어요'라고 말한다. 기관 서식으로 나가는 값이다.
+   *
+   * 사람이 고친 값은 회기에 남긴다. 자동값은 이것이 비어 있을 때만 채운다.
+   */
+  logMinutes: string | null;
   nextTopic: string;
   wrapNote: string;
   familyStories: FamilyContribution[];
@@ -161,12 +173,57 @@ export type SessionState = {
    * 마무리 화면이 대신 말해 준다. off 는 "서버를 안 쓰는 중"이다.
    */
   serverSave: ServerSaveMark;
+
+  /**
+   * 어르신 기록에 남기지 못한 동의 결정.
+   *
+   * 회기 값이 아니라 사람의 결정이라, 회기가 바뀌어도(beginSession) 기기를
+   * 비워도(reset) 살아남는다. 다시 시도해서 기관 기록에 닿으면 그때 사라진다.
+   *
+   * 이 칸이 없던 동안 벌어진 일: 철회를 눌렀는데 통신이 끊겨 서버 consents
+   * 행은 granted 로 남았고, 다음 회기에 같은 어르신을 고르면
+   * hydrateElderRecord 가 서버 값으로 elder.consents 를 통째로 덮어 철회가
+   * 허용으로 되살아났다. 그 회기는 마이크를 열어 주고 자동 전사가 두 동의를
+   * granted 로 읽어, 철회하신 분의 목소리를 외부 STT 로 올렸다. 화면에는
+   * 아무 표시도 없었다.
+   */
+  pendingConsents: PendingConsent[];
 };
 
 export type ServerSaveMark =
   | { kind: 'off' }
   | { kind: 'saved'; at: string }
   | { kind: 'error'; reason: string };
+
+/**
+ * 서버에 닿지 못한 동의 결정 한 건.
+ *
+ * 어르신(participantId)에 묶어 둔다. 지금 화면에 떠 있는 회기와 무관하게
+ * 남아야 하는 값이라 — 결정한 뒤 어르신을 바꿔도, 다음 주에 다시 골라도 —
+ * 그 사람의 결정으로 따라다녀야 한다.
+ */
+export type PendingConsent = {
+  participantId: string;
+  /**
+   * 결정 당시의 호칭.
+   *
+   * 목록이 "누구의 무엇"인지 말하려면 이름이 있어야 하는데, 어르신을 바꾸고
+   * 나면 그 이름은 화면 어디에도 없다. 화면에 쓰는 값은 이미 가명 표기다.
+   */
+  elderName: string;
+  kind: ConsentKind;
+  decision: ConsentState;
+  /**
+   * 이 결정이 기기 표시에도 남아 있는가.
+   *
+   * 철회·거절은 true — 기록에 실패해도 철회는 철회다. 허용은 false — 기록이
+   * 남아야 허용이므로 스위치를 되돌린다. 화면이 두 경우를 다르게 말해야 해서
+   * 결과를 여기 적어 둔다.
+   */
+  keptOnDevice: boolean;
+  /** 결정한 시각(ISO). 화면이 언제 일인지 말하고, 늦게 온 재시도를 가른다. */
+  at: string;
+};
 
 function seedState(): SessionState {
   return {
@@ -208,6 +265,7 @@ function seedState(): SessionState {
     reactionNote: '',
     logDraft: SEED_LOG_DRAFT,
     logSaved: false,
+    logMinutes: null,
     nextTopic: '가장 자랑스러운 순간',
     wrapNote: '어머니께 선물을 드린 기억을 따뜻하게 회상하심',
     familyStories: SEED_FAMILY_STORIES,
@@ -221,6 +279,7 @@ function seedState(): SessionState {
     remoteStartedAt: null,
     remoteStep: 1,
     serverSave: { kind: 'off' },
+    pendingConsents: [],
   };
 }
 
@@ -268,7 +327,17 @@ function load(): SessionState {
     if (!raw) return seedState();
     const saved = remarkSeeds(JSON.parse(raw) as Partial<SessionState>);
     const base = seedState();
-    return { ...base, ...saved, elder: { ...base.elder, ...saved.elder } };
+    return {
+      ...base,
+      ...saved,
+      elder: { ...base.elder, ...saved.elder },
+      // 이 칸은 나중에 생겼다. 예전 저장본에는 아예 없고, 저장이 중간에 깨진
+      // 기기에는 배열이 아닌 것이 들어 있을 수 있다. 그대로 두면 목록을
+      // 그리는 화면이 매번 터지므로 모양이 다르면 빈 목록으로 시작한다.
+      pendingConsents: Array.isArray(saved.pendingConsents)
+        ? saved.pendingConsents
+        : base.pendingConsents,
+    };
   } catch {
     // corrupt or unavailable storage: fall back to the seed rather than crash
     return seedState();
@@ -413,6 +482,15 @@ export function beginSession(next: {
     ...seed,
     // 사람이 고른 설정은 회기와 무관하므로 넘어간다.
     textScale: state.textScale,
+    /*
+     * 서버에 남기지 못한 동의 결정도 회기와 무관하다 — 어르신의 결정이다.
+     *
+     * 여기서 비우면 고친 의미가 없다. 철회가 서버에 못 닿은 채 회기가 끝나고,
+     * 다음에 같은 어르신을 고르는 바로 이 순간 표가 사라져서, 아래
+     * hydrateElderRecord 가 서버의 granted 를 그대로 덮어쓴다. 철회가 허용으로
+     * 되살아나던 경로가 정확히 이 줄이 없던 자리다.
+     */
+    pendingConsents: state.pendingConsents,
     elder,
     topic: next.topic,
     remoteParticipantId: next.participantId,
@@ -441,6 +519,7 @@ export function beginSession(next: {
           reactionNote: '',
           logDraft: '',
           logSaved: false,
+          logMinutes: null,
           wrapNote: '',
           familyStories: [],
           familyReplies: [],
@@ -475,16 +554,104 @@ async function hydrateElderRecord(participantId: string): Promise<void> {
   // 읽는 사이에 다른 어르신으로 넘어갔으면 버린다. 늦게 도착한 응답이 남의
   // 동의를 덮어쓰는 것이야말로 이 함수가 막으려던 사고다.
   if (state.remoteParticipantId !== participantId) return;
+
+  /*
+   * 서버에 남기지 못한 결정은 서버 값보다 우선한다.
+   *
+   * 여기서 record.consents 를 통째로 넣던 것이 사고의 마지막 고리였다.
+   * 철회는 기기에만 남고 서버 행은 granted 로 남아 있으니, 다음에 이 어르신을
+   * 고르는 순간 그 granted 가 철회를 덮었다 — 사람이 거둔 동의가 화면에서
+   * 다시 켜지고, 그 회기의 자동 전사가 원음성을 외부로 올렸다.
+   *
+   * 그래서 덮지 않는다. 기기에 남아 있는 미기록 결정(keptOnDevice — 철회·거절)
+   * 은 그 항목만 서버 값 위에 다시 얹는다. 되돌려 둔 허용(keptOnDevice=false)
+   * 은 얹지 않는다. 그쪽은 기기에도 남기지 않은 결정이라 서버가 맞다.
+   */
+  const consents = { ...record.consents };
+  for (const p of state.pendingConsents) {
+    if (p.participantId !== participantId || !p.keptOnDevice) continue;
+    consents[p.kind] = p.decision;
+  }
+
   update({
     ...state,
     elder: {
       ...state.elder,
-      consents: record.consents,
+      consents,
       communication: record.communication,
       musicPreferences: record.musicPreferences,
       avoidTopics: record.avoidTopics,
     },
   });
+}
+
+/* ------------------------------------------- 서버에 못 남긴 동의 결정 */
+
+function samePending(a: PendingConsent, participantId: string, kind: ConsentKind) {
+  return a.participantId === participantId && a.kind === kind;
+}
+
+/** 같은 (어르신, 항목)의 앞 표는 지우고 최신 결정 하나만 남긴다. */
+function markPendingConsent(entry: PendingConsent): void {
+  update({
+    ...state,
+    pendingConsents: [
+      ...state.pendingConsents.filter((p) => !samePending(p, entry.participantId, entry.kind)),
+      entry,
+    ],
+  });
+}
+
+function dropPendingConsent(participantId: string, kind: ConsentKind): void {
+  const next = state.pendingConsents.filter((p) => !samePending(p, participantId, kind));
+  // 없는 것을 지우겠다고 저장·리렌더를 돌리지 않는다. 성공한 저장마다
+  // 부르는 자리라 대부분은 지울 것이 없다.
+  if (next.length === state.pendingConsents.length) return;
+  update({ ...state, pendingConsents: next });
+}
+
+/**
+ * 못 남긴 결정을 다시 보낸다.
+ *
+ * 화면 밖에서도 부를 수 있게 모듈 함수로 둔다. 성공하면 목록에서 빠지고,
+ * 되돌려 두었던 허용은 그때 화면에도 켜진다 — 기록이 남았으니 이제 허용이다.
+ */
+export async function retryPendingConsent(
+  p: PendingConsent,
+): Promise<{ ok: boolean; reason?: string }> {
+  const r = await writeConsent(p.participantId, p.kind, p.decision);
+  if (!r.ok) return r;
+
+  // 보내는 사이에 복지사가 같은 항목을 다시 눌렀을 수 있다. 그때는 그쪽
+  // 결정이 최신이므로, 늦게 도착한 이 성공이 앞 결정을 되살리지 않게 한다.
+  const still = state.pendingConsents.find(
+    (x) => samePending(x, p.participantId, p.kind) && x.at === p.at,
+  );
+  if (!still) return r;
+
+  dropPendingConsent(p.participantId, p.kind);
+  if (state.remoteParticipantId === p.participantId) {
+    update({
+      ...state,
+      elder: {
+        ...state.elder,
+        consents: { ...state.elder.consents, [p.kind]: p.decision },
+      },
+    });
+  }
+  return r;
+}
+
+/**
+ * 이 표를 포기한다.
+ *
+ * 어르신이 기관 목록에서 지워진 뒤라면 재시도는 영원히 실패한다. 지울 길이
+ * 없으면 화면에 지워지지 않는 경고가 남고, 그건 막다른 길이다. 다만 무엇을
+ * 포기하는 것인지는 부르는 화면이 반드시 먼저 말해야 한다 — 기관 기록은
+ * 이전 값 그대로 남는다.
+ */
+export function dismissPendingConsent(participantId: string, kind: ConsentKind): void {
+  dropPendingConsent(participantId, kind);
 }
 
 export function useSession() {
@@ -517,6 +684,7 @@ export function useSession() {
     if (kind === 'recording' && !granted) void forgetRecording();
 
     const participantId = state.remoteParticipantId;
+    const elderName = state.elder.honorific;
     // 시연 기기에는 남길 곳이 없다. 기기 안에서만 켜졌다 꺼진다.
     if (participantId === null) return;
 
@@ -526,14 +694,42 @@ export function useSession() {
      * 순간 서버에서 unset 을 다시 읽어 와 방금 받은 동의가 사라진다.
      */
     void writeConsent(participantId, kind, decision).then((r) => {
-      if (r.ok) return;
+      if (r.ok) {
+        // 같은 항목의 묵은 실패 표가 있으면 여기서 끝난다.
+        dropPendingConsent(participantId, kind);
+        return;
+      }
+
+      /*
+       * 서버에 못 남겼다. 그 사실을 기기에 남긴다.
+       *
+       * 예전에는 철회 실패를 그냥 return 으로 삼켰다. 판단 자체는 옳았지만
+       * ("철회는 기록에 실패해도 철회다") 아무 데도 적지 않은 것이 문제였다.
+       * 서버 행은 granted 로 남고, 다음 회기의 hydrateElderRecord 가 그 값으로
+       * 철회를 덮었다. 복지사는 거둔 줄 알고, 기기는 거둔 줄 알고, 서버만
+       * 아니라고 하는 상태였다.
+       *
+       * 어르신이 그 사이 바뀌었어도 남긴다. 이 결정은 이 회기의 것이 아니라
+       * 그 어르신의 것이다.
+       */
+      markPendingConsent({
+        participantId,
+        elderName,
+        kind,
+        decision,
+        // 허용만 되돌리므로, 기기에 남는 것은 철회·거절뿐이다.
+        keptOnDevice: !granted,
+        at: new Date().toISOString(),
+      });
+
       // 그 사이 어르신이 바뀌었으면 남의 스위치를 건드리지 않는다.
       if (state.remoteParticipantId !== participantId) return;
       // 그 사이 같은 항목을 다시 눌렀으면 그쪽 결정이 최신이다.
       if (state.elder.consents[kind] !== decision) return;
       // 철회는 기록에 실패해도 철회다. 허용은 반대다 — 기록이 남아야 허용이고,
       // 못 남긴 채 켜 두면 동의 기록 없이 외부 전송이 열린다. 그래서 허용만
-      // 되돌린다. 스위치가 도로 꺼지는 것이 복지사에게 보이는 신호다.
+      // 되돌린다. 되돌린 사실은 위 표와 화면(UnrecordedConsents)이 말한다 —
+      // 스위치가 도로 꺼지는 것만으로는 아무도 이유를 알 수 없었다.
       if (!granted) return;
       update({
         ...state,
@@ -583,7 +779,16 @@ export function useSession() {
     } catch {
       /* ignore */
     }
-    update(seedState());
+    /*
+     * 서버에 못 남긴 결정만은 지우지 않는다.
+     *
+     * 「이 기기의 기록 지우기」는 회기 흔적을 없애는 버튼이다. 그런데 미기록
+     * 결정은 흔적이 아니라 그 결정이 남아 있는 유일한 곳이다 — 여기서 지우면
+     * 어르신이 거둔 동의가 세상 어디에도 없게 되고, 다음 회기에 서버의 granted
+     * 가 그대로 쓰인다. 지우는 화면이 이 사실을 적고, 포기하려면 그 목록에서
+     * 한 건씩 지우게 한다(dismissPendingConsent).
+     */
+    update({ ...seedState(), pendingConsents: state.pendingConsents });
   }, []);
 
   return useMemo(

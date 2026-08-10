@@ -47,7 +47,10 @@ export function ExtractFacts() {
         body: JSON.stringify({ segments: s.transcript, topic: s.topic }),
       });
       const json = (await res.json()) as {
-        facts?: { text: string; sources: { at: number; quote: string }[] }[];
+        facts?: {
+          text: string;
+          sources: { at: number; quote: string; speaker?: 'elder' | 'worker' }[];
+        }[];
         dropped?: number;
         error?: string;
       };
@@ -80,10 +83,21 @@ export function ExtractFacts() {
         id: `fact-${i}-${f.sources[0]?.at ?? 0}`,
         text: f.text,
         status: 'unverified',
+        /*
+         * 어느 목소리인지 아는 줄에만 '어르신 음성'이라고 적는다.
+         *
+         * 화자를 못 가른 줄(speaker 없음)도 근거로는 허용한다 — 못 가른
+         * 것이지 복지사 말씀이라고 밝혀진 것이 아니다. 다만 그 대목에
+         * 어르신 이름표를 다는 것은 출처가 아니라 주장이 된다. 눌러 보면
+         * 복지사 목소리일 수도 있는 자리다.
+         */
         sources: f.sources.map((src) => ({
           kind: 'voice' as const,
           at: src.at,
-          label: `어르신 음성 ${mmss(src.at)}`,
+          label:
+            src.speaker === 'elder'
+              ? `어르신 음성 ${mmss(src.at)}`
+              : `녹음 ${mmss(src.at)}`,
         })),
       }));
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useSpeak } from '@/lib/tts';
 
 /**
@@ -11,6 +12,10 @@ import { useSpeak } from '@/lib/tts';
  * 한도가 떨어지면 버튼이 조용히 사라진다. 눌러도 아무 일이 없는 버튼을
  * 남겨 두면 고장으로 보이고, 어르신 앞에서 오류 문구가 뜨는 것은 소리가
  * 없는 것보다 나쁘다.
+ *
+ * 재생 중일 때는 speak 의 껐다 켜기에 기대지 않고 stop 을 직접 부른다.
+ * '멈추기'라고 적힌 버튼이 멈추는 것 말고 다른 일을 할 여지를 남기지
+ * 않는다 — 라벨과 반대로 동작하는 버튼을 한 번 겪었으면 충분하다.
  */
 export function SpeakButton({
   text,
@@ -21,7 +26,14 @@ export function SpeakButton({
   label?: string;
   className?: string;
 }) {
-  const { state, speak } = useSpeak();
+  const { state, speak, stop } = useSpeak();
+
+  // 문장이 바뀌면 앞 문장 읽기를 멈춘다. 인터뷰 화면은 이 버튼을 그대로 둔 채
+  // text 만 갈아 끼우기 때문에(질문마다 새로 만들지 않는다), 다음 질문으로
+  // 넘어가도 귀에는 앞 질문이 계속 났다. 0.85배속이라 한 문장이 5~8초씩
+  // 가는데, 화면과 소리가 다른 질문을 말하면 어르신은 무엇에 답해야 하는지
+  // 알 수 없다. 라벨도 '읽어주기'로 돌아온다 — 소리와 표시가 같이 움직인다.
+  useEffect(() => stop, [text, stop]);
 
   if (state.kind === 'exhausted') return null;
 
@@ -32,8 +44,11 @@ export function SpeakButton({
     <>
       <button
         type="button"
-        onClick={() => void speak(text)}
+        onClick={() => (playing ? stop() : void speak(text))}
+        // 받는 동안은 잠근다. 여기서 한 번 더 누르면 같은 문장으로 요금이
+        // 나가는 요청이 한 번 더 나간다(캐시는 첫 응답이 와야 채워진다).
         disabled={busy}
+        aria-busy={busy}
         aria-label={playing ? `${label} 멈추기` : label}
         className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-full border-2 px-4 text-[0.9375rem] font-bold ${
           playing

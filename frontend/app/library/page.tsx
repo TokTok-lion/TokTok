@@ -1,7 +1,8 @@
 'use client';
 
+import { useCallback, useEffect, useRef } from 'react';
 import { ArtBox } from '@/components/Art';
-import { SampleShelf } from '@/components/SamplePlayer';
+import { SampleShelf, claimSound, releaseSound } from '@/components/SamplePlayer';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, PrimaryButton } from '@/components/ui';
 import { IconMusicNote, IconPlus } from '@/components/icons';
@@ -21,11 +22,29 @@ import type { ArtKey } from '@/lib/art';
  *
  * 그래서 두 칸으로 나눴다. 위는 이 기기에 실제로 있는 곡, 아래는 예시라고
  * 밝힌 예시. 아래 것들은 진짜 소리가 난다.
+ *
+ * 두 칸이 소리까지 따로 놀았다. 위는 브라우저 기본 <audio controls>, 아래는
+ * 자체 플레이어라 서로의 재생을 몰랐고, 어르신께 본인 노래를 들려드리는
+ * 중에 예시를 누르면 둘이 겹쳐 흘렀다. 나눠 놓은 이유가 "어느 것이 우리
+ * 어르신 것인지 알 수 있게"인데, 겹쳐 흐르면 그 이유가 무너진다.
+ * 그래서 두 칸을 같은 소리 주인 자리(claimSound/releaseSound)에 묶었다.
  */
 export default function LibraryPage() {
   const { s } = useSession();
   const mine = useDeviceSong();
   const elder = useActiveElder();
+
+  const mineRef = useRef<HTMLAudioElement | null>(null);
+  // 예시가 시작될 때 이 함수가 불려서 어르신 곡이 멎는다. 신원이 곧 소유권이라
+  // 고정된 함수여야 한다 — 렌더마다 새로 만들면 releaseSound 가 남의 자리를
+  // 비우거나 내 자리를 못 찾는다.
+  const stopMine = useCallback(() => {
+    mineRef.current?.pause();
+  }, []);
+
+  // 화면을 떠날 때 자리를 비운다. 내가 주인일 때만 비우므로, 이미 예시가
+  // 주인이 된 뒤라면 그 재생은 건드리지 않는다.
+  useEffect(() => () => releaseSound(stopMine), [stopMine]);
 
   // 분위기를 고르지 않은 회기도 있다(기관 회기는 비운 채로 시작한다). 그때는
   // '만든 분위기' 같은 자리표시를 넣지 않고 줄을 아예 그리지 않는다 —
@@ -96,7 +115,18 @@ export default function LibraryPage() {
               ) : null}
             </div>
           </div>
-          <audio src={mine} controls preload="metadata" className="mt-3 w-full" />
+          <audio
+            ref={mineRef}
+            src={mine}
+            controls
+            preload="metadata"
+            className="mt-3 w-full"
+            // 어르신 곡이 시작되면 아래 예시를 멈춘다. 반대 방향은 예시
+            // 플레이어가 claimSound 로 이 곡을 멈춘다.
+            onPlay={() => claimSound(stopMine)}
+            onPause={() => releaseSound(stopMine)}
+            onEnded={() => releaseSound(stopMine)}
+          />
         </Card>
       ) : (
         <Card className="mt-3 p-5 text-center">

@@ -10,7 +10,7 @@ import { lyricInputs } from '@/lib/domain';
 import { mmss, useRecorder } from '@/lib/recorder';
 import { sceneForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
-import { autoTranscribe, useTranscribeJob } from '@/lib/transcribeJob';
+import { autoTranscribe, useTranscribeStatus } from '@/lib/transcribeJob';
 import type { ArtKey } from '@/lib/art';
 
 /**
@@ -30,7 +30,7 @@ import type { ArtKey } from '@/lib/art';
 export default function ConfirmPage() {
   const { s } = useSession();
   const rec = useRecorder();
-  const job = useTranscribeJob();
+  const { job, origin, device } = useTranscribeStatus();
 
   /*
    * 녹음은 여기 도착하는 순간 끝난다.
@@ -50,9 +50,23 @@ export default function ConfirmPage() {
   const verified = lyricInputs(s.story);
   const followUps = s.story.filter((i) => i.status === 'unverified' && i.followUp);
 
-  // 기기에 녹음이 있는데 그 녹음에서 나온 전사가 한 줄도 없는 상태.
-  // 씨앗 전사에는 example 표가 붙어 있어 여기서 걸러진다.
-  const waiting = Boolean(rec.savedAt) && !s.transcript.some((t) => !t.example);
+  /*
+   * 기기에 녹음이 있는데, 지금 화면의 전사가 그 녹음에서 나온 것이 아닌 상태.
+   *
+   * 예전에는 '전사 줄이 하나라도 있는가'만 봤다. 그래서 다시 녹음한 회기는
+   * 이 안내가 아예 뜨지 않았다 — 화면의 전사·이야기·출처는 전부 지워진 앞
+   * 녹음의 것인데, 화면은 다 됐다는 얼굴을 하고 있었다.
+   *
+   * 기기 DB 를 못 읽는 브라우저(사파리 프라이빗 등)에서는 녹음기 쪽 표시라도
+   * 믿는다. 녹음이 있는데 없다고 말하는 편이 더 나쁘다.
+   */
+  const hasRecording = device !== null || rec.savedAt !== null;
+  const seconds = device?.seconds ?? rec.seconds;
+  const stale = origin === 'otherRecording';
+  const waiting = hasRecording && origin !== 'thisRecording' && origin !== 'checking';
+  // 다 옮긴 뒤에도 한 번은 말해 준다 — 안내가 소리 없이 사라지면 낭독으로
+  // 듣는 사람에게는 아무 일도 일어나지 않은 것과 같다.
+  const finished = !waiting && job.kind === 'done' && origin === 'thisRecording';
   const examples = verified.filter((i) => i.example).length;
 
   // 그림은 오늘 이야기에서 나온다(/records·/session/song 과 같은 해석기).
@@ -75,7 +89,11 @@ export default function ConfirmPage() {
             {/* 옮기지 않은 녹음이 있으면 버튼이 그 일을 가리킨다.
                 '확인하고 다음으로'는 무엇이 확인됐다는 것인지 말하지 않아서,
                 이미 다 된 줄 알고 누르게 된다. */}
-            {waiting ? '녹음을 글로 옮기러 가기' : '확인하고 다음으로'}
+            {stale
+              ? '새 녹음을 글로 옮기러 가기'
+              : waiting
+                ? '녹음을 글로 옮기러 가기'
+                : '확인하고 다음으로'}
           </PrimaryButton>
           <div className="mt-3 text-center">
             <Link
@@ -115,49 +133,90 @@ export default function ConfirmPage() {
         />
       </Card>
 
-      {/* 화면에서 가장 먼저 나와야 하는 사실 — 방금 녹음한 말씀은 아직
-          글이 되지 않았다. 이 안내가 없으면 아래 목록이 오늘 인터뷰 결과로
-          읽힌다. */}
-      {waiting ? (
-        <Card className="mt-4 border-2 border-brand-300 p-4">
-          <p className="flex items-center gap-2 text-[1.0625rem] font-extrabold text-brand-800">
-            <IconInfo size={20} className="shrink-0" />
-            {job.kind === 'busy'
-              ? '녹음을 글로 옮기고 있어요'
-              : job.kind === 'error'
-                ? '녹음을 글로 옮기지 못했어요'
-                : '녹음은 아직 글로 옮기지 않았어요'}
-          </p>
+      {/*
+        화면에서 가장 먼저 나와야 하는 사실 — 방금 녹음한 말씀은 아직 글이
+        되지 않았다. 이 안내가 없으면 아래 목록이 오늘 인터뷰 결과로 읽힌다.
 
-          {job.kind === 'busy' ? (
-            <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-              {mmss(rec.seconds)} 녹음을 옮기는 중이에요. 어르신과 마무리
-              인사를 나누시는 동안 뒤에서 계속 돌아가고, 다음 화면에서 결과를
-              보실 수 있어요. 길면 1분이 넘습니다.
+        낭독으로 듣는 사람에게도 같은 순서로 도착해야 한다. 예전에는 '옮기고
+        있어요'가 '옮기지 못했어요'로 바뀌어도 아무 소리가 나지 않았다 —
+        화면을 보고 있지 않으면 실패한 줄을 모른 채 다음으로 넘어갔다.
+        오류일 때는 role="alert" 로 바꾸고, role 이 바뀌면 노드를 새로 심어
+        (key) 보조기술이 그 자리를 새 알림으로 읽게 한다.
+      */}
+      <div
+        key={job.kind === 'error' ? 'alert' : 'status'}
+        role={job.kind === 'error' ? 'alert' : 'status'}
+        aria-live={job.kind === 'error' ? 'assertive' : 'polite'}
+      >
+        {waiting ? (
+          <Card className="mt-4 border-2 border-brand-300 p-4">
+            <p className="flex items-center gap-2 text-[1.0625rem] font-extrabold text-brand-800">
+              <IconInfo size={20} className="shrink-0" />
+              {job.kind === 'busy'
+                ? '녹음을 글로 옮기고 있어요'
+                : job.kind === 'error'
+                  ? '녹음을 글로 옮기지 못했어요'
+                  : stale
+                    ? '다시 녹음하셨어요 — 아래 내용은 앞 녹음이에요'
+                    : origin === 'unmarked'
+                      ? '아래 내용이 이 녹음에서 나온 것인지 확인할 수 없어요'
+                      : '녹음은 아직 글로 옮기지 않았어요'}
             </p>
-          ) : job.kind === 'error' ? (
-            <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-              {job.message} 녹음은 이 기기에 그대로 남아 있어요 — 다음 화면의{' '}
-              <strong>「녹음에서 옮기기」</strong>로 다시 시도하시거나, 복지사가
-              직접 받아 적으셔도 됩니다.
-            </p>
-          ) : (
-            /* 자동으로 시작하지 못하는 경우는 사실상 하나다 — 녹음이나 외부 AI
-               전송에 동의하지 않으신 회기. 어르신 목소리가 기기를 떠나는 일이라
-               그것만은 자동일 수 없다. */
-            <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-              {mmss(rec.seconds)} 녹음이 이 기기에 저장돼 있어요. 동의를 받으신
-              뒤 다음 화면에서 <strong>「녹음에서 옮기기」</strong>를 누르면
-              어르신 말씀이 글이 됩니다.
-            </p>
-          )}
 
-          <p className="mt-2 text-[0.875rem] leading-relaxed text-ink-500">
-            아래 목록은 아직 오늘 들은 이야기가 아니에요. 옮긴 뒤 이야기 정리에서{' '}
-            <strong>「이야기 뽑기」</strong>를 누르면 어르신 말씀으로 바뀝니다.
-          </p>
-        </Card>
-      ) : null}
+            {job.kind === 'busy' ? (
+              <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+                {mmss(seconds)} 녹음을 옮기는 중이에요. 어르신과 마무리
+                인사를 나누시는 동안 뒤에서 계속 돌아가고, 다음 화면에서 결과를
+                보실 수 있어요. 길면 1분이 넘습니다.
+              </p>
+            ) : job.kind === 'error' ? (
+              <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+                {job.message} 녹음은 이 기기에 그대로 남아 있어요 — 다음 화면의{' '}
+                <strong>「녹음에서 옮기기」</strong>로 다시 시도하시거나, 복지사가
+                직접 받아 적으셔도 됩니다.
+              </p>
+            ) : stale ? (
+              /* 새로 녹음하면 앞 녹음은 그 자리에서 지워진다(lib/recorder.ts).
+                 전사와 이야기만 남으므로, 화면은 지금 무엇이 무엇의 기록인지
+                 밝혀야 한다. */
+              <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+                방금 하신 {mmss(seconds)} 녹음은 아직 글로 옮기지 않았어요.
+                아래 이야기와 출처(<strong>어르신 음성 0:00</strong> 같은 표시)는
+                그 앞 녹음에서 나온 것이고, 앞 녹음은 다시 녹음하실 때
+                지워졌습니다 — 지금은 눌러도 그 대목을 들려드릴 수 없어요.
+                다음 화면에서 <strong>「새 녹음에서 옮기기」</strong>를 누르면
+                오늘 말씀으로 바뀝니다.
+              </p>
+            ) : (
+              /* 자동으로 시작하지 못하는 경우는 사실상 하나다 — 녹음이나 외부 AI
+                 전송에 동의하지 않으신 회기. 어르신 목소리가 기기를 떠나는 일이라
+                 그것만은 자동일 수 없다. */
+              <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+                {mmss(seconds)} 녹음이 이 기기에 저장돼 있어요. 동의를 받으신
+                뒤 다음 화면에서 <strong>「녹음에서 옮기기」</strong>를 누르면
+                어르신 말씀이 글이 됩니다.
+              </p>
+            )}
+
+            <p className="mt-2 text-[0.875rem] leading-relaxed text-ink-500">
+              아래 목록은 아직 오늘 들은 이야기가 아니에요. 옮긴 뒤 이야기 정리에서{' '}
+              <strong>「이야기 뽑기」</strong>를 누르면 어르신 말씀으로 바뀝니다.
+            </p>
+          </Card>
+        ) : finished ? (
+          <Card className="mt-4 border-2 border-leaf-300 p-4">
+            <p className="flex items-center gap-2 text-[1.0625rem] font-extrabold text-leaf-700">
+              <CheckCircle size={22} />
+              녹음을 글로 옮겼어요 — {job.lines}줄
+            </p>
+            <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+              아직 이야기로 정리되기 전이에요. 이야기 정리에서{' '}
+              <strong>「이야기 뽑기」</strong>를 누르면 어르신 말씀에서 사실을
+              뽑고, 줄마다 들어볼 수 있는 출처가 붙습니다.
+            </p>
+          </Card>
+        ) : null}
+      </div>
 
       <h2 className="mt-5 flex items-center gap-2 text-[1.125rem] font-extrabold text-leaf-700">
         <CheckCircle size={26} />

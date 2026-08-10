@@ -199,7 +199,24 @@ export async function POST(req: Request) {
       .map((f) => {
         const text = typeof f.text === 'string' ? f.text.trim() : '';
         const from = (Array.isArray(f.from) ? f.from : [])
-          .map((v) => Number(v))
+          /*
+           * Number() 로 바로 바꾸면 안 된다.
+           *
+           * 이 한 줄이 이 파일 전체의 근거 검증을 무력화하고 있었다.
+           * JS 에서 Number('') · Number(null) · Number(' ') · Number([]) ·
+           * Number(false) 는 전부 0 이고, 0 은 정수이며 범위 안이다. 그래서
+           * 모델이 근거를 못 대고 빈 값을 내놓으면 그 문장이 버려지는 대신
+           * **0번 줄의 출처를 달고** 통과했다. 어르신이 하시지도 않은 말이
+           * '어르신 음성 0:00'이라는 이름표를 달고 가사까지 갈 수 있었다.
+           *
+           * 근거를 못 대면 버린다 — 그것이 이 파일이 존재하는 이유다.
+           * 그러니 숫자로 보이는 것만 숫자로 친다.
+           */
+          .map((v) => {
+            if (typeof v === 'number') return v;
+            if (typeof v === 'string' && /^\d+$/.test(v.trim())) return Number(v.trim());
+            return NaN;
+          })
           .filter((n) => Number.isInteger(n) && n >= 0 && n < segments.length)
           /*
            * 복지사 줄은 근거가 될 수 없다.
@@ -219,7 +236,20 @@ export async function POST(req: Request) {
       .filter((f) => f.text.length > 0 && f.from.length > 0)
       .map((f) => ({
         text: f.text,
-        sources: f.from.map((i) => ({ at: segments[i].at, quote: segments[i].text })),
+        /*
+         * 화자를 함께 내보낸다.
+         *
+         * [모름] 줄(화자를 못 가른 줄)도 근거로 허용하는데, 여기서 speaker 를
+         * 버리면 받는 쪽이 모든 출처를 '어르신 음성'으로 이름 붙인다. 어느
+         * 목소리인지 모르는 대목에 어르신 이름표를 다는 것은 출처가 아니라
+         * 주장이다. worker 는 위에서 이미 걸러졌으므로 여기 오는 값은
+         * 'elder' 아니면 undefined(모름)뿐이다.
+         */
+        sources: f.from.map((i) => ({
+          at: segments[i].at,
+          quote: segments[i].text,
+          speaker: segments[i].speaker,
+        })),
       }));
 
     const dropped = (parsed.facts ?? []).length - facts.length;

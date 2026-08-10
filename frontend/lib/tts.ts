@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * 문장 읽어주기.
@@ -38,7 +38,35 @@ const STORE = 'clips';
 const VOICE_REV = 'v2-rate085';
 
 const memory = new Map<string, string>();
-let audio: HTMLAudioElement | null = null;
+
+/**
+ * 지금 나고 있는 읽어주기 소리와 그 주인.
+ *
+ * 예전에는 audio 가 그냥 모듈 전역이었다. 그래서 두 가지가 한꺼번에 틀렸다.
+ *   · SpeakButton 이 언마운트돼도 소리가 이어졌다. 0.85배속이라 한 문장이
+ *     5~8초씩 가는데, 다음 화면에서 어디에도 없는 목소리가 계속 났다.
+ *   · 돌아오면 새 훅의 state 는 'idle' 이라 버튼은 '읽어주기'인데 실제로는
+ *     재생 중이었다. 눌러 보면 라벨과 반대로 동작한다.
+ *
+ * 그렇다고 언마운트에서 전역을 무조건 끊으면, 마침 다른 버튼이 내고 있던
+ * 소리까지 끊긴다. 그래서 소리에 주인(훅 인스턴스)을 붙였다. 끊는 것은
+ * 주인일 때만이고, 남의 소리를 멈출 때는 그쪽 버튼도 함께 '읽어주기'로
+ * 되돌린다(reset) — 화면에 남은 표시가 실제 소리와 어긋나지 않게.
+ */
+type Live = { owner: object; el: HTMLAudioElement; reset: () => void };
+let live: Live | null = null;
+
+/** only 를 주면 그 주인의 소리일 때만 멈춘다. 안 주면 누구 것이든 멈춘다. */
+function stopLive(only?: object) {
+  const it = live;
+  if (!it) return;
+  if (only && it.owner !== only) return;
+  live = null;
+  it.el.onended = null;
+  it.el.onerror = null;
+  it.el.pause();
+  it.reset();
+}
 
 function openDb(): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
@@ -108,68 +136,123 @@ export type SpeakState =
 
 export function useSpeak() {
   const [state, setState] = useState<SpeakState>({ kind: 'idle' });
+  /** 이 훅 인스턴스의 신원. 소리의 주인이 나인지 가리는 유일한 근거다. */
+  const owner = useRef<object>({});
+  const alive = useRef(true);
+  /**
+   * 요청 일련번호. 소리 하나를 받아 오는 데 몇 초가 걸리고, 그 사이에
+   * 멈추거나 화면을 떠날 수 있다. 늦게 돌아온 응답이 그 뒤의 표시를 덮으면
+   * 버튼이 실제 소리와 어긋난다 — 이 훅에서 고치려는 것이 바로 그 어긋남이다.
+   */
+  const seq = useRef(0);
+
+  /** 일련번호가 아직 최신이고 화면에 남아 있을 때만 표시를 바꾼다. */
+  const show = useCallback((n: number, next: SpeakState) => {
+    if (n !== seq.current || !alive.current) return;
+    setState(next);
+  }, []);
+
+  /** 남이 내 소리를 멈췄을 때 버튼도 함께 '읽어주기'로 되돌린다. */
+  const reset = useCallback(() => {
+    seq.current += 1; // 받는 중이던 소리가 뒤늦게 '재생 중'으로 켜지지 않게
+    if (alive.current) setState({ kind: 'idle' });
+  }, []);
+
+  // 화면을 떠나면 내 소리는 끊는다. 주인이 나일 때만이라 다른 인스턴스가
+  // 내고 있는 소리는 그대로 둔다.
+  useEffect(() => {
+    const me = owner.current;
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      stopLive(me);
+    };
+  }, []);
 
   const stop = useCallback(() => {
-    audio?.pause();
-    audio = null;
-    setState({ kind: 'idle' });
+    stopLive(owner.current);
+    seq.current += 1;
+    if (alive.current) setState({ kind: 'idle' });
   }, []);
 
-  const speak = useCallback(async (text: string) => {
-    const said = text.trim();
-    if (!said) return;
-    // 판 번호를 앞에 붙인다 — 목소리 설정이 바뀌면 옛 소리를 꺼내 오지 않는다.
-    const key = `${VOICE_REV}:${said}`;
+  const speak = useCallback(
+    async (text: string) => {
+      const said = text.trim();
+      if (!said) return;
+      // 판 번호를 앞에 붙인다 — 목소리 설정이 바뀌면 옛 소리를 꺼내 오지 않는다.
+      const key = `${VOICE_REV}:${said}`;
 
-    // 이미 나고 있으면 멈춘다 — 같은 버튼이 재생/정지가 된다
-    if (audio && !audio.paused) {
-      audio.pause();
-      audio = null;
-      setState({ kind: 'idle' });
-      return;
-    }
+      const me = owner.current;
 
-    setState({ kind: 'loading' });
-
-    let url = await cached(key);
-    if (!url) {
-      try {
-        const res = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // 보내는 것은 원문이다. key 에는 판 번호가 붙어 있어서, 그대로
-          // 보내면 어르신께 "브이투 레이트 공팔오 콜론"까지 읽어 드린다.
-          body: JSON.stringify({ text: said }),
-        });
-        if (!res.ok) {
-          const j = (await res.json().catch(() => ({}))) as {
-            error?: string;
-            quota?: boolean;
-          };
-          setState(
-            j.quota
-              ? { kind: 'exhausted' }
-              : { kind: 'error', message: j.error ?? '읽어 드리지 못했어요.' },
-          );
-          return;
-        }
-        url = await store(key, await res.blob());
-      } catch {
-        setState({ kind: 'error', message: '연결하지 못했어요.' });
+      // 내 소리가 나고 있으면 멈춘다 — 같은 버튼이 재생/정지가 된다
+      if (live && live.owner === me) {
+        stopLive(me);
         return;
       }
-    }
+      // 다른 버튼이 내던 소리는 멈추고 자리를 넘겨받는다. 한 화면에서 두
+      // 문장이 겹쳐 나면 어느 쪽도 알아들을 수 없다.
+      stopLive();
 
-    audio = new Audio(url);
-    audio.onended = () => setState({ kind: 'idle' });
-    audio.onerror = () => setState({ kind: 'error', message: '소리를 재생하지 못했어요.' });
-    try {
-      await audio.play();
-      setState({ kind: 'playing' });
-    } catch {
-      setState({ kind: 'error', message: '소리를 재생하지 못했어요.' });
-    }
-  }, []);
+      const n = ++seq.current;
+      setState({ kind: 'loading' });
+
+      let url = await cached(key);
+      // 받아 오는 사이에 멈췄거나 화면을 떠났다면 여기서 끝낸다.
+      if (n !== seq.current || !alive.current) return;
+
+      if (!url) {
+        try {
+          const res = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // 보내는 것은 원문이다. key 에는 판 번호가 붙어 있어서, 그대로
+            // 보내면 어르신께 "브이투 레이트 공팔오 콜론"까지 읽어 드린다.
+            body: JSON.stringify({ text: said }),
+          });
+          if (!res.ok) {
+            const j = (await res.json().catch(() => ({}))) as {
+              error?: string;
+              quota?: boolean;
+            };
+            show(
+              n,
+              j.quota
+                ? { kind: 'exhausted' }
+                : { kind: 'error', message: j.error ?? '읽어 드리지 못했어요.' },
+            );
+            return;
+          }
+          url = await store(key, await res.blob());
+        } catch {
+          show(n, { kind: 'error', message: '연결하지 못했어요.' });
+          return;
+        }
+      }
+      if (n !== seq.current || !alive.current) return;
+
+      const el = new Audio(url);
+      const mine: Live = { owner: me, el, reset };
+      el.onended = () => {
+        if (live === mine) live = null;
+        show(n, { kind: 'idle' });
+      };
+      el.onerror = () => {
+        if (live === mine) live = null;
+        show(n, { kind: 'error', message: '소리를 재생하지 못했어요.' });
+      };
+      live = mine;
+      try {
+        await el.play();
+        show(n, { kind: 'playing' });
+      } catch {
+        // 언마운트가 pause() 를 불러 play() 가 깨진 경우도 여기로 온다.
+        // 그때는 n 이 이미 낡아 show 가 아무것도 하지 않는다.
+        if (live === mine) live = null;
+        show(n, { kind: 'error', message: '소리를 재생하지 못했어요.' });
+      }
+    },
+    [show, reset],
+  );
 
   return { state, speak, stop };
 }

@@ -36,6 +36,17 @@ export type Fail = {
   needsPaidPlan?: boolean;
   /** 한도 소진 */
   quota?: boolean;
+  /**
+   * 이 실패로 작업이 끝났는가.
+   *
+   * '전사를 못 했다'와 '지금 상태를 못 읽었다'는 다르다. 뒤쪽은 와이파이가
+   * 잠깐 끊겼다는 뜻이지 작업이 죽었다는 뜻이 아닌데, 둘을 같이 다루면
+   * 부르는 쪽이 아직 돌고 있는 작업의 원음성을 지워 버린다. 다시 물어볼
+   * 수도, 다시 보낼 수도 없게 된다 — 요금은 이미 나간 뒤다.
+   *
+   * 안 붙어 있으면 "모른다"이고, 모를 때는 지우지 않는다.
+   */
+  settled?: boolean;
 };
 
 /**
@@ -115,8 +126,7 @@ const PAUSE_SECONDS = 0.8;
  */
 const WORD_MARK = '▁';
 
-function joinTokens(tokens: string[]): string {
-  const subword = tokens.some((t) => t.includes(WORD_MARK));
+function joinTokens(tokens: string[], subword: boolean): string {
   if (!subword) return tokens.join(' ').replace(/\s+/g, ' ').trim();
 
   let out = '';
@@ -146,20 +156,31 @@ export function toSegments(
     return fallback.trim() ? [{ id: 'seg-0', text: fallback.trim(), at: 0 }] : [];
   }
 
+  /*
+   * 서브워드인지는 목록 전체를 보고 한 번만 정한다.
+   *
+   * 예전에는 joinTokens 가 넘겨받은 조각만 보고 그때그때 정했는데, 넘겨받는
+   * 것은 전체 단어가 아니라 모으던 중인 부분 버퍼다. 그 버퍼에 ▁ 가 하나도
+   * 없는 순간(한 단어의 가운데 조각들만 담겨 있을 때)이 오면 "서브워드가
+   * 아니다"로 판정해 공백으로 이어 붙인다 — "아 홉 에" 같은 줄이 그렇게
+   * 만들어졌다. 판정 근거는 한 줄이 아니라 이 응답 전체여야 한다.
+   */
+  const subword = spoken.some((w) => w.text.includes(WORD_MARK));
+
   const out: Segment[] = [];
   let buf: string[] = [];
   let start = spoken[0].start;
   let prevStart = start;
 
   const flush = () => {
-    const text = joinTokens(buf);
+    const text = joinTokens(buf, subword);
     if (text) out.push({ id: `seg-${out.length}`, text, at: Math.round(start) });
     buf = [];
   };
 
   for (const w of spoken) {
     const gap = w.start - prevStart;
-    const long = joinTokens(buf).length >= MAX_SEGMENT_CHARS;
+    const long = joinTokens(buf, subword).length >= MAX_SEGMENT_CHARS;
     // 조각 한가운데서 끊으면 단어가 두 동강 난다. 새 단어가 시작하는
     // 자리에서만 줄을 바꾼다.
     const boundary = !buf.length || w.text.startsWith(WORD_MARK) ||

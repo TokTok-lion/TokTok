@@ -1,7 +1,7 @@
 'use client';
 
 import { Art } from '@/components/Art';
-import { ConsentAsk, CONSENT_ORDER } from '@/components/ConsentGate';
+import { ConsentAsk, CONSENT_ORDER, UnrecordedConsents } from '@/components/ConsentGate';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconChat, IconClock, IconEdit, IconImage, IconInfo, IconMic, IconShield } from '@/components/icons';
@@ -213,9 +213,14 @@ export default function ChecklistPage() {
       </p>
       <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">
         {/* 어디에 남는지까지 말해야 어르신께 설명할 수 있다. 서버에 남기지
-            못하는 상태를 남는 것처럼 적지 않는다. */}
+            못하는 상태를 남는 것처럼 적지 않는다.
+
+            "표시가 되돌아가면 기록에 남기지 못한 것"이라고 단언하던 자리다.
+            절반만 맞는 말이었다 — 되돌아가는 것은 허용뿐이고, 동의 안 하심·
+            철회는 기록에 실패해도 표시가 그대로다. 그래서 못 남긴 철회를
+            남긴 것으로 읽게 만들었다. 두 갈래를 갈라서 적는다. */}
         {s.remoteParticipantId
-          ? '받은 동의는 이 어르신 기록에 남고, 「더보기」에서 언제든 거두실 수 있어요. 눌렀는데 표시가 되돌아가면 기록에 남기지 못한 것이니 통신을 확인하고 다시 눌러 주세요.'
+          ? '받은 동의는 이 어르신 기록에도 남기고, 「더보기」에서 언제든 거두실 수 있어요. 기록에 남기지 못하면 — 허용은 표시가 되돌아가고, 동의 안 하심은 이 기기에 남긴 뒤 아래에 적어 둡니다.'
           : '아직 기관 계정으로 고른 어르신이 아니라, 이 동의는 이 기기에만 남아요.'}
       </p>
 
@@ -229,6 +234,10 @@ export default function ChecklistPage() {
           />
         ))}
       </ul>
+
+      {/* 마주 앉기 전에 보여야 하는 목록이다. 지난 회기에 못 남긴 철회가 남아
+          있으면 오늘 그 항목을 다시 여쭙기 전에 알아야 한다. */}
+      <UnrecordedConsents />
 
       <div className="mt-4">
         <NoteBar tone="amber" icon={<IconInfo size={20} />}>

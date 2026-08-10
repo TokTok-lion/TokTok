@@ -296,6 +296,8 @@ function collect(results: { alternatives?: Alt[] }[]): Segment[] {
 }
 
 async function readOperation(operation: string): Promise<Job<Segment[]>> {
+  // settled 를 안 붙인 실패 = "상태를 못 읽었다". 부르는 쪽이 이 차이로
+  // 원음성을 지울지 말지를 가른다.
   const token = await googleToken();
   if (!token) return fail('구글 인증에 실패했어요.', 503);
 
@@ -314,8 +316,11 @@ async function readOperation(operation: string): Promise<Job<Segment[]>> {
   };
 
   if (json.error) {
+    // 구글이 실패로 끝냈다. 다시 물어봐도 같은 답이므로 원음성을 지워도 된다.
     console.error('google stt error', json.error.message);
-    return fail('전사하지 못했어요. 녹음은 그대로 남아 있습니다.', 502);
+    return fail('전사하지 못했어요. 녹음은 그대로 남아 있습니다.', 502, {
+      settled: true,
+    });
   }
   if (!json.done) return { ok: true, done: false, jobId: operation };
 
@@ -324,6 +329,7 @@ async function readOperation(operation: string): Promise<Job<Segment[]>> {
     return fail(
       '말씀이 잡히지 않았어요. 마이크가 어르신 가까이 있었는지 확인해 주세요.',
       422,
+      { settled: true },
     );
   }
   return { ok: true, done: true, value: segments };
@@ -408,11 +414,30 @@ export const googleStt: SttProvider = {
   async poll(jobId) {
     const { operation, object } = unpackJob(jobId);
     const out = await readOperation(operation);
-    // 끝났거나 실패했으면 원음성을 지운다. 남겨 둘 이유가 하나도 없다.
-    if (('done' in out && out.done) || out.ok === false) {
+
+    /*
+     * 원음성은 '작업이 끝났을 때'만 지운다.
+     *
+     * 예전에는 out.ok === false 이기만 하면 지웠다. 그런데 readOperation 이
+     * 실패를 내는 이유 중 둘은 전사 실패가 아니라 **상태를 못 읽었다**이다 —
+     * 토큰 갱신 일시 오류(503)와 operations 엔드포인트 순단(502). 센터
+     * 와이파이에서 흔한 일이다.
+     *
+     * 그때 지워 버리면 구글 쪽에서는 멀쩡히 돌고 있는 전사가 근거를 잃는다.
+     * 다시 물어볼 수도, 다시 보낼 수도 없다(원본은 기기에 있지만 이미 요금은
+     * 나갔다). 어르신이 한 시간 들려주신 이야기가 와이파이 한 번 끊긴 것으로
+     * 죽는 셈이다.
+     *
+     * 그래서 종결된 실패(구글이 error 로 끝냈다)와 못 읽은 실패를 가른다.
+     * 못 읽었으면 오브젝트를 남기고 작업표도 그대로 들고 다닌다 — 다음에
+     * 다시 물어보면 된다.
+     */
+    const settledFail = out.ok === false && out.settled === true;
+    if (('done' in out && out.done) || settledFail) {
       if (object) void gcsDelete(object);
     }
-    // 아직 진행 중이면 지울 대상을 계속 들고 다닌다.
+    // 아직 진행 중이거나 상태를 못 읽었으면 지울 대상을 계속 들고 다닌다.
+    if (out.ok === false && !settledFail) return { ...out, jobId };
     if (out.ok && !out.done) return { ok: true, done: false, jobId };
     return out;
   },

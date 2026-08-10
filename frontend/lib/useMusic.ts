@@ -193,12 +193,31 @@ export function useMusic() {
       set('songStatus', 'ready');
       setState({ kind: 'done' });
 
+      /*
+       * 잰 길이가 있을 때만 길이를 적는다.
+       *
+       * 라우트(app/api/music/route.ts)는 제공자가 길이를 알려 주지 않으면
+       * X-Music-Length-Ms 를 **일부러 안 붙인다** — 아무도 재지 않은 값이
+       * 기관 표에 앉는 것을 막으려고 그렇게 해 뒀다. 그런데 여기서
+       * Number(res.headers.get(...)) || 0 으로 읽는 바람에, 헤더가 없으면
+       * Number(null) === 0 이 되어 그 빈칸을 클라이언트가 0 으로 메웠다.
+       * 라우트가 비워 둔 칸에 '0밀리초짜리 곡'이라는 거짓이 들어간 것이다.
+       * 나중에 이 칸을 실측으로 읽는 사람이 반드시 생긴다.
+       *
+       * 없는 것은 없는 채로 넘긴다. 컬럼은 null 을 받게 되어 있다.
+       * 숫자가 아닌 값(중간 프록시가 헤더를 망친 경우)도 같은 취급이다 —
+       * 못 믿을 값을 적느니 안 적는 편이 낫다.
+       */
+      const lengthHeader = res.headers.get('X-Music-Length-Ms');
+      const measured = lengthHeader === null ? Number.NaN : Number(lengthHeader);
+      const lengthMs = Number.isFinite(measured) && measured > 0 ? measured : null;
+
       // 기관 저장소에도 올린다. 실패해도 회기를 막지 않는다 — 곡은 이미
       // 기기에 있고, 다음에 로그인된 상태로 열면 다시 올라간다.
       void uploadSong(blob, hash, {
         title: now.topic,
         style,
-        lengthMs: Number(res.headers.get('X-Music-Length-Ms')) || 0,
+        lengthMs,
         sessionId: now.remoteSessionId,
       });
     } catch {
@@ -233,8 +252,17 @@ export type SongPlayer = {
   playing: boolean;
   /** 실제 재생 위치(초) */
   at: number;
-  /** 실제 곡 길이(초). metadata 를 읽기 전에는 0 */
+  /** 실제 곡 길이(초). 아직 못 읽었거나 읽어도 알 수 없으면 0 */
   total: number;
+  /**
+   * 곡 길이를 아직 읽는 중.
+   *
+   * total === 0 인 이유도 둘이다 — 아직 metadata 가 안 왔거나(거의 모든 곡의
+   * 첫 몇 프레임), 읽었는데 길이를 알 수 없거나(Infinity). 이 둘을 같은
+   * 것으로 그리면 멀쩡한 곡에도 "길이를 읽지 못했다"가 한 번 스친다.
+   * 아직 모르는 것과 못 읽은 것은 다른 말이다.
+   */
+  measuring: boolean;
   slow: boolean;
   toggle: () => void;
   toggleSlow: () => void;
@@ -263,17 +291,36 @@ export function useSongPlayer(): SongPlayer {
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
   const [total, setTotal] = useState(0);
+  // 새 곡을 걸면 길이는 다시 모르는 상태에서 시작한다. url 이 없을 때의 값은
+  // 아래 반환에서 걸러지므로 여기서는 true 로 두어도 화면에 새지 않는다.
+  const [measuring, setMeasuring] = useState(true);
   const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     if (!url) return;
     const a = new Audio(url);
     a.preload = 'metadata';
+    // 여기서 setMeasuring(true) 로 되돌리지 않는다. 시작값이 이미 '읽는 중'
+    // 이고, 곡이 바뀔 때는 앞 이펙트의 정리가 먼저 되돌려 놓는다. 이펙트
+    // 본문에서 상태를 건드리면 렌더가 한 번 더 돈다(useDeviceSongState 와
+    // 같은 이유, react-hooks/set-state-in-effect).
 
     const onTime = () => setAt(a.currentTime);
     // 길이를 못 읽는 파일이 있다(Infinity). 그때는 0 으로 두고 화면이 총
     // 길이를 아예 말하지 않게 한다 — 모르면 모른다고 하는 편이 낫다.
-    const onMeta = () => setTotal(Number.isFinite(a.duration) ? a.duration : 0);
+    // 여기까지 왔으면 '읽는 중'은 끝났다. 0 이든 아니든 답은 나온 것이다.
+    const onMeta = () => {
+      setTotal(Number.isFinite(a.duration) ? a.duration : 0);
+      setMeasuring(false);
+    };
+    /*
+     * 못 읽고 끝나는 길도 반드시 닫아 둔다.
+     *
+     * 파일이 깨졌거나 코덱이 없으면 loadedmetadata 는 영영 안 온다. 그때
+     * measuring 을 true 로 놔 두면 "길이를 읽는 중이에요"가 회기 내내 떠
+     * 있는다 — 어르신 앞에서 끝나지 않는 화면은 그 자체로 고장이다.
+     */
+    const onFail = () => setMeasuring(false);
     const onEnd = () => {
       setPlaying(false);
       setAt(0);
@@ -283,6 +330,10 @@ export function useSongPlayer(): SongPlayer {
 
     a.addEventListener('timeupdate', onTime);
     a.addEventListener('loadedmetadata', onMeta);
+    // 스트리밍으로 받은 곡은 loadedmetadata 때 Infinity 였다가 나중에
+    // durationchange 로 진짜 길이가 온다. 그때도 화면이 따라가야 한다.
+    a.addEventListener('durationchange', onMeta);
+    a.addEventListener('error', onFail);
     a.addEventListener('ended', onEnd);
     a.addEventListener('play', onPlay);
     a.addEventListener('pause', onPause);
@@ -292,6 +343,8 @@ export function useSongPlayer(): SongPlayer {
       a.pause();
       a.removeEventListener('timeupdate', onTime);
       a.removeEventListener('loadedmetadata', onMeta);
+      a.removeEventListener('durationchange', onMeta);
+      a.removeEventListener('error', onFail);
       a.removeEventListener('ended', onEnd);
       a.removeEventListener('play', onPlay);
       a.removeEventListener('pause', onPause);
@@ -299,6 +352,7 @@ export function useSongPlayer(): SongPlayer {
       setPlaying(false);
       setAt(0);
       setTotal(0);
+      setMeasuring(true);
     };
   }, [url]);
 
@@ -338,6 +392,8 @@ export function useSongPlayer(): SongPlayer {
     playing,
     at,
     total,
+    // 곡이 없으면 잴 것도 없다. 그 경우까지 '읽는 중'이라고 말하지 않는다.
+    measuring: url !== null && measuring,
     slow,
     toggle,
     toggleSlow,
@@ -369,6 +425,10 @@ export type LyricCue = {
    * 곡 길이를 못 읽는 파일이 있다(useSongPlayer 의 total=0). 그때는 자동으로
    * 넘길 근거가 아예 없으므로 손으로만 넘긴다 — 화면도 자동 스위치 대신
    * 그 사실을 적어야 한다.
+   *
+   * 다만 timed 가 false 라고 곧바로 "못 읽었다"고 적으면 안 된다. metadata 가
+   * 오기 전에도 total 은 0 이라, 멀쩡한 곡에 그 문장이 한 번 스친다.
+   * 아직 읽는 중인지는 player.measuring 으로 가른다.
    */
   timed: boolean;
   auto: boolean;

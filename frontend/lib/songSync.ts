@@ -72,7 +72,15 @@ export async function findServerSong(hash: string): Promise<Blob | null> {
 export async function uploadSong(
   blob: Blob,
   hash: string,
-  meta: { title: string; style: string; lengthMs: number; sessionId: string | null },
+  // lengthMs 는 잰 값이 없으면 null 이다. 제공자가 길이를 안 알려 주는
+  // 경우가 실제로 있고(APIFRAME), 그때 0 을 넣으면 아무도 재지 않은 0 초가
+  // 기관 저장소에 실측처럼 남는다. 컬럼도 null 을 받는다(lib/db.types.ts).
+  meta: {
+    title: string;
+    style: string;
+    lengthMs: number | null;
+    sessionId: string | null;
+  },
 ): Promise<boolean> {
   const c = ctx();
   if (!c) return false;

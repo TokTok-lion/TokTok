@@ -6,11 +6,12 @@ import { Art } from '@/components/Art';
 import { SpeakButton } from '@/components/SpeakButton';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, IconCircle, NoteBar, PrimaryButton, Waveform } from '@/components/ui';
-import { IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
+import { IconInfo, IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
 import { QUESTION_LEVELS, hasConsent, type QuestionLevel } from '@/lib/domain';
 import { mmss, releaseRecording, useRecorder } from '@/lib/recorder';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
 import { currentSession, setSessionField, useSession } from '@/lib/store';
+import { useTranscribeStatus } from '@/lib/transcribeJob';
 
 // the deck's own glyphs (p.21), cut by scripts/prepare-ui-icons.py
 const PROMPT_ART = ['ui_people', 'ui_reaction', 'ui_bulb'] as const;
@@ -139,6 +140,7 @@ function questionsFor(card: string | null, topic: string, level: QuestionLevel) 
 export default function InterviewPage() {
   const { s } = useSession();
   const rec = useRecorder();
+  const { origin } = useTranscribeStatus();
   const [asked, setAsked] = useState(0);
 
   const card = SEED_MEMORY_CARDS.find((c) => c.id === s.memoryCard) ?? null;
@@ -182,6 +184,22 @@ export default function InterviewPage() {
   }, []);
 
   const listening = rec.state === 'recording';
+
+  /*
+   * 지금 마이크를 누르면 앞 녹음이 지워지는가.
+   *
+   * startRecording() 은 새 녹음을 시작하면서 기기에 있던 녹음을 지운다 —
+   * 조각이 섞이면 엉뚱한 소리가 이어 붙기 때문이라 그 자체는 맞는 처리다.
+   * 문제는 그 일이 경고 없이 일어났다는 것이다. 한 시간 들은 이야기가
+   * 버튼 한 번에 사라지고, 남은 전사와 이야기의 출처는 이제 없는 녹음을
+   * 가리킨다. 되돌릴 수 없는 일은 누르기 전에 말해야 한다.
+   *
+   * 녹음 중·일시정지 중에 누르면 멈추거나 이어 하는 것이라 해당하지 않는다.
+   */
+  const replacing =
+    rec.savedAt !== null && rec.state !== 'recording' && rec.state !== 'paused';
+  // 그 녹음이 지금 화면들의 출처이기도 한가 — 지우면 들려드릴 수 없게 된다.
+  const sourcesPointHere = origin === 'thisRecording';
 
   return (
     <Screen
@@ -279,6 +297,24 @@ export default function InterviewPage() {
         ) : null}
       </Card>
 
+      {/* 누르기 전에 말한다. 누른 뒤에 뜨는 안내는 사과문이지 안내가 아니다. */}
+      {replacing ? (
+        <div id="rec-replace-warning" className="mt-5">
+          <NoteBar tone="amber" icon={<IconInfo size={20} />}>
+            이미 <strong>{mmss(rec.seconds)}</strong> 녹음이 있어요. 다시 녹음을
+            시작하면 앞 녹음은 지워지고 되돌릴 수 없습니다.
+            {sourcesPointHere
+              ? ' 지금 전사와 이야기의 출처가 이 녹음을 가리키고 있어서, 지우면 그 대목을 어르신께 다시 들려드릴 수 없어요.'
+              : ''}{' '}
+            앞 녹음을 남기시려면{' '}
+            <Link href="/session/transcript" className="font-bold underline underline-offset-2">
+              전사 교정
+            </Link>
+            에서 먼저 글로 옮겨 주세요.
+          </NoteBar>
+        </div>
+      ) : null}
+
       {/* mic */}
       <div className="mt-5 flex items-center justify-center gap-3">
         <Waveform bars={9} height={30} tone="muted" seed={3} />
@@ -286,6 +322,7 @@ export default function InterviewPage() {
           type="button"
           aria-pressed={listening}
           disabled={!canRecord || rec.state === 'unsupported'}
+          aria-describedby={replacing ? 'rec-replace-warning' : undefined}
           onClick={() => void rec.toggle()}
           className={`relative flex h-[124px] w-[124px] shrink-0 flex-col items-center justify-center gap-1 rounded-full text-white shadow-[0_10px_26px_rgba(216,88,12,0.35)] disabled:opacity-50 ${
             listening ? 'tk-cta' : 'bg-ink-500'
@@ -308,7 +345,11 @@ export default function InterviewPage() {
                   ? '일시정지'
                   : rec.state === 'denied'
                     ? '마이크 없음'
-                    : '눌러서 시작'}
+                    : replacing
+                      ? // 같은 '눌러서 시작'이 두 가지 일을 하면 안 된다.
+                        // 이쪽은 앞 녹음을 지우고 처음부터 다시 하는 일이다.
+                        '새로 녹음'
+                      : '눌러서 시작'}
           </span>
         </button>
         <Waveform bars={9} height={30} tone="muted" seed={11} />
@@ -343,10 +384,14 @@ export default function InterviewPage() {
       <div className="mt-4">
         {canRecord ? (
           <NoteBar tone="leaf" icon={<IconShield size={20} />}>
-            {/* 소리가 어디에 있는지 분명히 적는다. 전사 API 를 붙이기 전까지
-                녹음은 기기 밖으로 나가지 않는다. */}
-            녹음은 이 기기에만 남고 밖으로 보내지 않아요. 불편한 질문은 언제든
-            넘길 수 있어요.
+            {/* 소리가 어디에 있는지 분명히 적는다.
+                오래 "밖으로 보내지 않아요"라고만 적혀 있었는데, 전사 API 가
+                붙은 뒤로 그 말은 참이 아니다 — 외부 AI 전송에 동의하신
+                회기는 인터뷰를 마치는 순간 녹음이 전사 서버로 나간다.
+                동의하신 분께도 그 사실은 이 화면에서 보여야 한다. */}
+            {hasConsent(s.elder.consents, 'externalAi')
+              ? '녹음은 이 기기에 저장되고, 인터뷰를 마치면 글로 옮기려고 외부 전사 서버로 보내요(동의하신 항목). 불편한 질문은 언제든 넘길 수 있어요.'
+              : '녹음은 이 기기에만 남고 밖으로 보내지 않아요. 불편한 질문은 언제든 넘길 수 있어요.'}
           </NoteBar>
         ) : (
           <NoteBar tone="brand" icon={<IconShield size={20} />}>

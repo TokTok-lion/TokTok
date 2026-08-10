@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Card } from './ui';
 import {
   CONSENT_FALLBACK,
@@ -10,6 +10,12 @@ import {
   type ConsentState,
   type Consents,
 } from '@/lib/domain';
+import {
+  dismissPendingConsent,
+  retryPendingConsent,
+  useSession,
+  type PendingConsent,
+} from '@/lib/store';
 
 /**
  * 동의 — 여쭙는 자리와 막힌 자리를 잇는 공통 조각.
@@ -64,6 +70,166 @@ export function consentStateLabel(state: ConsentState): string {
   // denied 와 withdrawn 은 어르신이 결정하신 시점만 다르고, 지금 할 수 있는
   // 일은 같다 — 하지 않는다.
   return '동의하지 않으셨어요';
+}
+
+/** 내린 결정 그대로. 목록이 "무엇을 못 남겼는지" 말할 때 쓴다. */
+function decisionLabel(state: ConsentState): string {
+  if (state === 'granted') return '동의하셨어요';
+  if (state === 'withdrawn') return '동의를 거두셨어요';
+  if (state === 'denied') return '동의하지 않으셨어요';
+  return '아직 여쭙지 않았어요';
+}
+
+/** ISO → '3월 4일 오후 2:07'. 언제 일인지 말해야 복지사가 상황을 떠올린다. */
+function decidedAtLabel(iso: string): string {
+  const d = new Date(iso);
+  const h = d.getHours();
+  const half = h < 12 ? '오전' : '오후';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${half} ${h12}:${String(
+    d.getMinutes(),
+  ).padStart(2, '0')}`;
+}
+
+/**
+ * 기관 기록에 남기지 못한 동의 결정.
+ *
+ * 이 목록이 없던 동안, 철회를 눌렀는데 통신이 끊기면 화면은 아무 말도 하지
+ * 않았다. 스위치는 꺼진 채였고 복지사는 거둔 줄 알았지만 서버 행은 granted
+ * 였다. 다음 회기에 그 값이 되살아나 원음성이 외부로 나갔다 — 화면이 조용한
+ * 것이 사고의 절반이었다.
+ *
+ * 그래서 세 가지를 말한다: 누구의 어느 항목인지, 지금 어디까지 남았는지,
+ * 그리고 다시 시도할 길. 어르신을 바꿔도 목록은 남으므로 결정 당시의 호칭을
+ * 그대로 쓴다.
+ *
+ * 두 화면(회기 준비·더보기)이 같은 말을 하도록 여기 한 곳에 둔다.
+ */
+export function UnrecordedConsents({ className = 'mt-4' }: { className?: string }) {
+  const { s } = useSession();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failed, setFailed] = useState<Record<string, string>>({});
+  const [confirmDrop, setConfirmDrop] = useState<string | null>(null);
+
+  const list = s.pendingConsents;
+  if (!list.length) return null;
+
+  const keyOf = (p: PendingConsent) => `${p.participantId}:${p.kind}`;
+
+  const retry = async (p: PendingConsent) => {
+    const key = keyOf(p);
+    setBusy(key);
+    // 실패 문구를 먼저 지운다. 지난 실패가 새 시도 옆에 남아 있으면 방금
+    // 무엇이 일어났는지 읽을 수 없다.
+    setFailed((f) => {
+      const next = { ...f };
+      delete next[key];
+      return next;
+    });
+    const r = await retryPendingConsent(p);
+    setBusy(null);
+    if (!r.ok) {
+      setFailed((f) => ({
+        ...f,
+        [key]: r.reason ?? '아직 기관 기록에 남기지 못했어요.',
+      }));
+    }
+  };
+
+  return (
+    <Card className={`${className} border-2 border-brand-300 p-4`}>
+      <p className="text-[1.0625rem] font-extrabold text-ink-900">
+        기관 기록에 남기지 못한 동의 {list.length}건
+      </p>
+      <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+        아래 결정이 기관 기록에 닿지 못했어요. 이 태블릿에서는 그대로 지켜지지만,
+        기관 기록과 다른 기기는 아직 이 결정을 모릅니다.
+      </p>
+
+      <ul className="mt-3 space-y-2.5">
+        {list.map((p) => {
+          const key = keyOf(p);
+          const working = busy === key;
+          return (
+            <li key={key} className="rounded-[12px] bg-surface-sunk px-3.5 py-3">
+              <p className="text-[0.9375rem] font-extrabold text-ink-900">
+                {p.elderName} · {CONSENT_LABELS[p.kind]} — {decisionLabel(p.decision)}
+              </p>
+              <p className="mt-1 text-[0.9375rem] leading-relaxed text-ink-700">
+                {p.keptOnDevice
+                  ? '이 기기에는 남겼어요. 다시 시도해서 남기기 전까지 기관 기록에는 이전 값이 그대로 있어요.'
+                  : '허용은 기록이 남아야 허용이라, 표시를 켜지 않고 되돌렸어요. 다시 시도해서 남으면 그때 켜집니다.'}
+              </p>
+              <p className="mt-1 text-[0.8125rem] text-ink-500">
+                {decidedAtLabel(p.at)}에 누르셨어요
+              </p>
+
+              {failed[key] ? (
+                <p className="mt-2 text-[0.875rem] font-bold text-danger-600">
+                  {failed[key]} 통신을 확인하고 다시 눌러 주세요.
+                </p>
+              ) : null}
+
+              {confirmDrop === key ? (
+                <div className="mt-2.5 rounded-[12px] bg-surface px-3.5 py-3">
+                  {/* 무엇을 포기하는지 적지 않으면, 경고를 치우는 버튼이 곧
+                      동의를 되살리는 버튼이 된다. */}
+                  <p className="text-[0.9375rem] leading-relaxed text-ink-900">
+                    목록에서만 지워요. 기관 기록은 이전 값 그대로라, 다음 회기에는
+                    그 값이 쓰입니다.
+                  </p>
+                  <div className="mt-2.5 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDrop(null)}
+                      className="min-h-[52px] rounded-[14px] border-2 border-hairline bg-surface-strong text-[1rem] font-bold text-ink-700"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        dismissPendingConsent(p.participantId, p.kind);
+                        setConfirmDrop(null);
+                      }}
+                      className="min-h-[52px] rounded-[14px] bg-danger-600 text-[1rem] font-bold text-white"
+                    >
+                      그래도 지우기
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  {/*
+                    보내는 중이라는 표시는 글자로만 한다.
+                    흐리게(opacity) 처리하면 흰 글자 대 brand-700 이 5.18:1 에서
+                    약 3.15:1 로 떨어진다(0.7 을 surface-sunk 위에 합성해 계산).
+                    보내는 순간이 짧다고 해도, 70~90대 어르신과 함께 보는 화면에서
+                    읽을 수 없게 만들 이유가 없다 (NFR-A11Y-004).
+                  */}
+                  <button
+                    type="button"
+                    onClick={() => void retry(p)}
+                    disabled={working}
+                    className="min-h-[52px] rounded-[14px] bg-brand-700 px-3 text-[1rem] font-bold text-white"
+                  >
+                    {working ? '남기는 중…' : '다시 시도'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDrop(key)}
+                    className="min-h-[52px] rounded-[14px] border-2 border-hairline bg-surface-strong px-3 text-[1rem] font-bold text-ink-700"
+                  >
+                    목록에서 지우기
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
 }
 
 /** 필요한 동의 중 아직 받지 못한 것. 없으면 빈 배열이다. */
