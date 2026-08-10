@@ -5,10 +5,14 @@ import { ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, IconCircle } from '@/components/ui';
 import { IconCalendar, IconDoc, IconMusicNote, IconTextSize } from '@/components/icons';
-import { sceneForTopic, songTitleForTopic } from '@/lib/scenes';
-import { useDeviceSong } from '@/lib/useDeviceSong';
+import { MUSIC_STYLES } from '@/lib/domain';
+import { sceneForTopic } from '@/lib/scenes';
+import { shelfSongDate, shelfSongTitle, useSongShelf } from '@/lib/useDeviceSong';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
+
+/** 기록 화면에 먼저 보여 주는 곡 수. 나머지는 보관함에서 본다. */
+const SHOWN = 3;
 
 /**
  * 기록 — 이미 만들어진 것들.
@@ -20,23 +24,16 @@ import type { ArtKey } from '@/lib/art';
  */
 export default function RecordsPage() {
   const { s } = useSession();
-  const song = useDeviceSong();
-
-  // 표지와 제목은 회기 화면(/session/song·generating)과 같은 규칙을 쓴다.
-  // 여기만 'album_briefcase_coins' 한 장으로 박혀 있어서, 손주 이야기로 만든
-  // 노래가 기록 탭에서는 서류가방 그림으로 남았다 — 같은 곡이 화면마다 다른
-  // 표지를 달고 있었다.
-  //
-  // 곡은 어르신마다 한 칸씩 저장되고(songStore 의 `song:<어르신>` 키) 그 곡에
-  // 주제를 함께 저장하지는 않는다. 그래서 지금 회기의 주제를 쓴다. 어르신을
-  // 바꾸면 그 어르신 칸의 지난 곡은 beginSession 이 지우고, 화면은 항상 지금
-  // 어르신 칸만 읽으므로 남의 노래에 이 제목이 붙는 일은 없다.
-  //
-  // 서버에서 온 어르신은 아직 주제가 없어 '—'로 들어온다(useElders.toSummary).
-  // 그 문자열을 그대로 제목에 넣으면 '— 이야기'가 되므로 빈 값으로 본다.
-  const topic = s.topic === '—' ? '' : s.topic;
-  const scene = sceneForTopic(topic);
-  const songTitle = songTitleForTopic(topic);
+  /*
+   * 완성된 노래는 목록이다.
+   *
+   * 예전에는 한 곡만 그렸다. 곡이 어르신 한 분당 한 칸에만 저장돼서, 회기를
+   * 거듭해도 마지막 곡 하나밖에 없었기 때문이다(그 과정에서 앞 회기 곡이
+   * 사라졌다). 이제 곡은 회기별로 남고, 표지·제목·날짜·분위기는 그 곡과 함께
+   * 저장된 값에서 나온다 — 지금 회기의 주제를 지난 곡에 붙이지 않는다.
+   */
+  const shelf = useSongShelf();
+  const shown = shelf.songs.slice(0, SHOWN);
 
   return (
     <Screen
@@ -51,30 +48,31 @@ export default function RecordsPage() {
       <h2 className="flex items-center gap-2 text-[1.125rem] font-extrabold text-ink-900">
         <IconMusicNote size={21} className="text-brand-500" />
         완성된 노래
-        <span className="text-[0.9375rem] font-semibold text-ink-500">
-          {song ? 1 : 0}곡
-        </span>
+        {shelf.available && !shelf.loading ? (
+          <span className="text-[0.9375rem] font-semibold text-ink-500">
+            {shelf.songs.length}곡
+          </span>
+        ) : null}
       </h2>
-      {song ? (
-        <Card className="mt-3 p-3">
-          <Link href="/library" className="flex items-center gap-3.5">
-            <ArtBox
-              name={scene.art as ArtKey}
-              alt=""
-              className="h-[64px] w-[64px] shrink-0 rounded-[12px] object-cover"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[1.0625rem] font-extrabold text-ink-900">
-                {songTitle}
-              </span>
-              <span className="block text-[0.875rem] text-ink-500">
-                이 기기에 있음 · 보관함에서 듣기
-              </span>
-            </span>
-            <Chevron className="shrink-0 text-ink-300" />
-          </Link>
+      {shelf.loading ? (
+        <Card className="mt-3 p-4">
+          <p role="status" className="text-[1rem] font-bold text-ink-700">
+            불러오는 중이에요…
+          </p>
         </Card>
-      ) : (
+      ) : !shelf.available ? (
+        /* 못 읽은 것과 없는 것은 다른 말이다. 여기서 "없어요"라고 하면 보관함
+           화면과 서로 다른 말을 하게 되고, 둘 다 못 믿게 된다. */
+        <Card className="mt-3 p-4">
+          <p className="text-[1rem] font-bold text-ink-700">
+            이 기기의 보관함을 열지 못했어요.
+          </p>
+          <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+            저장된 노래가 없다는 뜻은 아니에요. 앱을 다시 열어 보시고, 그래도
+            안 되면 보관함 화면에서 자세한 안내를 볼 수 있어요.
+          </p>
+        </Card>
+      ) : shelf.songs.length === 0 ? (
         <Card className="mt-3 p-4">
           <p className="text-[1rem] font-bold text-ink-700">
             아직 완성된 노래가 없어요.
@@ -83,6 +81,46 @@ export default function RecordsPage() {
             어떤 소리가 나오는지 먼저 보시려면 보관함의 예시 곡을 들어 보세요.
           </p>
         </Card>
+      ) : (
+        <ul className="mt-3 space-y-2.5">
+          {shown.map((m) => {
+            const date = shelfSongDate(m);
+            const styleName = MUSIC_STYLES.find((x) => x.id === m.style)?.name ?? null;
+            return (
+              <Card as="li" key={m.key} className="p-3">
+                {/* 재생은 보관함 한 곳에서만 한다. 두 화면이 각자 소리를 내면
+                    두 곡이 겹쳐 흐를 길이 생긴다. */}
+                <Link href="/library" className="flex items-center gap-3.5">
+                  <ArtBox
+                    name={sceneForTopic(m.topic).art as ArtKey}
+                    alt=""
+                    className="h-[64px] w-[64px] shrink-0 rounded-[12px] object-cover"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[1.0625rem] font-extrabold text-ink-900">
+                      {shelfSongTitle(m)}
+                    </span>
+                    <span className="block text-[0.875rem] text-ink-500">
+                      {date ?? '만든 날짜가 남아 있지 않아요'}
+                      {m.sessionId === shelf.sessionId ? ' · 이번 회기' : ''}
+                      {styleName ? ` · ${styleName}` : ''}
+                    </span>
+                    <span className="block text-[0.875rem] text-ink-500">
+                      이 기기에 있음 · 보관함에서 듣기
+                    </span>
+                  </span>
+                  <Chevron className="shrink-0 text-ink-300" />
+                </Link>
+              </Card>
+            );
+          })}
+          {shelf.songs.length > shown.length ? (
+            <li className="px-1 text-[0.875rem] text-ink-500">
+              그 밖에 {shelf.songs.length - shown.length}곡이 더 있어요. 아래에서
+              전체를 볼 수 있습니다.
+            </li>
+          ) : null}
+        </ul>
       )}
       <div className="mt-3">
         <Link
@@ -110,8 +148,9 @@ export default function RecordsPage() {
           지난 회기 목록은 아직 없어요.
         </p>
         <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
-          이 기기에는 진행 중인 회기 하나만 남습니다. 마무리한 회기는 아래
-          활동일지를 내보내서 기관 양식에 남겨 주세요.
+          이 기기에는 진행 중인 회기 하나만 남습니다. 지난 회기에서 만든{' '}
+          <strong>노래</strong>는 위 목록과 보관함에 그대로 있어요. 마무리한
+          회기는 아래 활동일지를 내보내서 기관 양식에 남겨 주세요.
         </p>
       </Card>
 

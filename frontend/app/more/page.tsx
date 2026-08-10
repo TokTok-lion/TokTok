@@ -16,7 +16,7 @@ import { IconInfo, IconShield } from '@/components/icons';
 import { CONSENT_FALLBACK, CONSENT_LABELS, DEFAULT_CONSENTS } from '@/lib/domain';
 import { useSession } from '@/lib/store';
 import { forgetRecording } from '@/lib/recorder';
-import { deleteSong } from '@/lib/songStore';
+import { deleteAllSongs } from '@/lib/songStore';
 import { useAccount } from '@/lib/auth';
 import { NotifySettings } from '@/components/NotifySettings';
 import { StoredAudio } from '@/components/StoredAudio';
@@ -57,7 +57,16 @@ export default function MorePage() {
   const wipe = () => {
     reset();
     void forgetRecording();
-    void deleteSong();
+    /*
+     * 기기 전체를 지운다.
+     *
+     * deleteSong() 은 이제 '지금 회기의 곡'만 지운다 — 곡이 회기별로 쌓이게
+     * 바뀌면서 뜻이 좁아졌다. 그런데 이 버튼은 화면에서 "이 기기에 저장된
+     * 녹음과 노래 파일"을 지운다고 약속한다. 좁은 쪽을 그대로 두면 reset()
+     * 직후의 빈 회기 곡만 지워지고 지난 회기 노래들은 남는데, 태블릿을
+     * 반납하거나 넘겨줄 때 쓰는 버튼이라 그 차이가 그대로 사고가 된다.
+     */
+    void deleteAllSongs();
 
     if (account.status === 'in') {
       // 씨앗 대신 빈자리를 둔다. 다음 회기는 어르신 목록에서 고르는 것으로

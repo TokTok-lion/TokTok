@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { claimSound, releaseSound } from '@/components/SamplePlayer';
 import { hasConsent, type LyricSection } from './domain';
 import { settled } from './longJob';
-import { loadSong, saveSong } from './songStore';
+import { loadSong, loadSongAt, saveSong, songTag, type SaveOutcome } from './songStore';
 import { findServerSong, lyricsHash, songQuotaLeft, uploadSong } from './songSync';
-import { currentSession, useSession, type SessionState } from './store';
+import { currentSession, useSession } from './store';
 import { useDeviceSongState } from './useDeviceSong';
 
 export type MusicState =
@@ -27,12 +28,13 @@ export type MusicState =
 /**
  * 이 표시가 누구의 어느 회기 것인지.
  *
- * 곡 보관 칸(songStore.slotKey)과 같은 기준으로 사람을 가리키고, 거기에
- * 회기 시작 시각을 붙여 회기까지 좁힌다. 시연 기기는 시작 시각이 없으므로
- * 한 칸으로 묶는다.
+ * 곡 보관과 같은 기준(songStore.songTag)으로 사람과 회기를 가리킨다. 두
+ * 곳이 각자 계산하면 언젠가 어긋나고, 어긋나는 순간 남의 회기에서 누른
+ * 재생성이 이 회기에 먹힌다.
  */
-function askOwner(s: SessionState): string {
-  return `${s.remoteParticipantId ?? s.elder.id}::${s.remoteStartedAt ?? 'demo'}`;
+function askOwner(): string {
+  const t = songTag();
+  return `${t.ownerId}::${t.sessionId}`;
 }
 
 /**
@@ -56,13 +58,48 @@ function askOwner(s: SessionState): string {
 let regenerateAsked: string | null = null;
 
 export function askRegenerate(): void {
-  regenerateAsked = askOwner(currentSession());
+  regenerateAsked = askOwner();
 }
 
 function takeRegenerateAsk(): boolean {
   const asked = regenerateAsked;
   regenerateAsked = null;
-  return asked !== null && asked === askOwner(currentSession());
+  return asked !== null && asked === askOwner();
+}
+
+/**
+ * 만든 곡을 기기에 저장하지 못했을 때 할 말.
+ *
+ * 요금을 이미 낸 자리라 그냥 '실패했어요'로 끝낼 수 없다. 무엇이 남았고
+ * 다시 누르면 어떻게 되는지까지 같은 문장에서 말해야 한다 — 이 화면의
+ * '다시 시도' 버튼은 곡을 새로 만드는 버튼이라, 자리를 비우지 않은 채
+ * 누르면 같은 실패에 요금만 한 번 더 나간다.
+ */
+function storeFailMessage(
+  outcome: SaveOutcome,
+  where: { made: boolean; keptOnServer: boolean },
+): string {
+  // 만든 것과 받아온 것을 구분해서 말한다. 안 만들었는데 만들었다고 하면
+  // 복지사는 요금이 나갔다고 믿는다.
+  const got = where.made ? '노래는 만들었는데' : '이미 만들어 둔 노래를 받아왔는데';
+
+  if (outcome === 'full') {
+    return (
+      `${got} 이 기기에 저장할 자리가 없어요. ` +
+      (where.keptOnServer
+        ? '곡은 기관 서버에 남아 있어요. 보관함에서 지난 노래를 지우고 다시 시도하시면, 새로 만들지 않고 그대로 받아옵니다.'
+        : '보관함에서 지난 노래를 지우신 뒤에 다시 시도해 주세요. 그 전에 누르면 곡을 새로 만들어 요금이 한 번 더 나가요.')
+    );
+  }
+
+  // 자리가 아니라 보관함 자체를 못 여는 경우다. 지운다고 해결되지 않으므로
+  // 지우라고 하지 않는다 — 안 되는 일을 시키는 것도 막다른 길이다.
+  return (
+    `${got} 이 기기의 보관함을 열지 못했어요. ` +
+    (where.keptOnServer
+      ? '곡은 기관 서버에 남아 있어요. 다른 브라우저나 앱으로 다시 여시면 그대로 받아옵니다.'
+      : '브라우저의 비밀 모드에서는 노래를 기기에 담아 둘 수 없어요. 앱을 다시 열어 보시고, 곡 없이 가사 카드로 진행하실 수도 있어요.')
+  );
 }
 
 /**
@@ -106,6 +143,16 @@ export function useMusic() {
     // 여기 남아도 다른 어르신 회기로는 넘어가지 않는다.
     const remake = force || takeRegenerateAsk();
 
+    /*
+     * 이 곡이 누구의 어느 회기 것인지를 여기서 붙잡는다.
+     *
+     * 곡 만들기는 1~3분이 걸린다. 그 사이에 복지사가 다음 어르신으로 넘어가는
+     * 일이 실제로 있다(태블릿을 들고 옮겨 다닌다). 저장할 때 그때의 회기를
+     * 다시 읽으면, 앞 어르신의 생애로 만든 곡이 다음 어르신의 보관함에
+     * 들어간다 — 화면상으로는 정상과 구분되지 않는 사고다.
+     */
+    const tag = songTag();
+
     // 가사 검수 화면에서 만든 그 가사가 그대로 노래가 된다.
     const lyrics = now.lyrics
       .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
@@ -135,7 +182,16 @@ export function useMusic() {
     if (!remake) {
       const fromServer = await findServerSong(hash);
       if (fromServer) {
-        await saveSong(fromServer);
+        const stored = await saveSong(fromServer, tag);
+        if (stored !== 'ok') {
+          // 서버에는 그대로 있으므로 잃은 것은 없다. 요금도 나가지 않았다.
+          setState({
+            kind: 'error',
+            message: storeFailMessage(stored, { made: false, keptOnServer: true }),
+          });
+          set('songStatus', 'draft');
+          return;
+        }
         set('songKey', key);
         set('songStatus', 'ready');
         setState({ kind: 'reused', where: 'server' });
@@ -188,10 +244,6 @@ export function useMusic() {
       }
 
       const blob = await res.blob();
-      await saveSong(blob);
-      set('songKey', key);
-      set('songStatus', 'ready');
-      setState({ kind: 'done' });
 
       /*
        * 잰 길이가 있을 때만 길이를 적는다.
@@ -212,14 +264,53 @@ export function useMusic() {
       const measured = lengthHeader === null ? Number.NaN : Number(lengthHeader);
       const lengthMs = Number.isFinite(measured) && measured > 0 ? measured : null;
 
-      // 기관 저장소에도 올린다. 실패해도 회기를 막지 않는다 — 곡은 이미
-      // 기기에 있고, 다음에 로그인된 상태로 열면 다시 올라간다.
-      void uploadSong(blob, hash, {
+      const shelfMeta = {
         title: now.topic,
         style,
         lengthMs,
         sessionId: now.remoteSessionId,
-      });
+      };
+
+      /*
+       * 저장 결과를 확인한다.
+       *
+       * 예전에는 saveSong 이 아무 말 없이 실패할 수 있었다(기기가 꽉 참 ·
+       * IndexedDB 가 막힌 브라우저). 그러면 화면은 '노래가 완성됐어요'라고
+       * 하고 다음 화면에는 곡이 없다 — 요금은 이미 나간 뒤다.
+       */
+      const stored = await saveSong(blob, tag);
+      if (stored !== 'ok') {
+        // 여기서만은 업로드 결과를 기다린다. 서버에 사본이 남았는지에 따라
+        // 복지사가 할 일이 다르고(자리를 비우고 다시 받기 vs 다시 만들기),
+        // 그걸 모르면 요금이 걸린 버튼 앞에서 찍어야 한다.
+        const kept = await uploadSong(blob, hash, shelfMeta);
+        setState({
+          kind: 'error',
+          message: storeFailMessage(stored, { made: true, keptOnServer: kept }),
+        });
+        set('songStatus', 'draft');
+        return;
+      }
+
+      // 만드는 사이에 회기가 바뀌었으면 지금 회기 값은 건드리지 않는다. 곡은
+      // 주문한 회기(tag)의 보관함에 들어갔고, 그 회기의 노래로 남는다.
+      const at = songTag();
+      if (at.ownerId === tag.ownerId && at.sessionId === tag.sessionId) {
+        set('songKey', key);
+        set('songStatus', 'ready');
+        setState({ kind: 'done' });
+      } else {
+        setState({
+          kind: 'error',
+          message:
+            '노래는 만들었어요. 다만 만드는 사이에 다른 회기로 넘어가서, 이 노래는 ' +
+            '만들기를 시작한 회기의 보관함에 넣어 두었어요. 지금 회기에는 아직 노래가 없습니다.',
+        });
+      }
+
+      // 기관 저장소에도 올린다. 실패해도 회기를 막지 않는다 — 곡은 이미
+      // 기기에 있고, 다음에 로그인된 상태로 열면 다시 올라간다.
+      void uploadSong(blob, hash, shelfMeta);
     } catch {
       setState({ kind: 'error', message: '연결하지 못했어요. 가사는 남아 있습니다.' });
       set('songStatus', 'draft');
@@ -400,6 +491,122 @@ export function useSongPlayer(): SongPlayer {
     seek,
     restart,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * 보관함 목록 재생
+ * ------------------------------------------------------------------ */
+
+export type ShelfSound =
+  | { kind: 'idle' }
+  | { kind: 'loading'; key: string }
+  | { kind: 'playing'; key: string }
+  | { kind: 'error'; key: string };
+
+/**
+ * 목록에서 고른 곡 하나를 재생한다.
+ *
+ * 회기별로 곡이 쌓이면서 보관함이 목록이 됐다. 카드마다 플레이어를 두면 두
+ * 곡이 겹쳐 흐르는데, 어르신 앞에서 두 노래가 동시에 나오면 어느 것이 그분
+ * 노래인지 귀로 가릴 수 없다. 그래서 소리는 언제나 하나만 살려 두고, 예시
+ * 선반과도 같은 자리(claimSound/releaseSound)를 나눠 쓴다.
+ *
+ * 파일은 누를 때 읽는다. 곡 하나가 몇 MB라, 목록을 여는 것만으로 열 곡을
+ * 통째로 메모리에 올릴 이유가 없다. 대신 읽는 동안 표시를 남긴다 —
+ * 눌렀는데 몇 초 조용하면 복지사는 한 번 더 누르거나 태블릿을 의심한다
+ * (components/SamplePlayer 에서 겪은 그대로다).
+ */
+export function useSongShelfPlayer() {
+  const elRef = useRef<HTMLAudioElement | null>(null);
+  const urlRef = useRef<string | null>(null);
+  /** 요청 일련번호 — 늦게 도착한 읽기가 최신 표시를 덮지 못하게 한다. */
+  const seq = useRef(0);
+  const alive = useRef(true);
+  const [sound, setSound] = useState<ShelfSound>({ kind: 'idle' });
+
+  const settle = useCallback((n: number, next: ShelfSound) => {
+    if (n !== seq.current || !alive.current) return;
+    setSound(next);
+  }, []);
+
+  /** 소리를 끊고 만들어 둔 주소를 되돌려 준다. 안 놓으면 곡이 메모리에 쌓인다. */
+  const drop = useCallback(() => {
+    elRef.current?.pause();
+    elRef.current = null;
+    if (urlRef.current) {
+      URL.revokeObjectURL(urlRef.current);
+      urlRef.current = null;
+    }
+  }, []);
+
+  /** 소리 주인 자리에 등록해 두는 정지 함수. 신원이 곧 소유권이라 고정이다. */
+  const stop = useCallback(() => {
+    seq.current += 1; // 읽는 중이던 곡이 뒤늦게 '재생 중'으로 켜지지 않게
+    drop();
+    if (alive.current) setSound({ kind: 'idle' });
+  }, [drop]);
+
+  const toggle = useCallback(
+    (key: string) => {
+      // 같은 곡을 다시 누르면 멈춘다. 아직 읽는 중이어도 멈출 수 있어야 한다.
+      if ((sound.kind === 'playing' || sound.kind === 'loading') && sound.key === key) {
+        stop();
+        releaseSound(stop);
+        return;
+      }
+
+      // 예시 곡이나 앞서 누른 곡이 흐르고 있으면 그쪽을 먼저 멈춘다.
+      claimSound(stop);
+      stop();
+
+      // 일련번호는 stop 뒤에 딴다 — stop 이 번호를 올리므로 순서를 바꾸면
+      // 방금 딴 번호가 그 자리에서 낡아 버린다.
+      const n = ++seq.current;
+      setSound({ kind: 'loading', key });
+
+      void loadSongAt(key).then(
+        (blob) => {
+          if (n !== seq.current || !alive.current) return;
+          if (!blob) {
+            // 표에는 있는데 파일이 없다. 조용히 지나가면 눌러도 아무 일이
+            // 없는 카드가 된다.
+            settle(n, { kind: 'error', key });
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const el = document.createElement('audio');
+          el.onended = () => {
+            if (n !== seq.current) return;
+            drop();
+            settle(n, { kind: 'idle' });
+          };
+          el.onerror = () => settle(n, { kind: 'error', key });
+          el.src = url;
+          elRef.current = el;
+          urlRef.current = url;
+          void el.play().then(
+            () => settle(n, { kind: 'playing', key }),
+            () => settle(n, { kind: 'error', key }),
+          );
+        },
+        () => settle(n, { kind: 'error', key }),
+      );
+    },
+    [sound, stop, drop, settle],
+  );
+
+  // 화면을 떠나면 소리도 함께 멎어야 한다. 자리도 비워 준다 — 안 비우면
+  // 다음에 재생하는 쪽이 이미 사라진 플레이어를 멈추려 든다.
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      drop();
+      releaseSound(stop);
+    };
+  }, [drop, stop]);
+
+  return { sound, toggle, stop };
 }
 
 /* ------------------------------------------------------------------ *
