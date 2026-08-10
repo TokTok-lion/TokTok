@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArtBox } from './Art';
 import { Card } from './ui';
 import { IconMusicNote, IconPlay } from './icons';
-import { SAMPLE_SONGS, sampleLength } from '@/lib/samples';
+import { SAMPLE_SONGS, samplesFor, sampleLength } from '@/lib/samples';
+import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
 /**
@@ -124,8 +125,8 @@ export function SampleShelf() {
       </ul>
 
       <p className="mt-3 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
-        세 곡 모두 같은 가사로 만든 서로 다른 결과예요. 같은 이야기라도 매번
-        조금씩 다르게 나온다는 뜻이라, 마음에 안 들면 다시 만들 수 있어요.
+        네 곡 모두 같은 가사로 만들고 분위기만 다르게 한 결과예요. 같은
+        이야기라도 어떤 분위기로 만드느냐에 따라 이만큼 달라집니다.
       </p>
     </section>
   );
@@ -135,60 +136,77 @@ export function SampleShelf() {
  * 스타일 고르기 화면의 미리듣기.
  *
  * 예전에는 눌러도 아무 소리가 안 났다. 어떤 소리가 나올지 모른 채 분위기를
- * 고르게 하는 셈이었는데, 그 다음 버튼이 1,125크레딧짜리라 더 나빴다.
+ * 고르게 하는 셈이었는데, 그 다음 버튼이 요금이 나가는 버튼이라 더 나빴다.
+ *
+ * 그 다음에는 소리는 났는데 셋 다 발라드였다. 트로트를 고른 사람에게 발라드
+ * 세 개를 들려주면 고르는 데 아무 도움이 안 되고, 화면도 "위에서 고른
+ * 분위기와는 다를 수 있어요"라고 미리 발뺌해야 했다. 지금은 네 스타일에 한
+ * 곡씩이라 고른 분위기를 그대로 들어 볼 수 있다 — 고른 것이 맨 앞에 온다.
  */
 export function SamplePreviewRow() {
   const { playing, toggle } = useSamplePlayer();
+  const { s } = useSession();
+  const list = samplesFor(s.style);
 
   return (
     <>
-      <div className="mt-3 grid grid-cols-3 gap-2.5">
-        {SAMPLE_SONGS.map((song, i) => {
+      <ul className="mt-3 space-y-2">
+        {list.map((song) => {
           const on = playing === song.id;
+          const chosen = song.styleId === s.style;
           return (
-            <button
-              key={song.id}
-              type="button"
-              onClick={() => toggle(song.id, song.src)}
-              aria-label={`예시 ${'ABC'[i]} ${on ? '멈추기' : '들어보기'}`}
-              className={`flex min-h-[64px] items-center gap-2 rounded-[16px] px-2.5 text-left shadow-[0_2px_10px_rgba(122,84,46,0.06)] ${
-                on ? 'bg-brand-100' : 'bg-surface'
-              }`}
-            >
-              <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 ${
-                  on
-                    ? 'border-brand-600 bg-brand-600 text-white'
-                    : 'border-brand-400 text-brand-600'
-                }`}
+            <li key={song.id}>
+              <button
+                type="button"
+                onClick={() => toggle(song.id, song.src)}
+                aria-label={`${song.style} 예시 ${on ? '멈추기' : '들어보기'}`}
+                className={`flex min-h-[64px] w-full items-center gap-3 rounded-[16px] px-3 text-left shadow-[0_2px_10px_rgba(122,84,46,0.06)] ${
+                  on ? 'bg-brand-100' : 'bg-surface'
+                } ${chosen ? 'border-2 border-brand-400' : ''}`}
               >
-                {on ? (
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
-                    <rect x="6" y="5" width="4" height="14" rx="1.4" />
-                    <rect x="14" y="5" width="4" height="14" rx="1.4" />
-                  </svg>
-                ) : (
-                  <IconPlay size={14} />
-                )}
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-[0.875rem] font-bold text-ink-900">
-                  예시 {'ABC'[i]}
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 ${
+                    on
+                      ? 'border-brand-600 bg-brand-600 text-white'
+                      : 'border-brand-400 text-brand-600'
+                  }`}
+                >
+                  {on ? (
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                      <rect x="6" y="5" width="4" height="14" rx="1.4" />
+                      <rect x="14" y="5" width="4" height="14" rx="1.4" />
+                    </svg>
+                  ) : (
+                    <IconPlay size={15} />
+                  )}
                 </span>
-                <span className="block text-[0.8125rem] text-ink-500">
-                  {sampleLength(song.seconds)}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[1rem] font-bold text-ink-900">
+                    {song.style}
+                    {/* 고른 분위기를 글자로도 밝힌다. 테두리만으로는 색을
+                        구별하기 어려운 분이 알 수 없다. */}
+                    {chosen ? (
+                      <span className="ml-1.5 text-[0.8125rem] font-extrabold text-brand-700">
+                        고르신 분위기
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="block text-[0.8125rem] text-ink-500">
+                    {sampleLength(song.seconds)}
+                  </span>
                 </span>
-              </span>
-            </button>
+              </button>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
       <p className="mt-2.5 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
-        미리 만들어 둔 예시 곡이라 들어도 요금이 들지 않아요. 셋 다{' '}
-        <strong>잔잔한 발라드</strong>로 만든 것이어서, 위에서 고른 분위기와는
-        다를 수 있어요.
+        미리 만들어 둔 예시 곡이라 들어도 요금이 들지 않아요. 네 곡 모두 같은
+        가사로 만든 것이라, 분위기에 따라 어떻게 달라지는지 견줘 보실 수 있어요.
+        어르신의 곡이 아니라 <strong>예시</strong>입니다.
       </p>
     </>
   );
 }
+
