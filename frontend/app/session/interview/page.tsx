@@ -167,8 +167,16 @@ export default function InterviewPage() {
       subtitle="질문을 천천히 읽고 이야기를 들어요"
       decoration={<Ornaments variant="notes" />}
       footer={
+        /*
+         * 예전 라벨은 '이야기 저장'이었는데 저장하는 것이 없었다. 다음 화면으로
+         * 넘어갈 뿐이고, 녹음은 이미 1초마다 기기에 쌓이고 있다. 그런데 그
+         * 이름 때문에 "녹음을 눌러 이야기가 됐다"고 읽혔다 — 29초를 녹음하고
+         * 이 버튼을 누른 사람이 다음 화면의 예시 이야기를 자기 이야기로 보고
+         * "왜 그대로냐"고 물었다. 녹음을 글로 옮기는 일은 4단계에서 따로
+         * 일어난다. 버튼은 자기가 하는 일만 말한다.
+         */
         <PrimaryButton href="/session/confirm" leading={<IconSave size={22} />}>
-          이야기 저장
+          {rec.savedAt ? '녹음 마치고 다음으로' : '다음으로'}
         </PrimaryButton>
       }
     >

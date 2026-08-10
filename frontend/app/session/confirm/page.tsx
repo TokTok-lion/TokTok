@@ -4,17 +4,37 @@ import Link from 'next/link';
 import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, CheckCircle, Chevron, NoteBar, PrimaryButton } from '@/components/ui';
-import { IconChat, IconShield } from '@/components/icons';
+import { IconChat, IconInfo, IconShield } from '@/components/icons';
 import { lyricInputs } from '@/lib/domain';
+import { mmss, useRecorder } from '@/lib/recorder';
 import { sceneForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
-/** 인터뷰 내용 확인 (deck p.13) */
+/**
+ * 인터뷰 내용 확인 (deck p.13)
+ *
+ * 이 화면이 오래 거짓말을 했다.
+ *
+ * 인터뷰에서 29초를 녹음하고 넘어오면 '확인된 이야기' 아래 네 줄이 떠 있다.
+ * 그런데 그 네 줄은 둘러보기용 씨앗이고, 녹음은 아직 글로 옮겨지지도 않았다.
+ * 옮기는 일은 4단계에서 버튼을 눌러야 일어난다. 화면에는 그 말이 어디에도
+ * 없었고 제목은 '인터뷰 내용 확인'이었으니, 방금 말씀하신 내용이라고 읽지
+ * 않을 도리가 없다.
+ *
+ * 그래서 순서를 바꿨다. 옮기지 않은 녹음이 있으면 그 사실이 화면에서 가장
+ * 먼저 나오고, 예시 이야기에는 예시라고 적는다.
+ */
 export default function ConfirmPage() {
   const { s } = useSession();
+  const rec = useRecorder();
   const verified = lyricInputs(s.story);
   const followUps = s.story.filter((i) => i.status === 'unverified' && i.followUp);
+
+  // 기기에 녹음이 있는데 그 녹음에서 나온 전사가 한 줄도 없는 상태.
+  // 씨앗 전사에는 example 표가 붙어 있어 여기서 걸러진다.
+  const waiting = Boolean(rec.savedAt) && !s.transcript.some((t) => !t.example);
+  const examples = verified.filter((i) => i.example).length;
 
   // 그림은 오늘 이야기에서 나온다(/records·/session/song 과 같은 해석기).
   // 여기만 'album_briefcase_coins' 한 장이 박혀 있어서, 손주 이야기를 확인하는
@@ -33,7 +53,10 @@ export default function ConfirmPage() {
             href="/session/transcript"
             trailing={<Chevron className="text-white" />}
           >
-            확인하고 다음으로
+            {/* 옮기지 않은 녹음이 있으면 버튼이 그 일을 가리킨다.
+                '확인하고 다음으로'는 무엇이 확인됐다는 것인지 말하지 않아서,
+                이미 다 된 줄 알고 누르게 된다. */}
+            {waiting ? '녹음을 글로 옮기러 가기' : '확인하고 다음으로'}
           </PrimaryButton>
           <div className="mt-3 text-center">
             <Link
@@ -73,10 +96,38 @@ export default function ConfirmPage() {
         />
       </Card>
 
+      {/* 화면에서 가장 먼저 나와야 하는 사실 — 방금 녹음한 말씀은 아직
+          글이 되지 않았다. 이 안내가 없으면 아래 목록이 오늘 인터뷰 결과로
+          읽힌다. */}
+      {waiting ? (
+        <Card className="mt-4 border-2 border-brand-300 p-4">
+          <p className="flex items-center gap-2 text-[1.0625rem] font-extrabold text-brand-800">
+            <IconInfo size={20} className="shrink-0" />
+            녹음은 아직 글로 옮기지 않았어요
+          </p>
+          <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+            {mmss(rec.seconds)} 녹음이 이 기기에 저장돼 있어요. 다음 화면에서{' '}
+            <strong>「녹음에서 옮기기」</strong>를 누르면 어르신 말씀이 글이 되고,
+            그다음 <strong>「이야기 뽑기」</strong>를 누르면 아래 목록이 어르신
+            말씀으로 바뀝니다.
+          </p>
+          <p className="mt-2 text-[0.875rem] leading-relaxed text-ink-500">
+            지금 아래 보이는 것은 오늘 들은 이야기가 아니에요.
+          </p>
+        </Card>
+      ) : null}
+
       <h2 className="mt-5 flex items-center gap-2 text-[1.125rem] font-extrabold text-leaf-700">
         <CheckCircle size={26} />
         확인된 이야기
       </h2>
+
+      {examples > 0 ? (
+        <p className="mt-2 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.8125rem] font-bold leading-relaxed text-ink-700">
+          아래 {examples}건은 둘러보기용 <strong>예시</strong>예요 — 어르신께서
+          하신 말씀이 아닙니다.
+        </p>
+      ) : null}
 
       <ul className="mt-3 space-y-3">
         {verified.map((i) => (
@@ -86,6 +137,14 @@ export default function ConfirmPage() {
               <p className="text-[1.125rem] font-bold leading-snug text-ink-900">
                 {i.text}
               </p>
+              {/* 목록 위 안내만으로는 부족하다. 줄마다 '출처 · 어르신 음성
+                  0:42'가 붙어 있어서, 방금 녹음한 사람은 그 시각이 자기
+                  녹음의 시각이라고 읽는다. */}
+              {i.example ? (
+                <p className="mt-1 inline-block rounded-full bg-surface-sunk px-2 py-0.5 text-[0.75rem] font-extrabold text-ink-700">
+                  예시 · 실제 녹음이 아니에요
+                </p>
+              ) : null}
               {/* 출처 없는 문장은 여기 도달할 수 없다 (NFR-AI-002) */}
               <p className="mt-1 text-[0.8125rem] font-semibold text-ink-500">
                 출처 · {i.sources.map((sc) => sc.label).join(', ')}
