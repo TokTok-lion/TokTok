@@ -361,6 +361,36 @@ export default function InterviewPage() {
       </p>
 
       {/*
+        마이크가 잠긴 이유를 마이크 옆에 놓는다.
+        예전에는 버튼에 '녹음 불가' 넉 자만 있고, 왜인지와 어디로 가면 되는지는
+        화면 한참 아래 안내줄에 있었다. 스크롤해서 그걸 찾기 전에는 마이크가
+        고장 났다고 읽는다 — 실제로 그렇게 읽고 장치를 한참 뒤졌다.
+        이유는 잠긴 것 옆에, 갈 곳은 그 자리에서.
+      */}
+      {!canRecord ? (
+        <Card className="mt-3 border-2 border-brand-300 p-4">
+          <p className="flex items-center gap-2 text-[1.0625rem] font-extrabold text-brand-800">
+            <IconInfo size={20} className="shrink-0" />
+            아직 녹음 동의를 받지 않았어요
+          </p>
+          <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+            {s.elder.honorific}께 여쭙고 동의를 받으시면 마이크가 열려요. 마이크나
+            기기 문제가 아닙니다.
+          </p>
+          <Link
+            href="/session/checklist"
+            className="mt-3 flex min-h-[52px] items-center justify-center rounded-[14px] bg-brand-700 text-[1rem] font-bold text-white"
+          >
+            회기 준비에서 동의 여쭙기
+          </Link>
+          <p className="mt-2 text-[0.875rem] leading-relaxed text-ink-500">
+            동의 없이 오늘 회기를 이어 가셔도 됩니다 — 아래 &lsquo;다음으로&rsquo;를
+            누르시고, 이야기 정리에서 복지사가 어르신 말씀을 직접 적으실 수 있어요.
+          </p>
+        </Card>
+      ) : null}
+
+      {/*
         소리가 안 들어오고 있으면 지금 말한다.
         예전에는 마이크 옆 막대가 Math.sin 으로 그린 그림이라, 무음을 담고
         있어도 소리가 들어오는 것처럼 보였다. 50초를 녹음하고 두 화면을
@@ -416,8 +446,8 @@ export default function InterviewPage() {
           </NoteBar>
         ) : (
           <NoteBar tone="brand" icon={<IconShield size={20} />}>
-            녹음 동의가 없어 마이크를 켜지 않았어요. 복지사가 말씀을 받아 적어
-            기록할 수 있어요.
+            동의를 받기 전에는 마이크를 켜지 않아요. 어르신 목소리가 담기는
+            일이라 그것만은 자동일 수 없습니다.
           </NoteBar>
         )}
       </div>
