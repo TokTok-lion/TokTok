@@ -6,9 +6,10 @@ import { Art } from '@/components/Art';
 import { SpeakButton } from '@/components/SpeakButton';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, IconCircle, MicLevel, NoteBar, PrimaryButton } from '@/components/ui';
-import { IconInfo, IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
+import { IconBack, IconInfo, IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
 import { QUESTION_LEVELS, hasConsent, type QuestionLevel } from '@/lib/domain';
 import { mmss, releaseRecording, useMicLevel, useRecorder } from '@/lib/recorder';
+import { PROMPT_KIND_LABEL, interviewFlow } from '@/lib/prompts';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
 import { currentSession, setSessionField, useSession } from '@/lib/store';
 import { useTranscribeStatus } from '@/lib/transcribeJob';
@@ -79,40 +80,7 @@ const OPEN_QUESTIONS: Record<QuestionLevel, string> = {
   3: '오늘 들려주고 싶은 이야기를 편하게 이야기해 주세요.',
 };
 
-/** 이어서 여쭐 보조 질문. 순서는 누구 · 기분 · 그다음이며 PROMPT_ART 와 맞춘다. */
-const CARD_FOLLOW_UPS: Record<string, string[]> = {
-  friends: [
-    '그 친구는 어떤 분이셨어요?',
-    '그 친구를 만나면 기분이 어떠셨어요?',
-    '둘이서 주로 무엇을 하고 지내셨어요?',
-  ],
-  family: [
-    '그 자리에 누가 함께 계셨어요?',
-    '그때 마음이 어떠셨어요?',
-    '집에서는 주로 무엇을 하며 지내셨어요?',
-  ],
-  school: [
-    '학교에서 누구와 가까이 지내셨어요?',
-    '학교 가는 길은 어떤 기분이었어요?',
-    '수업이 끝나면 무엇을 하셨어요?',
-  ],
-  play: [
-    '누구와 함께 노셨어요?',
-    '그때 기분은 어떠셨어요?',
-    '그 놀이는 어떻게 하는 거였어요?',
-  ],
-  holiday: [
-    '명절에는 누가 모이셨어요?',
-    '그날 기분은 어떠셨어요?',
-    '명절에 무엇을 하며 지내셨어요?',
-  ],
-};
 
-const DEFAULT_FOLLOW_UPS = [
-  '그 자리에 누가 함께 계셨어요?',
-  '그때 기분은 어떠셨어요?',
-  '그다음엔 어떻게 되었어요?',
-];
 
 const LEVELS: QuestionLevel[] = [1, 2, 3];
 
@@ -145,11 +113,20 @@ export default function InterviewPage() {
   const [asked, setAsked] = useState(0);
 
   const card = SEED_MEMORY_CARDS.find((c) => c.id === s.memoryCard) ?? null;
-  const questions = questionsFor(s.memoryCard, s.topic, s.questionLevel);
-  const question = questions[asked % questions.length];
-  const followUps = s.memoryCard
-    ? CARD_FOLLOW_UPS[s.memoryCard] ?? DEFAULT_FOLLOW_UPS
-    : DEFAULT_FOLLOW_UPS;
+  const levels = questionsFor(s.memoryCard, s.topic, s.questionLevel);
+
+  /*
+   * 오늘 여쭐 질문 전체.
+   *
+   * 예전에는 난이도 세 개를 돌려쓰는 것이 전부였다 — 회기당 질문 셋이라
+   * 20~30분을 끌고 갈 수가 없다. 복지사가 "이제 뭘 여쭙지" 하고 멈추면
+   * 어르신도 멈추신다. lib/prompts.ts 에 장면·사람·감각·사건·마음 순서로
+   * 엮은 흐름을 두고, 여는 질문만 고른 난이도를 따른다.
+   */
+  const flow = interviewFlow(levels[0].text, s.memoryCard, s.questionLevel);
+  const at = Math.min(asked, flow.length - 1);
+  const question = { ...flow[at], level: levels[0].level };
+  const nextUp = flow.slice(at + 1, at + 4);
 
   // 녹음 동의가 없으면 마이크는 시작조차 하지 않는다 (F-SW-INT-001)
   const canRecord = hasConsent(s.elder.consents, 'recording');
@@ -250,8 +227,7 @@ export default function InterviewPage() {
             : s.topic
               ? '오늘 주제'
               : '주제 없이 여는 질문'}{' '}
-          · {question.level}단계{' '}
-          {levelName(question.level)}
+          · {PROMPT_KIND_LABEL[question.kind]} · {at + 1}번째 / 전체 {flow.length}
         </p>
 
         {/*
@@ -261,13 +237,11 @@ export default function InterviewPage() {
           나머지 둘로 가는 길은 화면 한참 아래 '질문 건너뛰기'다.
           숫자만 적지 말고 무엇의 몇 번째인지와 어떻게 넘기는지를 함께 적는다.
         */}
-        {questions.length > 1 ? (
-          <p className="mt-1 text-center text-[0.875rem] font-semibold text-ink-500">
-            어려워하시면 아래 <strong>질문 건너뛰기</strong>로 더 쉬운 질문으로
-            바꿀 수 있어요 (난이도 {(asked % questions.length) + 1}/
-            {questions.length})
-          </p>
-        ) : null}
+        <p className="mt-1 text-center text-[0.875rem] font-semibold text-ink-500">
+          {at === 0
+            ? `${levelName(question.level)}으로 엽니다 — 말문이 트이시면 아래에서 다음 질문으로`
+            : '천천히 하나씩 여쭤 주세요. 어려워하시면 넘기셔도 됩니다'}
+        </p>
 
         {/* 글씨가 잘 안 보이는 어르신께 읽어 드린다. 질문은 우리가 쓴 문장이라
             어르신 개인정보가 밖으로 나가지 않는다 — 외부 AI 동의와 무관하다. */}
@@ -283,10 +257,10 @@ export default function InterviewPage() {
             카드가 셋 있으니 그 셋이 2·3번 질문으로 읽혔다. 무엇인지 적어
             두면 그렇게 읽히지 않는다. */}
         <p className="mt-4 text-[0.875rem] font-bold text-leaf-700">
-          말씀이 이어지면 여쭤볼 것
+          다음에 여쭤볼 것
         </p>
         <ul className="mt-2 space-y-2.5">
-          {followUps.map((text, i) => (
+          {nextUp.map(({ text }, i) => (
             <li
               key={text}
               className="flex min-h-[64px] w-full items-center gap-3 rounded-[16px] border border-hairline bg-surface-strong px-3.5"
@@ -464,18 +438,47 @@ export default function InterviewPage() {
         </p>
       ) : null}
 
-      {/* 넘기면 다음 질문이 실제로 바뀐다. 예전에는 핸들러가 없어 눌러도
-          같은 문장이 그대로 있었다. */}
-      <div className="mt-3 flex justify-center">
+      {/*
+        질문 사이를 오간다.
+        예전에는 '건너뛰기' 하나뿐이라 한 방향으로만 갈 수 있었다. 어르신이
+        앞 질문에 다시 답하려 하시면 되돌아갈 길이 없었고, 회기당 질문이
+        셋이라 몇 분 만에 바닥났다. 지금은 아홉 개 안팎을 앞뒤로 오간다.
+      */}
+      <div className="mt-3 grid grid-cols-2 gap-2.5">
         <button
           type="button"
-          onClick={() => setAsked((v) => v + 1)}
-          className="flex min-h-[50px] items-center gap-2 rounded-full border-2 border-brand-300 bg-surface-strong px-6 text-[1.0625rem] font-bold text-brand-700"
+          onClick={() => setAsked((v) => Math.max(0, v - 1))}
+          disabled={at === 0}
+          className="flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.0625rem] font-bold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
         >
-          질문 건너뛰기
+          <IconBack size={19} />
+          앞 질문
+        </button>
+        <button
+          type="button"
+          onClick={() => setAsked((v) => Math.min(flow.length - 1, v + 1))}
+          disabled={at >= flow.length - 1}
+          className="flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.0625rem] font-bold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
+        >
+          다음 질문
           <IconSkip size={19} />
         </button>
       </div>
+
+      {/* 마지막 질문에서 길이 끊기지 않게 한다. 여기가 회기의 끝은 아니다 —
+          더 여쭙고 싶으시면 기억 카드를 바꿔 다른 이야기로 들어가면 된다. */}
+      {at >= flow.length - 1 ? (
+        <p className="mt-2 text-center text-[0.875rem] leading-relaxed text-ink-500">
+          여쭐 것을 다 물으셨어요. 더 이야기하고 싶어 하시면{' '}
+          <Link
+            href="/session/cards"
+            className="font-bold text-leaf-700 underline underline-offset-2"
+          >
+            기억 카드
+          </Link>
+          를 바꿔 다른 이야기로 들어가셔도 돼요. 녹음은 계속됩니다.
+        </p>
+      ) : null}
 
       <div className="mt-4">
         {canRecord ? (
