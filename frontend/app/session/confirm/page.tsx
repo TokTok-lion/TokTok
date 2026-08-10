@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
 import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, CheckCircle, Chevron, NoteBar, PrimaryButton } from '@/components/ui';
@@ -9,6 +10,7 @@ import { lyricInputs } from '@/lib/domain';
 import { mmss, useRecorder } from '@/lib/recorder';
 import { sceneForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
+import { autoTranscribe, useTranscribeJob } from '@/lib/transcribeJob';
 import type { ArtKey } from '@/lib/art';
 
 /**
@@ -28,6 +30,23 @@ import type { ArtKey } from '@/lib/art';
 export default function ConfirmPage() {
   const { s } = useSession();
   const rec = useRecorder();
+  const job = useTranscribeJob();
+
+  /*
+   * 녹음은 여기 도착하는 순간 끝난다.
+   *
+   * 인터뷰 화면에는 '정지'가 없다 — 버튼은 시작과 일시정지뿐이고, 화면을
+   * 벗어날 때 releaseRecording() 이 마이크를 닫는다. 그러니 이 화면에
+   * 도착했다는 것이 곧 "녹음이 끝났다"는 뜻이다. 옮기는 일을 여기서 걸어
+   * 두면, 복지사가 어르신과 마무리 인사를 나누는 동안 뒤에서 돌아간다.
+   *
+   * 동의가 없으면 autoTranscribe 가 조용히 아무것도 하지 않는다. 어르신
+   * 목소리가 기기를 떠나는 일이라 그것만은 자동일 수 없다.
+   */
+  useEffect(() => {
+    void autoTranscribe();
+  }, []);
+
   const verified = lyricInputs(s.story);
   const followUps = s.story.filter((i) => i.status === 'unverified' && i.followUp);
 
@@ -103,16 +122,39 @@ export default function ConfirmPage() {
         <Card className="mt-4 border-2 border-brand-300 p-4">
           <p className="flex items-center gap-2 text-[1.0625rem] font-extrabold text-brand-800">
             <IconInfo size={20} className="shrink-0" />
-            녹음은 아직 글로 옮기지 않았어요
+            {job.kind === 'busy'
+              ? '녹음을 글로 옮기고 있어요'
+              : job.kind === 'error'
+                ? '녹음을 글로 옮기지 못했어요'
+                : '녹음은 아직 글로 옮기지 않았어요'}
           </p>
-          <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-            {mmss(rec.seconds)} 녹음이 이 기기에 저장돼 있어요. 다음 화면에서{' '}
-            <strong>「녹음에서 옮기기」</strong>를 누르면 어르신 말씀이 글이 되고,
-            그다음 <strong>「이야기 뽑기」</strong>를 누르면 아래 목록이 어르신
-            말씀으로 바뀝니다.
-          </p>
+
+          {job.kind === 'busy' ? (
+            <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+              {mmss(rec.seconds)} 녹음을 옮기는 중이에요. 어르신과 마무리
+              인사를 나누시는 동안 뒤에서 계속 돌아가고, 다음 화면에서 결과를
+              보실 수 있어요. 길면 1분이 넘습니다.
+            </p>
+          ) : job.kind === 'error' ? (
+            <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+              {job.message} 녹음은 이 기기에 그대로 남아 있어요 — 다음 화면의{' '}
+              <strong>「녹음에서 옮기기」</strong>로 다시 시도하시거나, 복지사가
+              직접 받아 적으셔도 됩니다.
+            </p>
+          ) : (
+            /* 자동으로 시작하지 못하는 경우는 사실상 하나다 — 녹음이나 외부 AI
+               전송에 동의하지 않으신 회기. 어르신 목소리가 기기를 떠나는 일이라
+               그것만은 자동일 수 없다. */
+            <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+              {mmss(rec.seconds)} 녹음이 이 기기에 저장돼 있어요. 동의를 받으신
+              뒤 다음 화면에서 <strong>「녹음에서 옮기기」</strong>를 누르면
+              어르신 말씀이 글이 됩니다.
+            </p>
+          )}
+
           <p className="mt-2 text-[0.875rem] leading-relaxed text-ink-500">
-            지금 아래 보이는 것은 오늘 들은 이야기가 아니에요.
+            아래 목록은 아직 오늘 들은 이야기가 아니에요. 옮긴 뒤 이야기 정리에서{' '}
+            <strong>「이야기 뽑기」</strong>를 누르면 어르신 말씀으로 바뀝니다.
           </p>
         </Card>
       ) : null}

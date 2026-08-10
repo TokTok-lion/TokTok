@@ -67,6 +67,14 @@ export type SessionState = {
   // 진짜 전사가 들어오면 통째로 교체되므로 저절로 사라진다.
   transcript: { id: string; text: string; at: number; example?: true }[];
   transcriptConfirmed: boolean;
+  /**
+   * 지금 전사가 어느 녹음에서 나왔는지 (recordingStore 의 savedAt).
+   *
+   * 자동 전사가 같은 녹음을 두 번 보내지 않게 하는 표다. 새로 녹음하면
+   * savedAt 이 바뀌므로 그 녹음은 다시 옮긴다. 실패한 경우에도 표를 남겨,
+   * 안 되는 녹음을 화면을 열 때마다 다시 보내지 않는다.
+   */
+  transcribedFrom: number | null;
   story: StoryItem[];
   /** 복지사가 사실 확인을 끝내고 가사로 넘긴 시점 (원칙 3 · 사람 검수) */
   storyConfirmed: boolean;
@@ -159,6 +167,9 @@ function seedState(): SessionState {
     checklist: { elder: true, cards: true, familyNote: true, mic: true },
     transcript: SEED_TRANSCRIPT,
     transcriptConfirmed: false,
+    // 씨앗 전사는 어느 녹음에서도 나오지 않았다. 표를 비워 두면 기기에 녹음이
+    // 생기는 순간 자동 전사가 그 녹음을 옮긴다.
+    transcribedFrom: null,
     story: SEED_STORY,
     storyConfirmed: false,
     lyrics: SEED_LYRICS,
@@ -243,6 +254,21 @@ const getSnapshot = () => state;
  */
 export function currentSession(): SessionState {
   return state;
+}
+
+/**
+ * 화면 밖에서 회기 값을 바꾼다.
+ *
+ * 훅의 set 은 그 컴포넌트가 살아 있는 동안만 쓸 수 있다. 전사처럼 몇 분씩
+ * 걸리는 일은 시작한 화면이 이미 사라진 뒤에 끝난다 — 인터뷰를 마치고
+ * 넘어가면서 시작한 전사가 전사 교정 화면에서 끝나는 식이다. 결과를 받을
+ * 자리가 화면에 묶여 있으면 그 사이에 넘긴 사람은 결과를 잃는다.
+ */
+export function setSessionField<K extends keyof SessionState>(
+  key: K,
+  value: SessionState[K],
+): void {
+  update({ ...state, [key]: value });
 }
 const getServerSnapshot = () => SERVER_SNAPSHOT;
 
@@ -341,6 +367,7 @@ export function beginSession(next: {
       ? {
           transcript: [],
           transcriptConfirmed: false,
+          transcribedFrom: null,
           story: [],
           storyConfirmed: false,
           lyrics: [],

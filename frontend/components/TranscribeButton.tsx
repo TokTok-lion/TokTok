@@ -1,14 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { Card } from './ui';
 import { ConsentGate, missingConsents } from './ConsentGate';
 import { hasConsent } from '@/lib/domain';
-import { settled } from '@/lib/longJob';
-import { loadRecording } from '@/lib/recordingStore';
 import { mmss } from '@/lib/recorder';
-import { currentSession, useSession } from '@/lib/store';
+import { useSession } from '@/lib/store';
+import { autoTranscribe, runTranscribe, useTranscribeJob } from '@/lib/transcribeJob';
 
 /**
  * 녹음을 글로 옮기기.
@@ -23,10 +22,15 @@ import { currentSession, useSession } from '@/lib/store';
  * 현실에서 지켜지지 않는다.
  */
 export function TranscribeButton() {
-  const { s, set } = useSession();
-  const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const { s } = useSession();
+  const job = useTranscribeJob();
+
+  // 이 화면에 도착했는데 아직 안 옮긴 녹음이 있으면 여기서도 시작한다.
+  // 보통은 인터뷰를 마치는 화면에서 이미 시작돼 있고, 그때는 조용히 지나간다.
+  // 주소를 직접 치거나 새로고침으로 들어온 경우를 위한 자리다.
+  useEffect(() => {
+    void autoTranscribe();
+  }, []);
 
   const canRecord = hasConsent(s.elder.consents, 'recording');
   const canSend = hasConsent(s.elder.consents, 'externalAi');
@@ -56,93 +60,51 @@ export function TranscribeButton() {
     );
   }
 
-  const run = async () => {
-    setState('busy');
-    setError(null);
-    setInfo(null);
-
-    const rec = await loadRecording();
-    if (!rec) {
-      setError('이 기기에 녹음이 없어요. 인터뷰 화면에서 먼저 녹음해 주세요.');
-      setState('idle');
-      return;
-    }
-
-    const form = new FormData();
-    form.append('file', rec.blob, 'interview.webm');
-
-    try {
-      // 긴 녹음은 한 요청 안에서 안 끝난다. 서버가 작업 번호를 주면 끝날
-      // 때까지 대신 물어봐 준다.
-      const res = await settled(
-        await fetch('/api/transcribe', { method: 'POST', body: form }),
-        (job) => `/api/transcribe?job=${encodeURIComponent(job)}`,
-      );
-      const json = (await res.json()) as {
-        segments?: { id: string; text: string; at: number }[];
-        error?: string;
-      };
-      if (!res.ok || !json.segments) {
-        setError(json.error ?? '전사하지 못했어요.');
-        setState('idle');
-        return;
-      }
-      set('transcript', json.segments);
-      /*
-       * 진짜 전사가 들어왔으면 둘러보기용 예시 이야기는 물러난다.
-       *
-       * 전사는 통째로 교체되는데 이야기 목록은 '이야기 뽑기'를 눌러야 바뀐다.
-       * 그 사이에 내 녹음에서 나온 전사와 씨앗 이야기 일곱 건이 한 회기에
-       * 나란히 놓였고, 씨앗 쪽에도 '출처 · 어르신 음성 0:42'가 붙어 있어서
-       * 어느 것이 자기 녹음인지 알 수 없었다. 실제로 그 질문을 받았다.
-       * 예시는 화면 모양을 보여 주는 동안까지만 쓸모가 있다.
-       */
-      const kept = currentSession().story.filter((i) => !i.example);
-      if (kept.length !== currentSession().story.length) set('story', kept);
-      setInfo(`${json.segments.length}줄 · 녹음 ${mmss(rec.seconds)}`);
-      setState('done');
-    } catch {
-      setError('연결하지 못했어요. 녹음은 그대로 남아 있습니다.');
-      setState('idle');
-    }
-  };
+  const busy = job.kind === 'busy';
 
   return (
     <Card className="mt-3 p-4">
-      <p className="text-[1rem] font-bold text-ink-900">녹음에서 자동으로 옮기기</p>
+      <p className="text-[1rem] font-bold text-ink-900">녹음에서 옮기기</p>
       <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">
-        어르신 목소리가 외부 서버로 전송돼요. 옮긴 뒤에는 복지사가 확인하고
-        고쳐 주세요.
+        인터뷰를 마치면 자동으로 시작해요. 어르신 목소리가 외부 서버로
+        전송되고, 옮긴 뒤에는 복지사가 확인하고 고쳐 주세요.
       </p>
 
       <button
         type="button"
-        onClick={() => void run()}
-        disabled={state === 'busy'}
+        onClick={() => void runTranscribe()}
+        disabled={busy}
         className={`mt-3 min-h-[52px] w-full rounded-[14px] text-[1rem] font-bold ${
-          state === 'busy'
+          busy
             ? 'pointer-events-none bg-surface-sunk text-ink-500'
             : 'bg-brand-700 text-white'
         }`}
       >
-        {state === 'busy'
+        {busy
           ? '옮기는 중… 길면 1분 넘게 걸려요'
-          : state === 'done'
+          : job.kind === 'done'
             ? '다시 옮기기'
             : '녹음에서 옮기기'}
       </button>
 
-      {info ? (
-        <p className="mt-2 text-center text-[0.875rem] font-bold text-leaf-700">
-          옮겼어요 — {info}
+      {/* 자동으로 시작된 것이면 그렇다고 밝힌다. 아무도 안 눌렀는데 어르신
+          목소리가 나가고 있으면, 그 사실을 화면이 말해야 한다. */}
+      {busy && job.auto ? (
+        <p className="mt-2 text-center text-[0.875rem] font-bold text-brand-700">
+          인터뷰를 마치면서 자동으로 시작했어요
         </p>
       ) : null}
-      {error ? (
+      {job.kind === 'done' ? (
+        <p className="mt-2 text-center text-[0.875rem] font-bold text-leaf-700">
+          옮겼어요 — {job.lines}줄 · 녹음 {mmss(job.seconds)}
+        </p>
+      ) : null}
+      {job.kind === 'error' ? (
         <p
           role="alert"
           className="mt-2 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.875rem] font-bold text-danger-600"
         >
-          {error}
+          {job.message}
         </p>
       ) : null}
     </Card>
