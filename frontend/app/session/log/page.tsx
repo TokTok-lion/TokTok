@@ -21,9 +21,9 @@ const MAX = 1000;
 /**
  * 자동 계산을 믿을 수 있는 최대 길이(분).
  *
- * 회기는 며칠에 걸쳐 이어지기도 한다(lib/flow.ts). 사흘 전에 시작한 회기의
- * 경과 시간은 '진행 시간'이 아니므로, 이보다 길면 재지 않고 복지사에게
- * 넘긴다.
+ * 회기는 며칠에 걸쳐 이어지기도 한다(lib/flow.ts). 사흘 전에 들은 인터뷰와
+ * 오늘 쓰는 활동일지 사이의 경과 시간은 '진행 시간'이 아니므로, 이보다 길면
+ * 재지 않고 복지사에게 넘긴다.
  */
 const MAX_AUTO_MINUTES = 180;
 
@@ -38,13 +38,13 @@ type Measure =
   /** 아직 기기 시계를 읽지 못함 — 서버가 미리 그린 화면이 여기다 */
   | { kind: 'pending' }
   | { kind: 'ok'; minutes: number }
-  /** 회기가 며칠에 걸쳐 이어짐 — 그 경과 시간은 '진행 시간'이 아니다 */
+  /** 인터뷰와 활동일지 사이가 너무 멀다 — 그 경과 시간은 '진행 시간'이 아니다 */
   | { kind: 'spread' }
   /** 시작 시각이 기기 시계보다 뒤 — 어느 쪽이 맞는지 앱은 모른다 */
   | { kind: 'skew' }
   | { kind: 'none' };
 
-/** 회기 시작부터 화면을 연 순간까지. 못 재면 왜 못 쟀는지까지 돌려준다. */
+/** 인터뷰 시작부터 화면을 연 순간까지. 못 재면 왜 못 쟀는지까지 돌려준다. */
 function measure(startedAt: string | null, openedAt: number | null): Measure {
   if (openedAt === null) return { kind: 'pending' };
   if (!startedAt) return { kind: 'none' };
@@ -61,6 +61,10 @@ function measure(startedAt: string | null, openedAt: number | null): Measure {
  * 예전에는 못 잰 이유를 'spread' 하나로 뭉뚱그려서, 시작 시각이 기기 시계보다
  * 뒤인 회기에도 "하루를 넘겨 이어져서"라고 적었다. 하루를 넘긴 적 없는 회기를
  * 그렇게 적으면 그건 지어낸 말이다.
+ *
+ * 그 '하루'도 지어낸 말이었다. 코드가 보는 것은 날짜가 아니라 MAX_AUTO_MINUTES
+ * 하나뿐이라, 아침에 인터뷰하고 오후에 일지를 쓴 같은 날 회기에도 하루를 넘겼다고
+ * 적혔다. 재지 않은 것을 말할 때도 실제로 본 것만 말한다.
  */
 function emptyNote(m: Measure, cleared: boolean): string {
   if (cleared) return '진행 시간이 비어 있어요.';
@@ -68,11 +72,11 @@ function emptyNote(m: Measure, cleared: boolean): string {
     case 'pending':
       return '진행 시간을 재는 중이에요.';
     case 'spread':
-      return '회기가 하루를 넘겨 이어져서 자동으로 재지 않았어요.';
+      return `인터뷰를 시작한 지 ${MAX_AUTO_MINUTES / 60}시간이 넘어 자동으로 재지 않았어요.`;
     case 'skew':
-      return '회기 시작 시각이 이 기기의 시계보다 뒤라 재지 못했어요.';
+      return '인터뷰 시작 시각이 이 기기의 시계보다 뒤라 재지 못했어요.';
     case 'none':
-      return '회기 시작 시각이 남아 있지 않아 자동으로 재지 못했어요.';
+      return '인터뷰 시작 시각이 남아 있지 않아 자동으로 재지 못했어요.';
     case 'ok':
       return '진행 시간이 비어 있어요.';
   }
@@ -141,9 +145,17 @@ export default function LogPage() {
    * 회기도 50분짜리 회기도 30분으로 남는 셈이라, 서비스 제공 실적을 증빙하는
    * 문서에 재 본 적 없는 숫자가 들어갔다.
    *
-   * 이제는 체크리스트에서 '인터뷰 시작'을 누른 시각(remoteStartedAt)부터
-   * 지금까지를 재서 채운다. 잴 수 없으면 비워 두고 복지사가 직접 적는다.
-   * 빈 칸은 '—'로 나간다 — 모르는 것은 모른다고 두는 편이 낫다.
+   * 그다음에는 remoteStartedAt 부터 재서 채웠는데, 그것도 잰 값이 아니었다.
+   * 그 시각은 체크리스트가 아니라 어르신 목록에서 이름을 누른 순간에 찍힌다
+   * (store.beginSession). 목록을 띄워 놓고 점심을 먹고 온 날, 30분 남짓 앉아
+   * 있었던 회기의 진행 시간이 86분으로 나갔다. 화면은 그걸 두고 "인터뷰를
+   * 시작한 시각부터 재서 채웠어요"라고 적고 있었으니, 복지사가 의심할 이유도
+   * 없었다.
+   *
+   * 이제는 인터뷰를 실제로 시작한 시각(interviewStartedAt)부터 지금까지를
+   * 재서 채운다 — 체크리스트에서 '인터뷰 시작'을 누른 순간, 그 화면을 거치지
+   * 않았으면 인터뷰 화면에 들어선 순간이다. 잴 수 없으면 비워 두고 복지사가
+   * 직접 적는다. 빈 칸은 '—'로 나간다 — 모르는 것은 모른다고 두는 편이 낫다.
    *
    * 기기 시계로만 알 수 있는 값이라 서버가 미리 그리는 화면에는 없다. 이
    * 저장소는 그런 값을 useSyncExternalStore 로 읽는다(app/home/page.tsx 의
@@ -170,7 +182,7 @@ export default function LogPage() {
    */
   const [openedAt] = useState(() => Date.now());
   const deviceNow = useSyncExternalStore(noSubscribe, () => openedAt, noClock);
-  const measured = measure(s.remoteStartedAt, deviceNow);
+  const measured = measure(s.interviewStartedAt, deviceNow);
 
   // null 은 "복지사가 아직 손대지 않음"이고 '' 는 "복지사가 지웠음"이다. 둘을
   // 구분해야 지운 칸을 잰 값으로 도로 채우지 않는다.

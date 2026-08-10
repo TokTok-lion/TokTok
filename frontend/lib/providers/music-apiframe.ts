@@ -30,21 +30,119 @@ const BASE = 'https://api.apiframe.ai/v2';
  * 어느 모델이든 약점은 보컬이라 부탁할 것도 같다 — 굴리지 말고, 한 글자에
  * 한 음, 또박또박. 듣는 분들은 고역 청력이 먼저 떨어지므로 자음이 살아야
  * 하고, 따라 부르실 수 있어야 하므로 음역이 좁아야 한다.
+ *
+ * ── 빠르기를 왜 숫자로 박아 두는가 ─────────────────────────────
+ *
+ * 여기 장르만 적고 빠르기를 말하지 않던 시절이 있었다(ballad 에만 'slow'가
+ * 있었다). 그러면 모델이 그 장르의 흔한 속도를 고른다 — 트로트의 흔한 속도는
+ * 120~130 BPM 이다. 그 곡을 어르신 앞에 틀어 드렸더니 "너무 빠르다"는 말이
+ * 돌아왔다. 감상용으로는 멀쩡한 곡이었지만, 이 제품의 노래는 감상용이 아니라
+ * 함께 부르는 노래다. 따라 부를 수 없으면 만든 값을 못 한 것이다.
+ *
+ * 기준으로 삼은 것: 회상·집단가창 프로그램에서 어르신과 함께 부르는 곡은
+ * 대체로 분당 60~80박이 권장된다. 안정 시 맥박과 편안한 걸음의 속도이고,
+ * 그 언저리에서 숨과 박이 맞는다. 나이가 들면 소리를 듣고 말로 알아듣기까지
+ * 걸리는 시간이 길어지므로, 가사 한 줄과 다음 줄 사이에 숨 돌릴 자리가
+ * 있어야 따라올 수 있다.
+ *
+ * 그 60~80 안에서 장르마다 다르게 놓았다. 트로트와 민요풍을 같은 숫자로
+ * 묶으면 둘 다 어색해진다 — 장르가 서 있는 자리가 다르기 때문이다.
+ *
+ *   ballad     64  가장 느리게. 발라드는 한 음을 길게 끌기 때문에 여기서 더
+ *                  내리면 한 줄을 한 숨에 못 부르신다. 60이 바닥이다.
+ *   folkTrad   70  굿거리처럼 흔들리는 결이라 아주 느리면 가락이 처진다.
+ *                  느긋하되 멈추지 않는 자리.
+ *   trot       74  흔한 트로트(120~130)의 절반 언저리. 화면에 적힌 이름이
+ *                  '느린 트로트'인데 120이 나오면 이름이 거짓말이 된다.
+ *   folkBright 78  넷 중 가장 밝고 빠르다. 그래도 권장 상한인 80을 넘기지
+ *                  않는다 — '밝다'와 '빠르다'는 같은 말이 아니다.
+ *
+ * 주의: 모델은 bpm 을 지시가 아니라 힌트로 본다. 숫자만 적으면 절반·두 배로
+ * 알아듣는 일이 있어서(74 를 148 로 치는 식), 숫자 옆에 'slow',
+ * 'unhurried' 같은 말을 함께 둔다. 막는 쪽은 AVOID 가 한 번 더 맡는다.
+ *
+ * 이 숫자를 바꾸려거든 어르신 앞에서 들어 보고 바꿔라. 위 근거보다 현장에서
+ * 들은 것이 세다. 다만 근거 없이 올리지는 마라 — 올라가는 방향은 언제나
+ * 만든 사람에게만 편하다.
  */
 const STYLE: Record<string, string> = {
   folkTrad:
-    'korean traditional folk, minyo, warm and homely, acoustic, gentle pentatonic',
-  folkBright: 'korean acoustic folk, bright, warm, acoustic guitar, easy singalong',
-  ballad: 'korean ballad, tender, upright piano, small strings, slow, comforting',
-  trot: 'korean trot, sentimental, nostalgic, electric organ, brushed drums',
+    'korean traditional folk, minyo, warm and homely, acoustic, gentle pentatonic, ' +
+    'unhurried, slow steady tempo around 70 bpm',
+  folkBright:
+    'korean acoustic folk, bright, warm, acoustic guitar, easy singalong, ' +
+    'relaxed walking pace, slow steady tempo around 78 bpm',
+  ballad:
+    'korean ballad, tender, upright piano, small strings, comforting, ' +
+    'very slow and spacious, steady tempo around 64 bpm',
+  trot:
+    'korean trot, sentimental, nostalgic, electric organ, brushed drums, ' +
+    'slow trot at about half the usual trot speed, steady tempo around 74 bpm',
 };
 
+/**
+ * 창법·녹음 지시.
+ *
+ * 근거를 하나씩 달아 둔다. 이 문자열은 눈에 안 보이는 곳에 있어서, 왜 이 말이
+ * 여기 있는지 모르면 다음 사람이 "장황하다"며 지우기 쉽다.
+ *
+ *   crisp consonants           고역 청력이 먼저 떨어진다(노인성 난청). 모음은
+ *                              웬만하면 들리지만 ㅅ·ㅊ·ㅋ 처럼 높은 데 실린
+ *                              자음이 먼저 사라진다. 자음이 뭉개지면 소리는
+ *                              들리는데 말은 안 들리는 상태가 된다.
+ *   lead vocal well in front   반주가 목소리와 같은 크기면 목소리가 덮인다.
+ *   soft sparse backing        난청이 있으면 소리 두 개를 갈라 듣는 일이 더
+ *                              어렵기 때문에, 건강한 귀보다 더 벌려 줘야 한다.
+ *   very short intro           전주가 길면 "언제 시작하나" 하고 기다리다
+ *                              지치신다. 회기 시간도 길지 않다. 목소리가
+ *                              먼저 나와야 무엇을 하는 시간인지 안다.
+ *   steady tempo / no key      따라 부르는 중에 빨라지거나 조가 바뀌면
+ *                              그 자리에서 놓치신다. 한 번 놓치면 다시
+ *                              들어오기 어렵다.
+ *   within one octave          음역이 넓으면 높은 데서 목이 안 따라간다.
+ */
 const VOICE =
-  'clear korean diction, one note per syllable, no melisma, no heavy vibrato, ' +
-  'warm mid-range voice, simple singable melody within one octave, ' +
-  'sparse arrangement, natural breaths, warm analog recording';
+  'clear korean diction, crisp consonants, one note per syllable, no melisma, ' +
+  'no heavy vibrato, warm mid-range voice, simple singable melody within one octave, ' +
+  'steady tempo throughout, no tempo change, no key change, ' +
+  'lead vocal well in front of the accompaniment, soft sparse backing under the voice, ' +
+  'very short intro with the vocal entering in the first few seconds, ' +
+  'natural breaths between lines, warm analog recording';
 
-const AVOID = 'shouting, heavy autotune, edm, rap, distorted guitar';
+/**
+ * 막을 것.
+ *
+ * 앞의 다섯은 원래 있던 것(고함·오토튠·EDM·랩·디스토션)이고, 뒤는 빠르기와
+ * 복잡함을 막으려고 더한 것이다. STYLE 의 bpm 을 모델이 힌트로만 볼 때
+ * 여기가 한 번 더 잡아 준다.
+ */
+const AVOID =
+  'shouting, heavy autotune, edm, rap, distorted guitar, ' +
+  'fast tempo, uptempo, double time, driving beat, busy drums, rapid hi-hats, ' +
+  'complex rhythm, tempo change, key change, ' +
+  'long instrumental intro, dense mix, loud backing track, ' +
+  'belting, high notes, wide vocal leaps';
+
+/** style 필드 상한. 넘긴 만큼은 말없이 잘린다. */
+const STYLE_MAX = 1000;
+
+/**
+ * 스타일 + 창법을 한 문자열로.
+ *
+ * 지금 가장 긴 조합은 trot 의 559자라 여유가 있다. 그래도 재고 나서 자르는 것은,
+ * 넘치면 잘려 나가는 자리가 하필 VOICE 의 끝이기 때문이다 — '전주 짧게'와
+ * '숨 자리'가 조용히 사라지고, 곡은 멀쩡히 나온다. 무엇이 빠졌는지 아무도
+ * 모르는 채로. 그래서 잘릴 때는 로그에 남긴다.
+ */
+function styleText(id: string): string {
+  const full = `${STYLE[id] ?? STYLE.ballad}, ${VOICE}`;
+  if (full.length > STYLE_MAX) {
+    console.error(
+      `apiframe style prompt ${full.length}자 — ${STYLE_MAX}자를 넘어 뒤가 잘립니다`,
+    );
+  }
+  return full.slice(0, STYLE_MAX);
+}
 
 type Track = { audioUrl?: string; duration?: number };
 type JobRes = {
@@ -118,7 +216,7 @@ export const apiframeMusic: MusicProvider = {
           instrumental: false,
           model_version: process.env.APIFRAME_MODEL || 'V4_5PLUS',
           title: (req.title || '이름 없는 노래').slice(0, 80),
-          style: `${STYLE[req.style] ?? STYLE.ballad}, ${VOICE}`.slice(0, 1000),
+          style: styleText(req.style),
           negative_tags: AVOID,
           // 어르신 이야기를 담은 노래라 목소리는 차분한 쪽으로 둔다.
           vocal_gender: process.env.APIFRAME_VOCAL || 'f',

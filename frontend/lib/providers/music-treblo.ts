@@ -21,11 +21,24 @@ import { fail, type Job, type MusicProvider, type MusicResult } from './types';
 const BASE = 'https://api.treblo.com/v1';
 
 /** 스타일 → 태그. 모델이 한국어 장르명을 정확히 못 알아듣는다. */
+/*
+ * 빠르기를 여기에도 적는다.
+ *
+ * 기본 제공자(apiframe)에만 빠르기를 넣었더니, MUSIC_PROVIDER 를 바꾸는
+ * 순간 "너무 빠르다"가 그대로 돌아오는 상태가 됐다. 같은 결정이 파일마다
+ * 흩어져 있으면 한 곳만 고치게 되고, 고친 사람은 고쳤다고 믿는다.
+ * 숫자의 근거는 music-apiframe.ts 의 표에 있다 — 회상·집단가창에서 흔히
+ * 권장되는 60~80박 안에서 장르별로 놓았다.
+ */
 const STYLE_TAGS: Record<string, string> = {
-  folkTrad: 'korean traditional folk, minyo, acoustic, warm, gentle, unhurried',
-  folkBright: 'korean acoustic folk, bright, cheerful, acoustic guitar, singalong',
-  ballad: 'korean ballad, tender, piano, strings, slow, comforting',
-  trot: 'korean trot, sentimental, nostalgic, electric organ, brushed drums',
+  folkTrad:
+    'korean traditional folk, minyo, acoustic, warm, gentle, unhurried, slow steady tempo around 70 bpm',
+  folkBright:
+    'korean acoustic folk, bright, warm, acoustic guitar, singalong, relaxed walking pace, slow steady tempo around 78 bpm',
+  ballad:
+    'korean ballad, tender, piano, strings, very slow and spacious, comforting, steady tempo around 64 bpm',
+  trot:
+    'korean trot, sentimental, nostalgic, electric organ, brushed drums, slow trot at about half the usual trot speed, steady tempo around 74 bpm',
 };
 
 /**
@@ -154,7 +167,9 @@ export const trebloMusic: MusicProvider = {
   async poll(jobId) {
     const at = jobId.lastIndexOf('::');
     const taskId = at < 0 ? jobId : jobId.slice(0, at);
-    const lengthMs = at < 0 ? 90_000 : Number(jobId.slice(at + 2)) || 90_000;
+    // 표에 길이가 없는 옛 작업표를 위한 대비값. 회상용 노래 기본 길이와
+    // 같아야 한다 — 90초로 남아 있어서 새 기본값(120초)과 어긋나 있었다.
+    const lengthMs = at < 0 ? 120_000 : Number(jobId.slice(at + 2)) || 120_000;
 
     const res = await call(`/generations/status/${encodeURIComponent(taskId)}`);
     if (!res) return fail('곡 만들기 서버에 연결하지 못했어요.', 503);

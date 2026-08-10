@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { hasConsent } from './domain';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { hasConsent, type LyricSection } from './domain';
 import { settled } from './longJob';
 import { loadSong, saveSong } from './songStore';
 import { findServerSong, lyricsHash, songQuotaLeft, uploadSong } from './songSync';
@@ -343,5 +343,178 @@ export function useSongPlayer(): SongPlayer {
     toggleSlow,
     seek,
     restart,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * 지금 부르는 줄
+ * ------------------------------------------------------------------ */
+
+/** 가사 한 줄. 절 라벨은 그 절이 시작하는 줄에만 붙는다. */
+export type CueLine = {
+  text: string;
+  /** 1절 · 후렴 처럼 화면에 그대로 보이는 라벨 */
+  label: string;
+  opensSection: boolean;
+};
+
+export type LyricCue = {
+  /** 절 순서대로 펼친 전체 가사 */
+  lines: CueLine[];
+  /** 지금 부르고 있다고 보는 줄. 가사가 없으면 -1 */
+  index: number;
+  /**
+   * 시간으로 줄을 짚을 수 있는가.
+   *
+   * 곡 길이를 못 읽는 파일이 있다(useSongPlayer 의 total=0). 그때는 자동으로
+   * 넘길 근거가 아예 없으므로 손으로만 넘긴다 — 화면도 자동 스위치 대신
+   * 그 사실을 적어야 한다.
+   */
+  timed: boolean;
+  auto: boolean;
+  setAuto: (on: boolean) => void;
+  toPrev: () => void;
+  toNext: () => void;
+  canPrev: boolean;
+  canNext: boolean;
+};
+
+/** 절 배열을 줄 하나짜리 목록으로 펼친다. */
+export function flattenLyrics(sections: LyricSection[]): CueLine[] {
+  const out: CueLine[] = [];
+  for (const sec of sections) {
+    let first = true;
+    for (const raw of sec.lines) {
+      const text = raw.trim();
+      // 빈 줄에 차례가 오면 화면에 크게 뜨는 글자가 없다. 넘길 자리에서 뺀다.
+      if (!text) continue;
+      out.push({ text, label: sec.label, opensSection: first });
+      first = false;
+    }
+  }
+  return out;
+}
+
+/**
+ * 줄마다 곡의 어디쯤에서 시작한다고 보는지 — 0~1 사이 비율. 길이는 줄 수 + 1.
+ *
+ * 줄별 시각은 우리에게 없다. 곡은 Suno 가 소리로만 주고, 가사는 절과 줄
+ * 배열로만 들고 있다. 그래서 글자 수로 나눈다 — "긴 줄은 오래 부른다" 하나만
+ * 가정한 어림이다. 전주·간주·반복·늘여 부르기는 알 수 없으니 이 어림은
+ * 반드시 어긋난다. 어긋남을 화면이 밝히고 복지사가 손으로 맞출 수 있다는
+ * 것이, 이 계산을 쓰는 전제다. 정확한 척하면 그때부터 거짓말이 된다.
+ */
+function lineStarts(lines: CueLine[]): number[] {
+  const weights = lines.map((l) => Math.max(1, l.text.length));
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const out = [0];
+  let acc = 0;
+  for (const w of weights) {
+    acc += w;
+    out.push(sum > 0 ? acc / sum : 1);
+  }
+  return out;
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
+function indexAtFraction(starts: number[], f: number): number {
+  // starts 는 줄 수 + 1 개라, 마지막 줄의 번호는 length - 2 다.
+  const last = starts.length - 2;
+  if (last < 0) return -1;
+  for (let i = last; i > 0; i--) if (f >= starts[i]) return i;
+  return 0;
+}
+
+/**
+ * 노래방처럼 지금 줄을 짚어 준다.
+ *
+ * 예전에는 후렴 한 절만 크게 띄워 놓고 2분 내내 그대로였다. 여러 분이 함께
+ * 보며 부르는 화면인데 지금 어디를 부르는지 알 수 없었다.
+ *
+ * 여기서 하는 일은 어림이지 받아쓰기가 아니다. 그래서 손으로 맞추는 길을
+ * 같이 낸다 — 한 번 맞추면 그 시점을 기준으로 나머지가 다시 나뉜다(mark).
+ * 그렇게 하지 않으면 눌러서 맞춰 놔도 몇 초 뒤 어림이 제자리로 끌고 가고,
+ * 손으로 맞춘 것이 없던 일이 된다. 두 번 겪으면 아무도 안 누른다.
+ */
+export function useLyricCue(sections: LyricSection[], player: SongPlayer): LyricCue {
+  const lines = useMemo(() => flattenLyrics(sections), [sections]);
+  const starts = useMemo(() => lineStarts(lines), [lines]);
+
+  const [auto, setAutoState] = useState(true);
+  /**
+   * 복지사가 손으로 맞춘 기준점 — "이 시각에 이 줄을 부르고 있었다".
+   *
+   * 어느 가사에 대고 맞춘 것인지 함께 들고 다닌다. 가사가 바뀌면(다른
+   * 회기·다시 만든 가사) 3번째 줄이라는 표시는 남의 노래의 3번째 줄이 된다.
+   * 이펙트로 지우지 않고 그리는 김에 걸러내는 이유는, 지우는 렌더가 한 번 더
+   * 돌아 그 사이에 옛 기준점으로 짚은 줄이 한 프레임 뜨기 때문이다.
+   */
+  const [marked, setMark] = useState<{
+    lines: CueLine[];
+    at: number;
+    index: number;
+  } | null>(null);
+  const mark = marked && marked.lines === lines ? marked : null;
+
+  const { at, total } = player;
+  const timed = total > 0;
+  const count = lines.length;
+
+  const index = useMemo(() => {
+    if (count === 0) return -1;
+    // 자동이 꺼져 있거나 곡 길이를 모르면 시간은 아무것도 말해 주지 않는다.
+    if (!auto || !timed) return clamp(mark?.index ?? 0, 0, count - 1);
+
+    let f: number;
+    if (!mark) {
+      f = at / total;
+    } else if (at <= mark.at) {
+      // 맞춘 지점 앞은 [0, mark.at] 안으로 접어 넣는다. '처음부터 듣기'로
+      // 돌아가도 첫 줄부터 다시 짚이도록.
+      f = mark.at > 0 ? (at / mark.at) * starts[mark.index] : starts[mark.index];
+    } else if (total > mark.at) {
+      // 맞춘 지점 뒤는 남은 시간에 남은 줄을 다시 비례로 나눈다.
+      f =
+        starts[mark.index] +
+        ((at - mark.at) / (total - mark.at)) * (1 - starts[mark.index]);
+    } else {
+      f = 1;
+    }
+    return indexAtFraction(starts, f);
+  }, [count, auto, timed, mark, at, total, starts]);
+
+  const step = useCallback(
+    (delta: number) => {
+      setMark({ lines, at, index: clamp(index + delta, 0, Math.max(count - 1, 0)) });
+    },
+    [lines, at, index, count],
+  );
+
+  const toPrev = useCallback(() => step(-1), [step]);
+  const toNext = useCallback(() => step(1), [step]);
+
+  const setAuto = useCallback(
+    (on: boolean) => {
+      // 켜든 끄든 지금 보고 있는 줄에서 이어져야 한다. 기준점을 지금으로
+      // 옮겨 두지 않으면, 자동을 다시 켜는 순간 화면이 엉뚱한 줄로 튄다.
+      setMark({ lines, at, index: Math.max(index, 0) });
+      setAutoState(on);
+    },
+    [lines, at, index],
+  );
+
+  return {
+    lines,
+    index,
+    timed,
+    auto,
+    setAuto,
+    toPrev,
+    toNext,
+    canPrev: index > 0,
+    canNext: index >= 0 && index < count - 1,
   };
 }

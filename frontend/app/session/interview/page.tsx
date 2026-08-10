@@ -10,7 +10,7 @@ import { IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
 import { QUESTION_LEVELS, hasConsent, type QuestionLevel } from '@/lib/domain';
 import { mmss, releaseRecording, useRecorder } from '@/lib/recorder';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
-import { useSession } from '@/lib/store';
+import { currentSession, setSessionField, useSession } from '@/lib/store';
 
 // the deck's own glyphs (p.21), cut by scripts/prepare-ui-icons.py
 const PROMPT_ART = ['ui_people', 'ui_reaction', 'ui_bulb'] as const;
@@ -158,6 +158,28 @@ export default function InterviewPage() {
   // 넣었더니 매 렌더 정리가 돌아 녹음이 시작하자마자 멈췄다. 모듈 함수를
   // 직접 부르면 참조가 고정된다.
   useEffect(() => () => releaseRecording(), []);
+
+  /*
+   * 체크리스트를 거치지 않고 들어온 회기도 인터뷰 시작 시각을 남긴다.
+   *
+   * 진행 시간의 기준점은 체크리스트의 '인터뷰 시작' 버튼이지만, 그 화면을 꼭
+   * 지나서 오는 것은 아니다 — 회기 단계 표시(lib/flow.ts)에서 3단계를 바로
+   * 누르면 여기가 그날의 첫 화면이 된다. 그 회기만 활동일지에서 "재지 못했다"로
+   * 남으면, 복지사는 자기가 뭘 빠뜨렸는지 알 수 없는 채로 손으로 적어야 한다.
+   *
+   * 녹음 시작에 걸지 않은 이유도 같다. 녹음 동의가 없는 회기는 마이크를 켜지
+   * 않으므로(F-SW-INT-001) 그 회기는 영영 시간을 못 재게 된다. 마이크를 켜든
+   * 복지사가 받아 적든 인터뷰가 시작되는 자리는 이 화면이다.
+   *
+   * 훅이 준 s 가 아니라 지금 상태를 읽는다. 마운트 직후의 s 는 저장소가 아직
+   * 복원되기 전 값일 수 있어, 그걸로 판단하면 이미 찍혀 있는 시각을 덮는다.
+   * 이미 있으면 두는 것이 규칙이다 — 질문을 넘기다 되돌아왔다고 인터뷰가 다시
+   * 시작되지는 않는다.
+   */
+  useEffect(() => {
+    if (currentSession().interviewStartedAt) return;
+    setSessionField('interviewStartedAt', new Date().toISOString());
+  }, []);
 
   const listening = rec.state === 'recording';
 

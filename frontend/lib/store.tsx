@@ -63,9 +63,24 @@ export type SessionState = {
   memoryCard: string | null;
   questionLevel: QuestionLevel;
   checklist: Record<string, boolean>;
-  // example 은 둘러보기용 씨앗 줄에만 붙는다. 화면이 '예시'라고 적고,
-  // 진짜 전사가 들어오면 통째로 교체되므로 저절로 사라진다.
-  transcript: { id: string; text: string; at: number; example?: true }[];
+  /**
+   * 전사 한 줄.
+   *
+   * example 은 둘러보기용 씨앗 줄에만 붙는다. 화면이 '예시'라고 적고,
+   * 진짜 전사가 들어오면 통째로 교체되므로 저절로 사라진다.
+   *
+   * speaker 는 화자 분리 결과다. 회기는 복지사가 묻고 어르신이 답하는
+   * 대화라, 누가 한 말인지 갈라야 두 가지가 된다 — 사실 추출에 복지사
+   * 질문이 섞여 들어가지 않고, 출처 '어르신 음성 0:42'가 진짜 그 대목을
+   * 가리킨다. 모르면 없다.
+   */
+  transcript: {
+    id: string;
+    text: string;
+    at: number;
+    example?: true;
+    speaker?: 'elder' | 'worker';
+  }[];
   transcriptConfirmed: boolean;
   /**
    * 지금 전사가 어느 녹음에서 나왔는지 (recordingStore 의 savedAt).
@@ -75,6 +90,16 @@ export type SessionState = {
    * 안 되는 녹음을 화면을 열 때마다 다시 보내지 않는다.
    */
   transcribedFrom: number | null;
+  /**
+   * 인터뷰를 실제로 시작한 시각.
+   *
+   * remoteStartedAt 과 다르다. 그쪽은 어르신을 고른 순간이라 서버 기록의
+   * 회기 시작이고, 이쪽은 어르신과 마주 앉아 이야기를 듣기 시작한 순간이다.
+   * 활동일지의 '진행 시간'은 이 값에서 나와야 한다 — 어르신 선택 시각으로
+   * 재면 목록만 띄워 놓고 점심을 먹고 온 시간까지 들어간다. 실제로 하지도
+   * 않은 86분이 기관 서식에 찍혔다.
+   */
+  interviewStartedAt: string | null;
   story: StoryItem[];
   /** 복지사가 사실 확인을 끝내고 가사로 넘긴 시점 (원칙 3 · 사람 검수) */
   storyConfirmed: boolean;
@@ -170,6 +195,7 @@ function seedState(): SessionState {
     // 씨앗 전사는 어느 녹음에서도 나오지 않았다. 표를 비워 두면 기기에 녹음이
     // 생기는 순간 자동 전사가 그 녹음을 옮긴다.
     transcribedFrom: null,
+    interviewStartedAt: null,
     story: SEED_STORY,
     storyConfirmed: false,
     lyrics: SEED_LYRICS,
@@ -398,6 +424,7 @@ export function beginSession(next: {
           transcript: [],
           transcriptConfirmed: false,
           transcribedFrom: null,
+          interviewStartedAt: null,
           story: [],
           storyConfirmed: false,
           lyrics: [],

@@ -154,7 +154,14 @@ async function start(
       (id) => `/api/transcribe?job=${encodeURIComponent(id)}`,
     );
     const json = (await res.json()) as {
-      segments?: { id: string; text: string; at: number }[];
+      // 화자 분리가 켜지면 speaker 가 함께 온다. 타입을 좁게 두면 다음
+      // 사람이 그 값이 없다고 믿고 지우거나 안 쓴다.
+      segments?: {
+        id: string;
+        text: string;
+        at: number;
+        speaker?: 'elder' | 'worker';
+      }[];
       error?: string;
     };
     if (!res.ok || !json.segments) {

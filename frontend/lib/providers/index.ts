@@ -27,7 +27,7 @@ export const tts: TtsProvider = pick(process.env.TTS_PROVIDER, { google: googleT
  * 어르신 이름이 붙은 결과물의 권리 관계를 설명할 수 없다.
  *
  * Treblo 는 열쇠 하나로 부르고 상업적 이용권을 함께 준다. 길이도 정할 수
- * 있어서 "회상용 노래는 90초"라는 결정을 지킬 수 있다.
+ * 있어서 "회상용 노래는 120초"라는 결정을 지킬 수 있다.
  *
  * 지금 기본은 apiframe(Suno 경유)이다. 한국어 보컬 품질이 눈에 띄게 낫다.
  * 다만 그 회사는 Suno 와 제휴 관계가 아니라고 스스로 밝히므로, 권리 관계는

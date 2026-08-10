@@ -111,10 +111,16 @@ export const SEED_TRANSCRIPT: {
   text: string;
   at: number;
   example?: true;
+  speaker?: 'elder' | 'worker';
 }[] = [
-  { id: 't1', text: '첫 월급으로 어머니께 신발을 사드렸어요', at: 42, example: true },
-  { id: 't2', text: '공장에서 처음 일을 시작했어요', at: 18, example: true },
-  { id: 't3', text: '그날 정말 뿌듯했어요', at: 96, example: true },
+  // 회기는 복지사가 묻고 어르신이 답하는 대화다. 씨앗에도 그 모양을 담아야
+  // 둘러보기에서 화자 이름표와 '어르신 ↔ 복지사 바꾸기'가 보인다 — 실제 녹음을
+  // 옮기기 전까지 그 장면이 아예 없으면, 심사에서 이 기능은 없는 것과 같다.
+  { id: 't0', text: '첫 직장은 어디셨어요?', at: 12, example: true, speaker: 'worker' },
+  { id: 't2', text: '공장에서 처음 일을 시작했어요', at: 18, example: true, speaker: 'elder' },
+  { id: 't1', text: '첫 월급으로 어머니께 신발을 사드렸어요', at: 42, example: true, speaker: 'elder' },
+  { id: 't4', text: '어머니가 뭐라고 하셨어요?', at: 88, example: true, speaker: 'worker' },
+  { id: 't3', text: '그날 정말 뿌듯했어요', at: 96, example: true, speaker: 'elder' },
 ];
 
 /**

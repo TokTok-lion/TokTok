@@ -26,6 +26,11 @@ export function ExtractFacts() {
 
   const canSend = hasConsent(s.elder.consents, 'externalAi');
   const hasTranscript = s.transcript.length > 0;
+  // 화자가 갈린 회기면 무엇이 빠지는지 화면이 먼저 말한다. 복지사 질문이
+  // 사실에서 빠지는 것은 좋은 일이지만, 말없이 빠지면 "왜 그 대목이
+  // 안 나왔지"가 된다.
+  const workerLines = s.transcript.filter((t) => t.speaker === 'worker').length;
+  const split = s.transcript.some((t) => t.speaker);
   // 자동 정리가 빈손으로 돌아온 회기에서는 받아 적는 칸을 펼쳐 준다.
   // 오류만 띄우고 닫아 두면 여기서 회기가 멈춘다 — 아래 푸터도 '확인된
   // 이야기가 필요해요'로 잠겨 있어서 나갈 문이 하나도 없다.
@@ -53,9 +58,16 @@ export function ExtractFacts() {
       }
       if (!json.facts.length) {
         setError(
-          '사실로 옮길 만한 말씀을 찾지 못했어요. 전사가 어르신 말씀과 다르면 ' +
-            '전사 교정에서 고친 뒤 다시 뽑아 주세요. 아래 「손으로 이야기 적기」에 ' +
-            '복지사가 직접 적으셔도 됩니다.',
+          '사실로 옮길 만한 말씀을 찾지 못했어요. ' +
+            // 화자 추정이 통째로 뒤집힌 회기가 여기로 온다. 어르신 말씀이
+            // 전부 복지사 줄로 붙어 있으면 뽑을 것이 없는 게 당연한데,
+            // 그 이유를 말해 주지 않으면 전사만 몇 번 다시 읽게 된다.
+            (split
+              ? '누가 한 말인지가 뒤바뀌었을 수 있어요 — 전사 교정에서 ' +
+                '「어르신 ↔ 복지사 통째로 바꾸기」를 눌러 확인해 주세요. '
+              : '') +
+            '전사가 어르신 말씀과 다르면 전사 교정에서 고친 뒤 다시 뽑아 주세요. ' +
+            '아래 「손으로 이야기 적기」에 복지사가 직접 적으셔도 됩니다.',
         );
         setOpenNote(true);
         setState('idle');
@@ -112,7 +124,11 @@ export function ExtractFacts() {
         </p>
         <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
           {hasTranscript
-            ? `전사 ${s.transcript.length}줄에서 사실만 골라 옵니다. 각 항목에는 그 말씀이 나온 시각이 출처로 붙어요.`
+            ? `전사 ${s.transcript.length}줄에서 사실만 골라 옵니다.` +
+              (split
+                ? ` 복지사 질문 ${workerLines}줄은 문맥으로만 읽고 사실로 뽑지 않아요.`
+                : '') +
+              ' 각 항목에는 그 말씀이 나온 시각이 출처로 붙어요.'
             : '아직 전사가 없어요. 전사 교정 단계에서 녹음을 글로 옮긴 뒤에 쓸 수 있습니다.'}
         </p>
 

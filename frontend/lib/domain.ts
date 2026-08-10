@@ -174,30 +174,42 @@ export type MusicStyle = {
 /**
  * 제품 경계: 특정 실존 가수·곡 모사는 스타일 목록에 존재하지 않는다.
  * (원칙 14 · NFR-AI-007)
+ *
+ * description 은 스타일 고르는 화면에 그대로 나온다(app/session/style).
+ * 그래서 여기 적힌 말은 실제로 만들어지는 곡과 같아야 한다.
+ *
+ * 예전에는 넷 다 '~ 스타일'로 끝나고 빠르기를 말하지 않았다. 밝은 포크풍은
+ * '경쾌한'이라고 적혀 있었는데, 그때 프롬프트에는 빠르기가 아예 없어서 정말
+ * 경쾌한 — 따라 부르기엔 빠른 — 곡이 나왔다. 이제 넷 다 분당 64~78박으로
+ * 묶었으므로(lib/providers/music-apiframe.ts 의 STYLE 참고) 설명도 그 사실을
+ * 말한다. 빠르기 숫자를 바꾸면 이 줄들도 같이 바꿔야 한다.
+ *
+ * 화면 칸이 좁아 두 줄이다(\n 은 whitespace-pre-line 으로 그대로 그려진다).
+ * 첫 줄은 분위기, 둘째 줄은 갈래와 빠르기.
  */
 export const MUSIC_STYLES: MusicStyle[] = [
   {
     id: 'folkTrad',
     name: '민요풍',
-    description: '정겹고 구수한\n전통 민요 스타일',
+    description: '정겹고 구수한\n느긋한 전통 민요',
     art: 'style_folk_trad',
   },
   {
     id: 'folkBright',
     name: '밝은 포크풍',
-    description: '따뜻하고 경쾌한\n포크 음악 스타일',
+    description: '따뜻하고 밝은\n걷는 빠르기의 포크',
     art: 'style_folk_bright',
   },
   {
     id: 'ballad',
     name: '따뜻한 발라드',
-    description: '부드럽고 감성적인\n발라드 스타일',
+    description: '부드럽고 감성적인\n가장 느린 발라드',
     art: 'style_ballad',
   },
   {
     id: 'trot',
     name: '느린 트로트',
-    description: '애절하고 정감 있는\n트로트 스타일',
+    description: '애절하고 정감 있는\n천천히 부르는 트로트',
     art: 'style_trot',
   },
 ];

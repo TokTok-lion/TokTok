@@ -21,6 +21,22 @@ import { useCallback, useState } from 'react';
 const DB_NAME = 'toktok-tts';
 const STORE = 'clips';
 
+/**
+ * 소리 판 번호. 목소리 설정을 바꾸면 올린다.
+ *
+ * 캐시 키가 '질문 원문' 하나였다. 그래서 어르신께 더 천천히 들려 드리려고
+ * 말하기 속도를 0.9 → 0.85 로 낮췄는데, 이미 그 질문을 한 번 들어 본 기기는
+ * 옛 소리를 영영 그대로 들려줬다 — 질문 열두 개를 미리 눌러 본 시연·운영
+ * 태블릿이 바로 그런 기기다. 고쳐서 배포해 놓고 정작 쓰는 기기에서는 아무것도
+ * 안 바뀌는 일이 이 저장소에서 벌써 두 번째다.
+ *
+ * 판 번호를 키에 붙이면 설정이 바뀐 순간부터 새로 받는다. 옛 항목은 남지만
+ * 아무도 찾지 않고, 지우려고 DB 버전을 올리면 그 사이 진행 중인 회기에서
+ * 소리가 한 번 끊긴다 — 몇 킬로바이트를 아끼자고 어르신 앞에서 멈추게 할
+ * 이유가 없다.
+ */
+const VOICE_REV = 'v2-rate085';
+
 const memory = new Map<string, string>();
 let audio: HTMLAudioElement | null = null;
 
@@ -100,8 +116,10 @@ export function useSpeak() {
   }, []);
 
   const speak = useCallback(async (text: string) => {
-    const key = text.trim();
-    if (!key) return;
+    const said = text.trim();
+    if (!said) return;
+    // 판 번호를 앞에 붙인다 — 목소리 설정이 바뀌면 옛 소리를 꺼내 오지 않는다.
+    const key = `${VOICE_REV}:${said}`;
 
     // 이미 나고 있으면 멈춘다 — 같은 버튼이 재생/정지가 된다
     if (audio && !audio.paused) {
@@ -119,7 +137,9 @@ export function useSpeak() {
         const res = await fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: key }),
+          // 보내는 것은 원문이다. key 에는 판 번호가 붙어 있어서, 그대로
+          // 보내면 어르신께 "브이투 레이트 공팔오 콜론"까지 읽어 드린다.
+          body: JSON.stringify({ text: said }),
         });
         if (!res.ok) {
           const j = (await res.json().catch(() => ({}))) as {

@@ -1,13 +1,20 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, NoteBar, PrimaryButton } from '@/components/ui';
-import { IconMusicNote, IconPause, IconPlay, IconRefresh } from '@/components/icons';
+import {
+  IconBack,
+  IconMusicNote,
+  IconPause,
+  IconPlay,
+  IconRefresh,
+} from '@/components/icons';
 import { MUSIC_STYLES, formatDuration } from '@/lib/domain';
 import { useSession } from '@/lib/store';
-import { useSongPlayer } from '@/lib/useMusic';
+import { useLyricCue, useSongPlayer } from '@/lib/useMusic';
 
 /**
  * 함께 부르기 활동 (deck p.23)
@@ -21,10 +28,34 @@ import { useSongPlayer } from '@/lib/useMusic';
  * setInterval 로 2:10 까지 숫자만 올리는 타이머였다. 방금 만든 어르신 노래
  * 대신 남의 가사가 가장 큰 글씨로 떴고, 스피커에서는 아무 소리도 안 났다.
  *
- * 이제 셋 다 회기에서 온다 — 주제는 s.topic, 후렴은 이번에 확정한 s.lyrics 의
- * 후렴 절, 소리와 시간은 기기에 저장된 실제 곡이다. 곡이나 가사가 없을 때는
- * 없다고 적는다. 있는 척하는 것보다 낫다.
+ * 이제 셋 다 회기에서 온다 — 주제는 s.topic, 소리와 시간은 기기에 저장된
+ * 실제 곡이다. 곡이나 가사가 없을 때는 없다고 적는다. 있는 척하는 것보다
+ * 낫다.
+ *
+ * 가사도 후렴 한 절에서 전체로 늘렸다. 예전에는 후렴만 크게 띄워 놓고 2분
+ * 내내 그대로였다 — 함께 부르는 화면에서 지금 어디를 부르는지 알 수 없었다.
+ * 줄별 시각은 우리에게 없으므로(useMusic.useLyricCue) 지금 줄은 어림이고,
+ * 어림이라는 것과 손으로 맞추는 길을 화면이 같이 내놓는다.
  */
+
+/*
+ * 줄 하나의 옷.
+ *
+ *   now  지금 부르는 줄 — 34px. 70~90대 어르신이 여럿이서 태블릿 하나를
+ *        건너다보는 자리라, 지시대로 2rem 밑으로는 내려가지 않는다.
+ *   near 바로 앞뒤 줄 — 다음에 뭐가 오는지 미리 보인다.
+ *   far  나머지 — 흐리게. 다만 ink-500 은 배경 대비 5.1:1 이라, 흐려도
+ *        읽으려면 읽힌다. 여기서 더 연하게 하면 AA 아래로 내려간다.
+ *   flat 곡이 없어 '지금 줄'이라는 것이 아예 없는 경우. 아무 줄도 크게
+ *        고르지 않고 전부 같은 크기로 둔다 — 고를 근거가 없다.
+ */
+const LINE_SKIN = {
+  now: 'rounded-[16px] bg-brand-100 px-3 py-3 text-[2.125rem] font-extrabold leading-[1.35] tracking-[-0.02em] text-ink-900',
+  near: 'px-3 text-[1.375rem] font-bold leading-snug text-ink-700',
+  far: 'px-3 text-[1.125rem] font-semibold leading-snug text-ink-500',
+  flat: 'px-3 text-[1.375rem] font-bold leading-relaxed text-ink-900',
+} as const;
+
 export default function SingPage() {
   const { s, set } = useSession();
   // 고른 적 없는 분위기를 이름 대어 말하지 않는다. 예전에는 폴백이 '따뜻한
@@ -32,13 +63,37 @@ export default function SingPage() {
   // 보였다. 없으면 줄 자체를 그리지 않는다 (preview·song 과 같은 규칙).
   const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
   const player = useSongPlayer();
+  const cue = useLyricCue(s.lyrics, player);
 
-  // 함께 부르는 부분은 후렴이다. 후렴이 없는 가사면 첫 절을 쓴다.
-  const chorus = s.lyrics.find((sec) => sec.tone === 'chorus') ?? s.lyrics[0] ?? null;
+  /*
+   * 지금 줄을 짚는 것은 곡이 있을 때의 이야기다.
+   *
+   * 소리가 안 나는 기기에서 어느 줄을 크게 띄우면, 그 줄이 지금 부르는
+   * 자리라고 말하는 셈이 된다. 짚을 근거가 없으면 짚지 않는다 — 가사는
+   * 그대로 다 보이고, 아래 조작들도 통째로 감춘다.
+   */
+  const active = player.ready ? cue.index : -1;
 
   // 길이를 못 읽는 파일이 있다. 그때는 눈금 없는 막대를 그리는 대신 위치
   // 조절을 아예 감춘다 — 어디로 가는지 모르는 손잡이는 없느니만 못하다.
   const total = Math.round(player.total);
+
+  /*
+   * 지금 줄이 접혀 있으면 노래방이 아니다.
+   *
+   * scrollIntoView 는 창까지 함께 굴린다. 복지사가 아래 '다음 줄'에 손을
+   * 얹고 있는데 페이지가 통째로 튀면 손이 엉뚱한 곳을 누른다. 그래서 가사
+   * 상자의 scrollTop 만 직접 옮긴다. 부드럽게 굴리는 것은 CSS(scroll-smooth)
+   * 에 맡긴다 — 전역 prefers-reduced-motion 규칙이 그때는 알아서 끈다.
+   */
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const nowRef = useRef<HTMLParagraphElement | null>(null);
+  useEffect(() => {
+    const box = boxRef.current;
+    const el = nowRef.current;
+    if (!box || !el) return;
+    box.scrollTop = el.offsetTop - (box.clientHeight - el.offsetHeight) / 2;
+  }, [active]);
 
   /*
    * pressed 는 "켜져 있는 상태가 있는 버튼"에만 붙인다.
@@ -69,7 +124,11 @@ export default function SingPage() {
     <Screen
       title="함께 부르기 활동"
       subtitle={
-        chorus ? '완성된 후렴을 모두 함께 따라 불러요' : '가사를 먼저 만들어 주세요'
+        cue.lines.length === 0
+          ? '가사를 먼저 만들어 주세요'
+          : player.ready
+            ? '지금 부르는 줄이 크게 보여요'
+            : '완성된 가사를 모두 함께 따라 불러요'
       }
       decoration={<Ornaments variant="leafRight" />}
       footer={
@@ -110,19 +169,50 @@ export default function SingPage() {
           className="absolute -right-3 top-2 opacity-70"
         />
 
-        {chorus ? (
-          <>
-            <p className="text-center text-[1.0625rem] font-bold text-brand-700">
-              · {chorus.label} ·
-            </p>
-            <p className="mt-3 text-center text-[1.6875rem] font-extrabold leading-[1.5] tracking-[-0.02em] text-ink-900">
-              {chorus.lines.map((line) => (
-                <span key={line} className="block">
-                  {line}
-                </span>
-              ))}
-            </p>
-          </>
+        {cue.lines.length > 0 ? (
+          /* 가사 상자만 굴러가고 카드 밖은 가만히 있는다. relative 는
+             scrollTop 계산의 기준(offsetParent)이기도 하다.
+
+             높이를 260px 로 묶은 것은 아래 '이전 줄/다음 줄'을 화면 안으로
+             끌어올리기 위해서다. 지금 줄이 아무리 크게 떠 있어도 맞추는
+             버튼이 화면 밖에 있으면 아무도 못 맞춘다. */
+          <div
+            ref={boxRef}
+            className="relative max-h-[260px] scroll-smooth overflow-y-auto"
+          >
+            {cue.lines.map((line, i) => {
+              const now = i === active;
+              const skin = now
+                ? LINE_SKIN.now
+                : active < 0
+                  ? LINE_SKIN.flat
+                  : Math.abs(i - active) === 1
+                    ? LINE_SKIN.near
+                    : LINE_SKIN.far;
+              return (
+                <div key={`${i}-${line.text}`}>
+                  {line.opensSection ? (
+                    <p
+                      className={`text-center text-[0.9375rem] font-bold text-brand-700 ${
+                        i === 0 ? '' : 'mt-5'
+                      }`}
+                    >
+                      · {line.label} ·
+                    </p>
+                  ) : null}
+                  {/* aria-live 는 일부러 두지 않았다. 줄이 넘어갈 때마다 읽어
+                      주면 지금 나오고 있는 노래 위에 목소리가 겹친다. */}
+                  <p
+                    ref={now ? nowRef : undefined}
+                    aria-current={now ? 'true' : undefined}
+                    className={`mt-2 text-center ${skin}`}
+                  >
+                    {line.text}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           /* 막다른 길을 두지 않는다 — 가사를 만드는 화면으로 바로 보낸다. */
           <div className="text-center">
@@ -207,6 +297,79 @@ export default function SingPage() {
           </p>
         )}
       </Card>
+
+      {/* 줄 맞춤 — 곡이 있을 때만. 소리가 없으면 맞출 대상도 없다. */}
+      {player.ready && cue.lines.length > 0 ? (
+        <Card className="mt-4 p-3.5">
+          {/* 어림이라는 말을 화면이 먼저 한다. 이 문장이 없으면 이 표시는
+              우리가 재지 않은 것을 잰 것처럼 내놓는 것이 된다. */}
+          <p className="rounded-[12px] bg-amber-100/70 px-3.5 py-2.5 text-[0.875rem] font-semibold leading-relaxed text-amber-700">
+            지금 줄은 글자 수로 어림잡은 자리예요. 실제 노래와 어긋날 수 있어요.
+            어긋나면 아래 버튼으로 맞춰 주세요 — 한 번 맞추면 그 자리를 기준으로
+            다음 줄들이 다시 잡혀요.
+          </p>
+
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={cue.toPrev}
+              disabled={!cue.canPrev}
+              className="flex min-h-[68px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.1875rem] font-extrabold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
+            >
+              <IconBack size={24} />
+              이전 줄
+            </button>
+            <button
+              type="button"
+              onClick={cue.toNext}
+              disabled={!cue.canNext}
+              className="flex min-h-[68px] items-center justify-center gap-2 rounded-[16px] border-2 border-brand-300 bg-surface-strong text-[1.1875rem] font-extrabold text-brand-700 disabled:border-hairline disabled:bg-surface-sunk disabled:text-ink-500"
+            >
+              다음 줄
+              <IconBack size={24} className="rotate-180" />
+            </button>
+          </div>
+
+          {cue.timed ? (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-[14px] bg-surface-sunk px-3.5 py-3">
+              <span className="min-w-0">
+                <span className="block text-[1rem] font-bold text-ink-900">
+                  자동으로 줄 넘기기
+                </span>
+                <span className="mt-0.5 block text-[0.875rem] leading-snug text-ink-500">
+                  {cue.auto
+                    ? '곡 길이에 맞춰 저절로 넘어가요'
+                    : '이전·다음 줄 버튼으로만 넘어가요'}
+                </span>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={cue.auto}
+                aria-label="자동으로 줄 넘기기"
+                onClick={() => cue.setAuto(!cue.auto)}
+                className={`relative h-[38px] w-[68px] shrink-0 rounded-full transition-colors ${
+                  cue.auto ? 'bg-leaf-600' : 'bg-ink-300'
+                }`}
+              >
+                <span
+                  className={`absolute top-1 h-[30px] w-[30px] rounded-full bg-white transition-[left] ${
+                    cue.auto ? 'left-[34px]' : 'left-1'
+                  }`}
+                />
+              </button>
+            </div>
+          ) : (
+            /* 길이를 못 읽는 파일에는 자동으로 넘길 근거가 아예 없다. 스위치를
+               내놓고 아무 일도 안 일어나게 두는 대신, 못 한다고 적고 대신 할
+               수 있는 것을 같은 자리에서 알린다. */
+            <p className="mt-3 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.875rem] font-semibold leading-relaxed text-ink-700">
+              이 곡은 길이를 읽지 못해 저절로 넘기지는 못해요. 위 버튼으로
+              한 줄씩 넘겨 주세요.
+            </p>
+          )}
+        </Card>
+      ) : null}
 
       {player.ready ? (
         <div className="mt-4 grid grid-cols-2 gap-3">

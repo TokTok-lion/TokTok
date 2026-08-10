@@ -17,11 +17,24 @@ import { fail, type Job, type MusicProvider, type MusicResult } from './types';
  * 만든다.
  */
 
+/*
+ * 빠르기를 여기에도 적는다.
+ *
+ * 기본 제공자(apiframe)에만 빠르기를 넣었더니, MUSIC_PROVIDER 를 바꾸는
+ * 순간 "너무 빠르다"가 그대로 돌아오는 상태가 됐다. 같은 결정이 파일마다
+ * 흩어져 있으면 한 곳만 고치게 되고, 고친 사람은 고쳤다고 믿는다.
+ * 숫자의 근거는 music-apiframe.ts 의 표에 있다 — 회상·집단가창에서 흔히
+ * 권장되는 60~80박 안에서 장르별로 놓았다.
+ */
 const STYLE_TAGS: Record<string, string> = {
-  folkTrad: 'korean traditional folk, minyo, warm, acoustic, daegeum, gentle pentatonic',
-  folkBright: 'korean acoustic folk, bright, cheerful, acoustic guitar, singalong',
-  ballad: 'korean ballad, tender, upright piano, small strings, slow, comforting',
-  trot: 'korean trot, sentimental, nostalgic, electric organ, brushed drums',
+  folkTrad:
+    'korean traditional folk, minyo, warm, acoustic, daegeum, gentle pentatonic, unhurried, slow steady tempo around 70 bpm',
+  folkBright:
+    'korean acoustic folk, bright, warm, acoustic guitar, singalong, relaxed walking pace, slow steady tempo around 78 bpm',
+  ballad:
+    'korean ballad, tender, upright piano, small strings, very slow and spacious, comforting, steady tempo around 64 bpm',
+  trot:
+    'korean trot, sentimental, nostalgic, electric organ, brushed drums, slow trot at about half the usual trot speed, steady tempo around 74 bpm',
 };
 
 /**

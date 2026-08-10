@@ -18,10 +18,15 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-type Segment = { id: string; text: string; at: number };
+type Speaker = 'elder' | 'worker';
+type Segment = { id: string; text: string; at: number; speaker?: Speaker };
 type Body = { segments?: Segment[]; topic?: string };
 
-const SYSTEM = `당신은 한국 어르신의 회상 인터뷰 전사를 정리하는 사람입니다.
+/** 줄 앞에 붙는 이름표. 모르면 '모름' — 없는 것을 있다고 하지 않는다. */
+const TAG: Record<Speaker, string> = { elder: '어르신', worker: '복지사' };
+const tagOf = (sp: Speaker | undefined) => (sp ? TAG[sp] : '모름');
+
+const RULES = `당신은 한국 어르신의 회상 인터뷰 전사를 정리하는 사람입니다.
 전사에서 '어르신의 생애에 관한 사실'만 골라 짧은 문장으로 옮깁니다.
 
 반드시 지킬 것:
@@ -36,8 +41,28 @@ const SYSTEM = `당신은 한국 어르신의 회상 인터뷰 전사를 정리�
 - 추측하지 마십시오. "아마 힘드셨을 것이다" 같은 해석은 사실이 아닙니다.
 - 건강·질병·재산에 관한 내용은 담지 마십시오. 이 서비스는 그것을 다루지
   않습니다.
-- 사실이 적으면 적은 대로 냅니다. 개수를 채우려고 늘리지 마십시오.
+- 사실이 적으면 적은 대로 냅니다. 개수를 채우려고 늘리지 마십시오.`;
 
+/**
+ * 화자가 갈린 전사에만 붙이는 규칙.
+ *
+ * 복지사 줄을 아예 빼고 보내지 않는 이유가 있다. "그때 몇 살이셨어요?"를
+ * 지우면 바로 뒤의 "열아홉"이 무슨 열아홉인지 알 수 없는 말이 된다. 물음이
+ * 있어야 답이 읽힌다. 그래서 문맥으로는 보여 주되, 거기서 사실을 뽑지는
+ * 말라고 못 박는다.
+ *
+ * 줄 번호는 복지사 줄까지 세어 그대로 간다. 번호를 다시 매기면 돌아온 번호를
+ * 원래 줄로 되짚을 수 없고, 그 대조가 이 파일의 핵심이다.
+ */
+const SPEAKER_RULE = `
+줄마다 앞에 [어르신] · [복지사] · [모름] 이름표가 붙어 있습니다.
+- [복지사] 로 표시된 줄에서는 사실을 뽑지 마십시오. 그 줄은 어르신 말씀을
+  읽기 위한 문맥일 뿐입니다. from 에도 적지 마십시오.
+- [어르신] 과 [모름] 줄에서만 사실을 찾습니다.
+- 이름표는 목소리로 나눈 추정이라 틀릴 수 있습니다. 그래도 이름표를 따르되,
+  [복지사] 줄의 내용을 어르신의 사실로 옮기지는 마십시오.`;
+
+const FORMAT = `
 출력은 아래 JSON 형식만 내보냅니다. 다른 말은 붙이지 마십시오.
 {"facts":[{"text":"열아홉에 공장에 들어갔어요","from":["3"]}]}`;
 
@@ -57,9 +82,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '요청을 읽지 못했습니다.' }, { status: 400 });
   }
 
-  const segments = (body.segments ?? []).filter(
-    (x) => x && typeof x.id === 'string' && typeof x.text === 'string',
-  );
+  // speaker 는 요청 본문에서 온다. 아무 문자열이나 그대로 믿으면 이름표에
+  // 엉뚱한 글자가 찍히고, 아래 '복지사 줄은 뺀다' 판정도 헛돈다.
+  const segments = (body.segments ?? [])
+    .filter((x) => x && typeof x.id === 'string' && typeof x.text === 'string')
+    .map((x) => ({
+      ...x,
+      speaker: x.speaker === 'elder' || x.speaker === 'worker' ? x.speaker : undefined,
+    }));
   if (!segments.length) {
     return NextResponse.json(
       { error: '전사가 없어 이야기를 뽑을 수 없어요. 먼저 녹음을 글로 옮겨 주세요.' },
@@ -67,10 +97,40 @@ export async function POST(req: Request) {
     );
   }
 
+  /*
+   * 화자가 갈린 회기인가.
+   *
+   * 'worker' 한 줄만 있어도 갈린 것으로 본다. 갈리지 않았으면 이름표를 아예
+   * 안 붙인다 — 전부 [모름] 인 줄을 보여 주는 것은 잡음일 뿐이다.
+   */
+  const split = segments.some((sg) => sg.speaker === 'elder' || sg.speaker === 'worker');
+  const usable = segments.filter((sg) => sg.speaker !== 'worker');
+
+  /*
+   * 전부 복지사 줄이면 뽑을 것이 없다. 화자 추정이 통째로 뒤집힌 회기다.
+   *
+   * 여기서 "사실을 못 찾았어요"라고만 답하면 복지사는 전사를 몇 번 다시
+   * 읽다 포기한다. 어디로 가면 되는지 같은 문장에서 알린다.
+   */
+  if (split && !usable.length) {
+    return NextResponse.json(
+      {
+        error:
+          '전사가 전부 복지사 말씀으로 되어 있어 뽑을 것이 없어요. ' +
+          '전사 교정에서 「어르신 ↔ 복지사 통째로 바꾸기」를 누른 뒤 다시 시도해 주세요.',
+      },
+      { status: 400 },
+    );
+  }
+
   // 모델에게는 줄 번호만 준다. 돌아온 번호를 그대로 되짚을 수 있어야 하므로
   // 번호는 배열 위치로 고정한다 — 문자열 id 를 주면 모델이 지어내기 쉽다.
+  // 복지사 줄도 번호를 차지한 채로 함께 보낸다. 빼면 뒤 번호가 다 밀려서
+  // 아래 대조가 엉뚱한 줄을 가리킨다.
   const numbered = segments
-    .map((sg, i) => `${i}. ${sg.text.trim()}`)
+    .map((sg, i) =>
+      split ? `${i}. [${tagOf(sg.speaker)}] ${sg.text.trim()}` : `${i}. ${sg.text.trim()}`,
+    )
     .join('\n');
 
   try {
@@ -88,7 +148,7 @@ export async function POST(req: Request) {
         temperature: 0.2,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: SYSTEM },
+          { role: 'system', content: RULES + (split ? SPEAKER_RULE : '') + FORMAT },
           {
             role: 'user',
             content: [
@@ -140,7 +200,20 @@ export async function POST(req: Request) {
         const text = typeof f.text === 'string' ? f.text.trim() : '';
         const from = (Array.isArray(f.from) ? f.from : [])
           .map((v) => Number(v))
-          .filter((n) => Number.isInteger(n) && n >= 0 && n < segments.length);
+          .filter((n) => Number.isInteger(n) && n >= 0 && n < segments.length)
+          /*
+           * 복지사 줄은 근거가 될 수 없다.
+           *
+           * 프롬프트로 부탁하는 것과 통과할 수 없게 만드는 것은 다르다 —
+           * 이 파일이 줄 번호를 대조하는 이유와 똑같다. 여기서 안 막으면
+           * 복지사 질문에 붙은 시각이 '어르신 음성 0:42'라는 이름표를 달고
+           * 화면에 나간다. 눌러 보면 복지사 목소리가 나온다. 출처가 거짓말을
+           * 하는 순간 이 제품에서 믿을 수 있는 것이 하나도 남지 않는다.
+           *
+           * [모름] 줄은 막지 않는다. 화자를 못 가른 것이지 복지사 말씀이라고
+           * 밝혀진 것이 아니다.
+           */
+          .filter((n) => segments[n].speaker !== 'worker');
         return { text, from: [...new Set(from)].sort((a, b) => a - b) };
       })
       .filter((f) => f.text.length > 0 && f.from.length > 0)

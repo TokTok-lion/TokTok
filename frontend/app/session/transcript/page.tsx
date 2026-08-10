@@ -7,6 +7,11 @@ import { IconEdit } from '@/components/icons';
 import { useRecorder } from '@/lib/recorder';
 import { useSession } from '@/lib/store';
 
+type Speaker = 'elder' | 'worker';
+
+const WHO: Record<Speaker, string> = { elder: '어르신', worker: '복지사' };
+const other = (v: Speaker): Speaker => (v === 'elder' ? 'worker' : 'elder');
+
 /** 전사 교정 (deck p.5) */
 export default function TranscriptPage() {
   const { s, set } = useSession();
@@ -14,11 +19,36 @@ export default function TranscriptPage() {
   const empty = s.transcript.length === 0;
   const examples = s.transcript.filter((t) => t.example).length;
 
+  // 화자 분리가 붙은 줄. 하나도 없으면 아래 안내와 버튼을 아예 그리지 않는다 —
+  // 못 가른 회기에 '바꾸기' 버튼만 떠 있으면 뭘 바꾸라는 건지 알 수 없다.
+  const elderLines = s.transcript.filter((t) => t.speaker === 'elder').length;
+  const workerLines = s.transcript.filter((t) => t.speaker === 'worker').length;
+  const split = elderLines + workerLines > 0;
+
   // 고친 내용을 화면 안에 따로 들고 있지 않는다. 예전엔 useState 로 복사해
   // 뒀는데, 자동 전사가 전사 내용을 통째로 바꾸면 화면이 옛 문장을 계속
   // 보여줬다. 저장소 하나만 보면 어긋날 자리가 없다.
   const edit = (id: string, text: string) =>
     set('transcript', s.transcript.map((t) => (t.id === id ? { ...t, text } : t)));
+
+  /*
+   * 화자가 통째로 뒤집혔을 때 한 번에 되돌리는 길.
+   *
+   * 누가 어르신인지는 기계가 알 수 없다. 전사 쪽은 "말씀을 더 오래 하신 쪽"을
+   * 어르신으로 보는데, 복지사가 길게 설명한 날이나 어르신이 짧게만 답하신 날은
+   * 그대로 반대가 된다. 그러면 사실 추출이 복지사 질문에서 생애를 뽑고 어르신
+   * 말씀은 버린다 — 회기 하나가 통째로 어긋난다.
+   *
+   * 스무 줄을 하나씩 눌러 고치게 두면 아무도 안 고친다. 한 번에 뒤집는다.
+   */
+  const swapAll = () =>
+    set(
+      'transcript',
+      s.transcript.map((t) => (t.speaker ? { ...t, speaker: other(t.speaker) } : t)),
+    );
+
+  const setSpeaker = (id: string, speaker: Speaker) =>
+    set('transcript', s.transcript.map((t) => (t.id === id ? { ...t, speaker } : t)));
 
   // 빈 전사에는 '교정 완료' 표시를 찍지 않는다. 이 값이 lib/flow.ts 의 4단계
   // 완료 판정이라, 한 줄도 없는 회기가 "전사까지 끝난 회기"로 남는다.
@@ -60,6 +90,32 @@ export default function TranscriptPage() {
           </p>
         ) : null}
 
+        {/* 화자 분리는 추정이다. 기계는 "1번 목소리·2번 목소리"까지만 알고,
+            그중 누가 어르신인지는 모른다. 말씀을 더 오래 하신 쪽을 어르신으로
+            봤다는 것까지 밝혀야, 복지사가 그 판단이 맞는지 볼 수 있다.
+            숫자를 함께 적는 이유도 같다 — 어르신 2줄·복지사 18줄이면 한눈에
+            뒤집혔다는 걸 안다. */}
+        {split ? (
+          <div className="mt-2 rounded-[12px] bg-amber-100 px-3 py-2.5">
+            <p className="text-[0.8125rem] font-bold leading-relaxed text-amber-700">
+              누가 한 말인지는 목소리로 나눈 <strong>추정</strong>이에요. 말씀을
+              더 오래 하신 쪽을 어르신으로 봤습니다 — 어르신 {elderLines}줄 ·
+              복지사 {workerLines}줄.
+            </p>
+            <button
+              type="button"
+              onClick={swapAll}
+              className="mt-2 min-h-[44px] w-full rounded-[12px] bg-surface px-3 text-[0.9375rem] font-bold text-amber-700"
+            >
+              어르신 ↔ 복지사 통째로 바꾸기
+            </button>
+            <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-amber-700">
+              한 줄만 틀렸으면 그 줄의 이름표를 눌러 바꾸세요. 이야기 뽑기는
+              어르신 말씀에서만 사실을 찾습니다.
+            </p>
+          </div>
+        ) : null}
+
         {empty ? (
           <p className="mt-2 text-[0.9375rem] leading-relaxed text-ink-500">
             아직 옮긴 내용이 없어요. 위에서 녹음을 글로 옮기면 문장이 하나씩
@@ -67,19 +123,40 @@ export default function TranscriptPage() {
           </p>
         ) : (
           <ul className="mt-2">
-            {s.transcript.map((t, i) => (
-              <li key={t.id} className="border-b border-hairline py-3 last:border-0">
-                <label htmlFor={`line-${t.id}`} className="sr-only">
-                  전사 {i + 1}번째 문장
-                </label>
-                <input
-                  id={`line-${t.id}`}
-                  value={t.text}
-                  onChange={(e) => edit(t.id, e.target.value)}
-                  className="w-full bg-transparent text-[1.1875rem] font-bold leading-snug text-ink-900 outline-none focus-visible:rounded-lg focus-visible:bg-brand-50"
-                />
-              </li>
-            ))}
+            {s.transcript.map((t, i) => {
+              // t.speaker 를 그대로 좁히면 아래 콜백 안에서 다시 undefined 가
+              // 된다. 한 번 꺼내 두고 쓴다.
+              const who = t.speaker;
+              return (
+                <li key={t.id} className="border-b border-hairline py-3 last:border-0">
+                  {who ? (
+                    <button
+                      type="button"
+                      onClick={() => setSpeaker(t.id, other(who))}
+                      aria-label={`${i + 1}번째 문장은 ${WHO[who]} 말씀으로 되어 있어요. 눌러서 ${WHO[other(who)]} 말씀으로 바꿉니다.`}
+                      // 이름표는 작지만 잘못 누르면 회기 기록이 어긋난다.
+                      // 태블릿에서 손가락으로 정확히 짚을 만큼은 키운다.
+                      className={`mb-1 inline-flex min-h-[40px] items-center rounded-full px-3.5 text-[0.8125rem] font-bold ${
+                        who === 'elder'
+                          ? 'bg-brand-100 text-brand-800'
+                          : 'bg-surface-sunk text-ink-700'
+                      }`}
+                    >
+                      {WHO[who]}
+                    </button>
+                  ) : null}
+                  <label htmlFor={`line-${t.id}`} className="sr-only">
+                    전사 {i + 1}번째 문장
+                  </label>
+                  <input
+                    id={`line-${t.id}`}
+                    value={t.text}
+                    onChange={(e) => edit(t.id, e.target.value)}
+                    className="w-full bg-transparent text-[1.1875rem] font-bold leading-snug text-ink-900 outline-none focus-visible:rounded-lg focus-visible:bg-brand-50"
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
 

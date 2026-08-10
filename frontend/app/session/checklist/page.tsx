@@ -67,12 +67,23 @@ export default function ChecklistPage() {
         <PrimaryButton
           href="/session/cards"
           onClick={() => {
-            // 회기 시작 시각을 여기서 찍는다. 활동일지의 '진행 시간'이 기관
-            // 서식으로 나가는 값인데 잴 방법이 없어 30분으로 박혀 있었다 —
-            // 준비를 마치고 어르신과 마주 앉는 이 순간이 그 기준점이다.
-            // 이미 찍혀 있으면 덮지 않는다. 체크리스트로 되돌아왔다고 해서
-            // 회기가 다시 시작되는 것은 아니다.
-            if (!s.remoteStartedAt) set('remoteStartedAt', new Date().toISOString());
+            /*
+             * 인터뷰를 시작한 시각을 여기서 찍는다.
+             *
+             * 예전에는 이 자리에서 remoteStartedAt 을 채우려 했다. 그런데 그
+             * 값은 어르신을 고르는 순간에 이미 찍힌다(store.beginSession) —
+             * 조건이 한 번도 참이 된 적이 없었고, 활동일지의 '진행 시간'은
+             * 결국 어르신 목록에서 이름을 누른 시각부터 재고 있었다. 목록을
+             * 띄워 놓고 점심을 먹고 오면 그 시간이 전부 들어간다. 그렇게 하지도
+             * 않은 86분이 기관 제출용 CSV·인쇄본에 찍혔다.
+             *
+             * 그래서 진행 시간의 기준점은 따로 둔다. 준비를 마치고 어르신과
+             * 마주 앉는 이 순간이다. 이미 찍혀 있으면 덮지 않는다 —
+             * 체크리스트로 되돌아왔다고 해서 회기가 다시 시작되는 것은 아니다.
+             */
+            if (!s.interviewStartedAt) {
+              set('interviewStartedAt', new Date().toISOString());
+            }
           }}
         >
           인터뷰 시작 {pending > 0 ? `(${pending}건 남음)` : ''}
@@ -102,15 +113,19 @@ export default function ChecklistPage() {
             )}
           </p>
           {/* 예약 시각을 아는 값이 세션에 없어서 '오전 10:00'이 박혀 있었다.
-              지어낸 시각 대신 실제로 아는 것만 적는다 — 인터뷰를 시작하면
-              그때 찍힌 시각이 여기에 뜨고, 활동일지의 진행 시간도 이 값에서
-              나온다. */}
+              지어낸 시각 대신 실제로 아는 것만 적는다.
+
+              한동안은 remoteStartedAt 을 '시작 시각'이라 적었는데, 그건 어르신
+              목록에서 이름을 누른 시각이다. 인터뷰를 시작하지도 않았는데 시작
+              시각이 이미 적혀 있으니, 아래 버튼을 누르기 전에 화면이 먼저
+              시작했다고 말하는 셈이었다. 라벨과 값을 같은 것으로 맞춘다 —
+              여기 뜨는 시각이 활동일지의 진행 시간을 재는 기준점 그대로다. */}
           <p className="mt-2 flex items-center gap-2 text-[0.9375rem]">
             <IconClock size={19} className="shrink-0 text-brand-600" />
-            <span className="flex-1 text-ink-500">시작 시각</span>
-            {s.remoteStartedAt ? (
+            <span className="flex-1 text-ink-500">인터뷰 시작</span>
+            {s.interviewStartedAt ? (
               <span className="font-extrabold text-brand-700">
-                {clockLabel(s.remoteStartedAt)}
+                {clockLabel(s.interviewStartedAt)}
               </span>
             ) : (
               <span className="font-bold text-ink-500">아직 시작 전</span>
