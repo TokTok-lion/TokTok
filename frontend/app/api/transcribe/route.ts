@@ -68,24 +68,34 @@ export async function POST(req: Request) {
   if (isJson) {
     let object = '';
     let contentType = '';
+    let topic = '';
     try {
-      const body = (await req.json()) as { object?: string; contentType?: string };
+      const body = (await req.json()) as {
+        object?: string;
+        contentType?: string;
+        topic?: string;
+      };
       object = (body.object ?? '').trim();
       contentType = (body.contentType ?? '').trim();
+      topic = (body.topic ?? '').trim();
     } catch {
       return NextResponse.json({ error: '요청을 읽지 못했습니다.' }, { status: 400 });
     }
     if (!object || !contentType) {
       return NextResponse.json({ error: '올린 녹음을 찾지 못했습니다.' }, { status: 400 });
     }
-    return begin(await stt.startUploaded(object, contentType));
+    return begin(await stt.startUploaded(object, contentType, topic));
   }
 
   let file: File | null = null;
+  // 오늘 회기 주제. 인식에 미리 알려 줄 낱말을 여기서 뽑는다(speechHints).
+  let topic = '';
   try {
     const form = await req.formData();
     const f = form.get('file');
     if (f instanceof File) file = f;
+    const t = form.get('topic');
+    if (typeof t === 'string') topic = t.trim();
   } catch {
     return NextResponse.json({ error: '녹음을 읽지 못했습니다.' }, { status: 400 });
   }
@@ -106,7 +116,7 @@ export async function POST(req: Request) {
     );
   }
 
-  return begin(await stt.start(file));
+  return begin(await stt.start(file, topic));
 }
 
 /** 시작 결과를 화면이 아는 모양으로 바꾼다. 두 입구가 같은 답을 준다. */

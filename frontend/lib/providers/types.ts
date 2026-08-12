@@ -80,7 +80,11 @@ export interface MusicProvider {
 
 export interface SttProvider {
   readonly name: string;
-  start(file: File): Promise<Job<Segment[]>>;
+  /**
+   * topic 은 오늘 회기 주제다. 인식에 미리 알려 줄 낱말을 여기서 뽑는다
+   * (lib/speechHints.ts). 없으면 그 시절 낱말만 알려 준다.
+   */
+  start(file: File, topic?: string | null): Promise<Job<Segment[]>>;
   /**
    * 이미 저장소에 올라와 있는 녹음으로 전사를 시작한다.
    *
@@ -91,7 +95,11 @@ export interface SttProvider {
    * 짧은 녹음까지 이 길로 몰지 않은 이유: 지금 돌아가고 있는 길이 있는데
    * 새 길 하나에 전부를 걸면, 새 길이 삐끗할 때 되던 것까지 같이 멎는다.
    */
-  startUploaded(object: string, contentType: string): Promise<Job<Segment[]>>;
+  startUploaded(
+    object: string,
+    contentType: string,
+    topic?: string | null,
+  ): Promise<Job<Segment[]>>;
   poll(jobId: string): Promise<Job<Segment[]>>;
 }
 

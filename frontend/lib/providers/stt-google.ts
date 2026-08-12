@@ -16,6 +16,7 @@ import {
   googleToken,
   googleConfigured,
 } from './google';
+import { speechContextsFor } from '../speechHints';
 
 /**
  * 녹음을 글로 옮기기 (Google Cloud Speech-to-Text v1).
@@ -32,6 +33,31 @@ import {
  */
 
 const OBJ_PREFIX = 'stt/';
+
+/**
+ * 어느 인식 모델을 쓸지. 기본은 긴 대화용(latest_long).
+ *
+ * ── 재 본 것 (합성음 3분 40초, 같은 소리에 모델만 바꿔서)
+ *
+ *                        latest_long      default + 힌트
+ *   '첫 월급'            0/6              5/6
+ *   '열아홉'             1/6              6/6
+ *   '어머니 신을'        맞음             '어머니 치밀'
+ *   '타던 날이'          맞음             '타던 나비'
+ *   문장부호             정확             자주 빠짐
+ *
+ * 서로 다른 것을 틀린다. 그래서 한쪽으로 못 정했다.
+ *
+ * 그리고 중요한 것 하나 — **latest_long 은 speechContexts 를 무시한다.**
+ * 힌트를 넣든 빼든 결과가 글자 하나까지 같았다. default 는 반영한다.
+ * 즉 아래 speechContexts 는 이 모델에서는 아무 일도 하지 않는다. 그래도
+ * 지워 두지 않은 이유는, 정하는 근거가 합성음이면 안 되기 때문이다 —
+ * 실제 어르신 회기 녹음으로 두 모델을 견줘 보고 그때 정해야 한다.
+ *
+ * 바꿔 볼 때는 환경변수로. 코드를 고치지 않고 한 회기만 다른 모델로
+ * 돌려 볼 수 있어야 견줄 수 있다.
+ */
+const STT_MODEL = process.env.GOOGLE_STT_MODEL || 'latest_long';
 
 /** 작업 표에 지울 대상까지 담아 둔다 — 다음 요청에서도 치울 수 있어야 한다. */
 function packJob(operation: string, object: string): string {
@@ -355,6 +381,7 @@ async function recognize(
   object: string,
   contentType: string,
   token: string,
+  topic?: string | null,
 ): Promise<Job<Segment[]>> {
   const audio = audioConfigFor(contentType);
   if (!audio) {
@@ -388,8 +415,16 @@ async function recognize(
             minSpeakerCount: 2,
             maxSpeakerCount: 2,
           },
-          // 긴 대화용 모델. 회상 인터뷰는 짧은 명령이 아니라 이야기다.
-          model: 'latest_long',
+          /*
+           * 이 회기에서 나올 법한 낱말을 미리 알려 준다.
+           *
+           * 없이 보내면 '첫 월급'이 '차 벌금'으로, '열아홉에'가 '19배'로
+           * 나온다. 다만 위에 적었듯 latest_long 은 이 값을 무시한다 —
+           * 모델을 바꿔 볼 때 함께 살아나는 자리다.
+           */
+          speechContexts: speechContextsFor(topic),
+          // 회상 인터뷰는 짧은 명령이 아니라 이야기다. STT_MODEL 주석 참고.
+          model: STT_MODEL,
         },
         audio: { uri: `gs://${GCS_BUCKET}/${object}` },
       }),
@@ -431,7 +466,7 @@ function notReady(): Fail | null {
 export const googleStt: SttProvider = {
   name: 'google',
 
-  async start(file) {
+  async start(file, topic) {
     const bad = notReady();
     if (bad) return bad;
 
@@ -449,10 +484,10 @@ export const googleStt: SttProvider = {
     const uri = await gcsUpload(object, await file.arrayBuffer(), type);
     if (!uri) return fail('녹음을 전사 서버로 보내지 못했어요.', 502);
 
-    return recognize(object, type, token);
+    return recognize(object, type, token, topic);
   },
 
-  async startUploaded(object, contentType) {
+  async startUploaded(object, contentType, topic) {
     const bad = notReady();
     if (bad) return bad;
 
@@ -470,7 +505,7 @@ export const googleStt: SttProvider = {
     const stat = await gcsStat(object);
     if (!stat) return fail('올린 녹음을 찾지 못했어요. 다시 올려 주세요.', 404, { settled: true });
 
-    return recognize(object, contentType, token);
+    return recognize(object, contentType, token, topic);
   },
 
   async poll(jobId) {

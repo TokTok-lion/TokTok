@@ -544,9 +544,20 @@ const DIRECT_LIMIT = 3.5 * 1024 * 1024;
  */
 async function send(blob: Blob): Promise<Response> {
   const type = blob.type || 'audio/webm';
+  /*
+   * 오늘 주제를 같이 보낸다. 인식에 미리 알려 줄 낱말이 거기서 나온다
+   * (lib/speechHints.ts) — '첫 월급'을 '차 벌금'으로 듣던 자리다.
+   *
+   * 주제는 복지사가 타이핑한 문장이라 이름이 섞여 들어갈 수 있다. 음성은
+   * 이미 C-02(외부 전송) 동의를 받고 나가는 것이고 그 안에 같은 말이
+   * 들어 있으므로 새로 나가는 종류의 것은 아니지만, 이 자리에 그렇게
+   * 적어 둔다.
+   */
+  const topic = currentSession().topic?.trim() ?? '';
   const form = () => {
     const f = new FormData();
     f.append('file', blob, 'interview.webm');
+    if (topic) f.append('topic', topic);
     return fetch('/api/transcribe', { method: 'POST', body: f });
   };
 
@@ -579,7 +590,7 @@ async function send(blob: Blob): Promise<Response> {
     return fetch('/api/transcribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ object, contentType: type }),
+      body: JSON.stringify({ object, contentType: type, topic }),
     });
   } catch {
     return form();
