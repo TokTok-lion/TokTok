@@ -119,6 +119,29 @@ export type LyricRow = {
   approved_by: string | null;
   approved_at: string | null;
   created_at: string;
+  /** 0007 에서 붙였다. 두 태블릿이 같은 회기를 만졌을 때 최신을 가리는 근거. */
+  updated_at: string;
+};
+
+/**
+ * 회기의 전사 한 벌 (0007).
+ *
+ * 줄을 행으로 쪼개지 않고 통째로 jsonb 에 둔다 — 화면은 언제나 전부를 한꺼번에
+ * 읽고, 쪼개면 전사 하나에 수백 행이 된다.
+ *
+ * 센터장 콘솔에 내용을 그리지 말 것. 명세의 권한 행렬은 센터장에게 전사의
+ * '진행상태'만 준다.
+ */
+export type TranscriptRow = {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  /** [{id,text,at,speaker}] — SessionState.transcript 와 같은 모양 */
+  lines: unknown;
+  /** 복지사가 「수정 완료」를 눌렀는가 */
+  confirmed: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 export type SongRow = {
@@ -197,6 +220,7 @@ export type Database = {
       story_facts: Tbl<StoryFactRow, Partial<StoryFactRow> & { tenant_id: string; session_id: string; participant_id: string; text: string }, Partial<StoryFactRow>>;
       fact_sources: Tbl<FactSourceRow, Partial<FactSourceRow> & { fact_id: string; kind: SourceKind; label: string }, Partial<FactSourceRow>>;
       lyrics: Tbl<LyricRow, Partial<LyricRow> & { tenant_id: string; session_id: string; sections: unknown }, Partial<LyricRow>>;
+      transcripts: Tbl<TranscriptRow, Partial<TranscriptRow> & { tenant_id: string; session_id: string }, Partial<TranscriptRow>>;
       songs: Tbl<SongRow, Partial<SongRow> & { tenant_id: string; title: string }, Partial<SongRow>>;
       observations: Tbl<ObservationRow, Partial<ObservationRow> & { tenant_id: string; session_id: string }, Partial<ObservationRow>>;
       activity_logs: Tbl<ActivityLogRow, Partial<ActivityLogRow> & { tenant_id: string; session_id: string; draft: string }, Partial<ActivityLogRow>>;

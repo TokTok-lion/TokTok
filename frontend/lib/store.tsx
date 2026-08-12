@@ -460,6 +460,52 @@ export type ElderIdentity = Pick<
  * 시연 기기(participantId 가 없는 경우)는 씨앗 이야기를 그대로 둔다. 보여
  * 주려고 만든 화면이 빈 채로 뜨면 그건 그것대로 고장으로 보인다.
  */
+/**
+ * 다른 태블릿에서 열어 둔 회기를 이어받는다.
+ *
+ * 작업대를 비우는 것은 beginSession 이 그대로 한다 — 앞 어르신의 흔적이
+ * 따라오면 안 된다는 규칙은 이어받을 때도 똑같다. 비운 **뒤에** 서버에서 읽은
+ * 그 회기의 내용을 얹는다.
+ *
+ * remoteStartedAt 을 서버 값으로 되돌리는 것이 중요하다. 이 값은 녹음과 곡의
+ * 칸 이름이기도 해서(recordingKey · songTag), 지금 시각으로 두면 같은 회기가
+ * 태블릿마다 다른 칸에 들어간다 — 그러면 이어받은 쪽에서 만든 곡이 원래
+ * 회기의 것으로 묶이지 않는다.
+ *
+ * 타입을 repo 에서 가져오지 않고 여기 적는다. repo 가 이 파일의 SessionState 를
+ * 쓰고 있어서, 반대로 가져오면 두 모듈이 서로를 부른다.
+ */
+export function resumeSession(
+  next: { elder: ElderIdentity; topic: string; participantId: string },
+  open: {
+    sessionId: string;
+    startedAt: string | null;
+    step: number;
+    transcript: SessionState['transcript'];
+    transcriptConfirmed: boolean;
+    lyrics: SessionState['lyrics'];
+    lyricsApproved: boolean;
+    story: SessionState['story'];
+  },
+): void {
+  beginSession(next);
+  // beginSession 이 비운 결과 위에 얹는다. state 는 그 호출로 이미 새 회기다.
+  update({
+    ...state,
+    remoteSessionId: open.sessionId,
+    remoteStep: open.step,
+    ...(open.startedAt ? { remoteStartedAt: open.startedAt } : {}),
+    transcript: open.transcript,
+    transcriptConfirmed: open.transcriptConfirmed,
+    // 어느 녹음에서 나온 전사인지는 이 기기가 알 수 없다. 이어받은 쪽에는 그
+    // 녹음이 없으므로, 비워 두어 '출처 소리를 들려줄 수 없다'고 말하게 한다.
+    transcribedFrom: null,
+    story: open.story,
+    lyrics: open.lyrics,
+    lyricsApproved: open.lyricsApproved,
+  });
+}
+
 export function beginSession(next: {
   elder: ElderIdentity;
   topic: string;

@@ -7,7 +7,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { stepForScreen } from '@/lib/flow';
 import { useSession } from '@/lib/store';
 import { useActiveElder } from '@/lib/useActiveElder';
-import { useSessionProgress } from '@/lib/useSessionProgress';
+import { useSessionProgress, useWorkbenchSync } from '@/lib/useSessionProgress';
 
 /**
  * 회기 폴더 전체의 자물쇠.
@@ -38,6 +38,13 @@ export default function SessionLayout({ children }: { children: ReactNode }) {
    * 반환보다 위에서 부른다(서버를 안 쓰는 기기에서는 아무 일도 하지 않는다).
    */
   useSessionProgress();
+  /*
+   * 전사·이야기·가사도 기관 저장소로 따라 붙인다. 이것이 있어야 A 선생님이
+   * 받은 이야기를 B 선생님이 이어받을 수 있다 — 없으면 그 회기는 만든
+   * 태블릿에 갇히고, 그 태블릿이 고장 나면 어르신께 한 시간 들은 이야기가
+   * 통째로 사라진다.
+   */
+  useWorkbenchSync();
 
   if (elder === 'ok') return <>{children}</>;
 

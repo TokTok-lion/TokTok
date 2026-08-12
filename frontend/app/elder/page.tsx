@@ -13,9 +13,10 @@ import {
   type ElderSummary,
   type ServiceStatus,
 } from '@/lib/seed';
+import { findOpenSession, type OpenSession } from '@/lib/repo';
 import { recordingCountOf } from '@/lib/recordingStore';
 import { useElders } from '@/lib/useElders';
-import { beginSession, useSession } from '@/lib/store';
+import { beginSession, resumeSession, useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
 const FILTERS: { id: ServiceStatus | 'all'; label: string }[] = [
@@ -53,6 +54,16 @@ export default function ElderListPage() {
    * 녹음은 서버로 올라가지 않아 되찾을 길이 없다. 그래서 묻기 전에 센다.
    */
   const [recCount, setRecCount] = useState(0);
+  /**
+   * 다른 태블릿에서 열어 둔 회기. 있으면 이어받을지 먼저 여쭙는다.
+   *
+   * 말없이 가져오지 않는다 — 두 복지사가 같은 회기를 서로 모른 채 고치는
+   * 일이 생긴다. 반대로 묻지 않고 새로 시작해 버리면, 앞 선생님이 어르신께
+   * 들은 이야기를 못 본 채 같은 것을 다시 여쭙게 된다.
+   */
+  const [resume, setResume] = useState<{ elder: ElderSummary; open: OpenSession } | null>(null);
+  /** 서버에 물어보는 동안. 누른 뒤 아무 반응이 없으면 두 번 누른다. */
+  const [checking, setChecking] = useState<string | null>(null);
 
   useEffect(() => {
     const owner = s.remoteParticipantId;
@@ -140,13 +151,40 @@ export default function ElderListPage() {
     return out;
   };
 
+  /**
+   * 이 어르신에게 다른 태블릿이 열어 둔 회기가 있는지 보고, 있으면 여쭙는다.
+   *
+   * 이미 이 기기가 그 회기를 들고 있으면(같은 sessionId) 물을 것이 없다 —
+   * 내가 하던 일이다.
+   */
+  const openOrAsk = async (e: ElderSummary) => {
+    if (!live) {
+      start(e);
+      return;
+    }
+    setChecking(e.id);
+    const found = await findOpenSession(e.id).catch(() => null);
+    setChecking(null);
+
+    const worthResuming =
+      found !== null &&
+      found.sessionId !== s.remoteSessionId &&
+      (found.transcript.length > 0 || found.story.length > 0 || found.lyrics.length > 0);
+
+    if (worthResuming) {
+      setResume({ elder: e, open: found });
+      return;
+    }
+    start(e);
+  };
+
   const open = (e: ElderSummary) => {
     const switching = live && s.remoteParticipantId !== null && s.remoteParticipantId !== e.id;
     if (switching && losing().length > 0) {
       setAsk(e);
       return;
     }
-    start(e);
+    void openOrAsk(e);
   };
 
   const attention = elders.filter(
@@ -176,6 +214,83 @@ export default function ElderListPage() {
         </PrimaryButton>
       }
     >
+      {/* 다른 태블릿이 열어 둔 회기.
+          말없이 가져오지도, 말없이 새로 시작하지도 않는다 — 앞엣것은 두
+          선생님이 같은 회기를 모른 채 고치게 하고, 뒤엣것은 어르신께 같은
+          이야기를 두 번 여쭙게 한다. */}
+      {resume ? (
+        <Card className="mb-4 border-2 border-leaf-300 p-4">
+          <p className="text-[1.0625rem] font-extrabold text-ink-900">
+            {resume.elder.displayName} 어르신 회기가 진행 중이에요
+          </p>
+          <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+            다른 태블릿에서 <strong className="text-ink-900">{resume.open.step}단계</strong>까지
+            진행했어요. 지금까지 정리된{' '}
+            <strong className="text-ink-900">
+              {[
+                resume.open.transcript.length > 0 && `전사 ${resume.open.transcript.length}줄`,
+                resume.open.story.length > 0 && `이야기 ${resume.open.story.length}개`,
+                resume.open.lyrics.length > 0 && '가사',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </strong>
+            을(를) 이어받을 수 있습니다.
+          </p>
+          {/* 녹음은 못 따라온다. 그 사실을 여기서 말해야, 이어받은 뒤에
+              출처를 눌렀다가 소리가 안 나는 것을 고장으로 여기지 않는다. */}
+          <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+            녹음은 그 태블릿에만 있어요. 이어받으면 글로 옮긴 내용은 그대로
+            보이지만, 출처를 눌러 어르신 목소리를 다시 듣는 것은 그 태블릿에서만
+            됩니다.
+          </p>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const it = resume;
+                setResume(null);
+                start(it.elder);
+              }}
+              className="min-h-[52px] rounded-[14px] border border-hairline bg-surface-strong text-[1rem] font-bold text-ink-700"
+            >
+              새로 시작
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const it = resume;
+                setResume(null);
+                resumeSession(
+                  {
+                    participantId: it.elder.id,
+                    topic: it.elder.topic,
+                    elder: {
+                      id: it.elder.id,
+                      displayName: it.elder.displayName,
+                      honorific: `${it.elder.displayName} 어르신`,
+                      avatar: it.elder.avatar,
+                      stage: it.elder.step,
+                      nextTopic: it.elder.topic,
+                    },
+                  },
+                  it.open,
+                );
+                router.push('/session');
+              }}
+              className="tk-cta min-h-[52px] rounded-[14px] text-[1rem] font-extrabold text-white"
+            >
+              이어받기
+            </button>
+          </div>
+          <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-500">
+            「새로 시작」을 고르시면 그 회기는 기관 기록에 그대로 남고, 이
+            태블릿에서만 빈 회기로 시작합니다.
+          </p>
+        </Card>
+      ) : null}
+
       {/* 30분짜리 인터뷰가 잘못 누른 한 번에 사라지면 안 된다.
           무엇이 사라지는지 이름을 대고 묻고, 살릴 길을 함께 준다. */}
       {ask ? (
@@ -216,7 +331,7 @@ export default function ElderListPage() {
               onClick={() => {
                 const target = ask;
                 setAsk(null);
-                start(target);
+                void openOrAsk(target);
               }}
               className="min-h-[52px] rounded-[14px] bg-danger-600 text-[1rem] font-bold text-white"
             >
@@ -293,7 +408,11 @@ export default function ElderListPage() {
             <button
               type="button"
               onClick={() => open(e)}
-              className="flex w-full items-center gap-3.5 text-left"
+              // 서버에 진행 중인 회기를 물어보는 동안 한 번 더 눌리면 두 번
+              // 간다. 오래 걸리는 일은 아니지만, 조용하면 사람은 다시 누른다.
+              disabled={checking !== null}
+              aria-busy={checking === e.id}
+              className="flex w-full items-center gap-3.5 text-left disabled:opacity-70"
             >
               <Art
                 name={e.avatar as ArtKey}

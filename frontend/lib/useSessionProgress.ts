@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { flowState } from './flow';
-import { saveProgress } from './repo';
-import { useSession } from './store';
+import { saveProgress, saveWorkbench } from './repo';
+import { currentSession, useSession } from './store';
 
 /**
  * 회기가 어디까지 왔는지를 서버에 따라 붙인다.
@@ -76,4 +76,57 @@ export function useSessionProgress(): void {
     // 근거는 '누구의 몇 단계인가' 둘뿐이다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participant, step]);
+}
+
+/**
+ * 회기의 중간 산물을 기관 저장소에 따라 붙인다 — 전사·이야기·가사.
+ *
+ * 단계와 따로 두는 이유: 전사 교정은 단계를 넘기지 않는다. 복지사가 문장을
+ * 고치는 동안에도 그 결과가 기관 쪽에 남아야, 다른 태블릿이 이어받을 때
+ * 고친 내용이 따라간다.
+ *
+ * 대신 글자 하나마다 보내지는 않는다. 잠깐 멈추면 그때 한 번 보낸다 — 전사
+ * 스물아홉 줄을 손보는 동안 요청이 수백 번 나가면 센터 와이파이가 먼저 죽는다.
+ *
+ * 회기 행이 먼저 있어야 한다(remoteSessionId). 위 useSessionProgress 가
+ * 만들어 두므로, 아직 없으면 다음 단계에서 자연히 따라온다.
+ */
+export function useWorkbenchSync(): void {
+  const { s } = useSession();
+  const sessionId = s.remoteSessionId;
+
+  /*
+   * 무엇이 바뀌었는지를 짧은 지문으로 잡는다. 전사 원문을 통째로 의존성에
+   * 넣으면 렌더마다 배열 신원이 바뀌어 매번 보내게 된다.
+   */
+  const mark = [
+    s.transcript.length,
+    s.transcript.reduce((n, l) => n + l.text.length, 0),
+    s.transcriptConfirmed ? 1 : 0,
+    s.story.length,
+    s.story.filter((i) => i.status === 'verified').length,
+    s.lyrics.length,
+    s.lyricsApproved ? 1 : 0,
+  ].join(':');
+
+  const sent = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    // 아무것도 없는 회기는 보낼 것도 없다.
+    if (mark.startsWith('0:0:0:0:0:0:')) return;
+    if (sent.current === `${sessionId}::${mark}`) return;
+
+    // 손이 멈춘 뒤에 보낸다.
+    const timer = window.setTimeout(() => {
+      void saveWorkbench(currentSession(), sessionId)
+        .then((ok) => {
+          // 실패는 표시하지 않는다 — 다음 변경이나 다음 단계에서 다시 간다.
+          if (ok) sent.current = `${sessionId}::${mark}`;
+        })
+        .catch(() => undefined);
+    }, 2500);
+
+    return () => window.clearTimeout(timer);
+  }, [sessionId, mark]);
 }

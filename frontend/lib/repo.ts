@@ -31,6 +31,11 @@ const SOURCE_KIND_TO_DB: Record<SourceKind, DbSourceKind> = {
   family: 'family',
 };
 
+/** 되읽을 때 쓰는 반대 방향 표. 위 표에서 그대로 뒤집어 만들어 둘이 어긋나지 않게 한다. */
+const DB_KIND_TO_SOURCE = Object.fromEntries(
+  Object.entries(SOURCE_KIND_TO_DB).map(([app, db]) => [db, app as SourceKind]),
+) as Record<DbSourceKind, SourceKind>;
+
 /** 같은 이유로 동의 종류도 여기서만 맞춘다. 앱은 externalAi, DB 는 external_ai. */
 const CONSENT_KIND_TO_DB: Record<ConsentKind, DbConsentKind> = {
   recording: 'recording',
@@ -314,6 +319,212 @@ export async function saveProgress(
     .single();
   if (error || !data) return null;
   return { sessionId: data.id, step };
+}
+
+/* ----------------------------------------------------- 작업대 나누기 */
+
+/**
+ * 회기의 중간 산물을 기관 저장소에 올린다 — 전사·이야기·가사.
+ *
+ * ── 왜
+ *
+ * 어르신 목록도 동의도 곡도 기관 단위로 나뉘는데, 정작 그 회기의 알맹이는
+ * 만든 태블릿 안에만 있었다. 복지사 A가 받은 이야기를 B가 이어받을 수 없고,
+ * A의 태블릿이 고장 나면 그대로 사라진다. 어르신께 한 시간 들은 이야기다.
+ *
+ * ── 확인 전 초안을 올려도 되는가
+ *
+ * 된다. 다만 **상태를 그대로 지고 올라가야** 한다. story_facts 에는
+ * unverified/verified 칸이 있고(원칙 3), transcripts 에는 confirmed 가,
+ * lyrics 에는 approved_at 이 있다. 초안을 초안이라고 적어 올리는 것과, 초안을
+ * 확정처럼 올리는 것은 전혀 다른 일이다 — 뒤엣것만 금지다.
+ *
+ * ── 실패해도 회기를 막지 않는다
+ *
+ * 어르신 앞에서 통신 때문에 멈추면 안 된다. 다만 조용히 실패하지도 않는다 —
+ * 곡이 그렇게 한 번도 저장되지 않은 채 지나갔다(0006).
+ */
+export async function saveWorkbench(
+  s: SessionState,
+  sessionId: string,
+): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb) return false;
+  const account = await accountReady();
+  const t = account.status === 'in' ? account.tenantId : null;
+  if (!t || !s.remoteParticipantId) return false;
+
+  const facilitator =
+    account.status === 'in' ? await membershipId(account.userId, t) : null;
+
+  let ok = true;
+
+  /*
+   * 전사. 씨앗(예시) 줄은 빼고 올린다 — 둘러보기용으로 넣어 둔 문장이
+   * 기관 기록에 어르신 말씀으로 앉으면 안 된다.
+   */
+  const lines = s.transcript.filter((l) => !l.example);
+  if (lines.length) {
+    const { error } = await sb.from('transcripts').upsert(
+      {
+        tenant_id: t,
+        session_id: sessionId,
+        lines,
+        confirmed: s.transcriptConfirmed,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'session_id' },
+    );
+    if (error) {
+      syncWarn('전사', error.message);
+      ok = false;
+    }
+  }
+
+  // 가사. 승인 전이면 approved_at 을 비워 둔다 — 그 빈칸이 '아직 초안'이다.
+  if (s.lyrics.length) {
+    const { error } = await sb.from('lyrics').upsert(
+      {
+        tenant_id: t,
+        session_id: sessionId,
+        version: 1,
+        sections: s.lyrics,
+        approved_by: s.lyricsApproved ? facilitator : null,
+        approved_at: s.lyricsApproved ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'session_id,version' },
+    );
+    if (error) {
+      syncWarn('가사', error.message);
+      ok = false;
+    }
+  }
+
+  // 이야기는 이미 만들어 둔 길로 보낸다. 출처를 함께 넣는 규칙(원칙 2)이
+  // 그 안에 있어서, 여기서 따로 쓰면 그 규칙이 두 벌이 된다.
+  if (s.story.length) {
+    const facts = await replaceFacts(sessionId, t, s, facilitator);
+    if (!facts.ok) {
+      syncWarn('이야기', facts.reason);
+      ok = false;
+    }
+  }
+
+  return ok;
+}
+
+/** 올리기가 실패하면 흔적을 남긴다. 조용한 실패가 곡에서 얼마나 오래 갔는지 봤다. */
+function syncWarn(what: string, message: string): void {
+  console.warn(`[똑똑] ${what}를 기관 기록에 올리지 못했어요: ${message}`);
+}
+
+/** 다른 태블릿에 열려 있는 회기. 이어받기 전에 무엇이 있는지 보여 준다. */
+export type OpenSession = {
+  sessionId: string;
+  startedAt: string | null;
+  step: number;
+  /** 이 회기를 연 복지사의 memberships.id. 내가 연 것인지 가리는 데 쓴다. */
+  facilitator: string | null;
+  transcript: SessionState['transcript'];
+  transcriptConfirmed: boolean;
+  lyrics: SessionState['lyrics'];
+  lyricsApproved: boolean;
+  story: StoryItem[];
+};
+
+/**
+ * 이 어르신에게 진행 중인 회기가 기관에 있는지 본다.
+ *
+ * 다른 태블릿에서 열어 둔 회기를 이어받는 길이다. 자동으로 덮어쓰지 않는다 —
+ * 부르는 쪽(app/elder)이 사람에게 먼저 묻는다. 남이 하던 일을 말없이 가져오면,
+ * 두 복지사가 같은 회기를 서로 모른 채 고치게 된다.
+ *
+ * 끝난 회기(status='done')는 가져오지 않는다. 그건 이어받을 일이 아니라 지난
+ * 기록이고, 기록 화면이 따로 보여 준다.
+ */
+export async function findOpenSession(participantId: string): Promise<OpenSession | null> {
+  const sb = getSupabase();
+  if (!sb) return null;
+  const account = await accountReady();
+  if (account.status !== 'in') return null;
+
+  const { data: row } = await sb
+    .from('sessions')
+    .select('id, started_at, step, facilitator')
+    .eq('participant_id', participantId)
+    .eq('status', 'running')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!row) return null;
+
+  const [tr, ly, facts] = await Promise.all([
+    sb.from('transcripts').select('lines, confirmed').eq('session_id', row.id).maybeSingle(),
+    sb
+      .from('lyrics')
+      .select('sections, approved_at')
+      .eq('session_id', row.id)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    sb
+      .from('story_facts')
+      .select('id, text, status, follow_up')
+      .eq('session_id', row.id)
+      .order('created_at'),
+  ]);
+
+  /*
+   * 출처는 따로 읽어 붙인다. 한 번에 묶어 오는 편이 요청은 적지만, 그러려면
+   * 두 표의 관계를 타입에 적어 둬야 하고 그 선언이 실제 외래키와 어긋나는
+   * 순간 조용히 빈 배열이 된다 — 출처가 사라지면 사실이 통째로 버려진다.
+   */
+  const factRows = facts.data ?? [];
+  const srcByFact = new Map<string, StoryItem['sources']>();
+  if (factRows.length) {
+    const { data: srcRows } = await sb
+      .from('fact_sources')
+      .select('fact_id, kind, at_sec, label')
+      .in(
+        'fact_id',
+        factRows.map((f) => f.id),
+      );
+    for (const src of srcRows ?? []) {
+      const list = srcByFact.get(src.fact_id) ?? [];
+      list.push({
+        kind: DB_KIND_TO_SOURCE[src.kind] ?? 'staffNote',
+        at: src.at_sec ?? undefined,
+        label: src.label,
+      });
+      srcByFact.set(src.fact_id, list);
+    }
+  }
+
+  return {
+    sessionId: row.id,
+    startedAt: row.started_at,
+    step: row.step,
+    facilitator: row.facilitator,
+    transcript: (tr.data?.lines as SessionState['transcript'] | undefined) ?? [],
+    transcriptConfirmed: Boolean(tr.data?.confirmed),
+    lyrics: (ly.data?.sections as SessionState['lyrics'] | undefined) ?? [],
+    lyricsApproved: Boolean(ly.data?.approved_at),
+    /*
+     * 출처가 없는 사실은 버린다. 원칙 1 — 근거 없는 문장은 이야기가 아니고,
+     * 가사로 넘어가면 어르신이 하지 않은 말이 노래가 된다. 서버 트리거가
+     * 막고 있지만, 읽는 쪽에서도 한 번 더 본다.
+     */
+    story: factRows
+      .map((f) => ({
+        id: f.id,
+        text: f.text,
+        status: f.status === 'verified' ? ('verified' as const) : ('unverified' as const),
+        followUp: f.follow_up ?? undefined,
+        sources: srcByFact.get(f.id) ?? [],
+      }))
+      .filter((i) => i.sources.length > 0),
+  };
 }
 
 /**
