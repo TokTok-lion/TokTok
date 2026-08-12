@@ -315,10 +315,23 @@ export function Screen({
 
       {/* Any screen that is part of the session flow gets the step indicator
           automatically — no per-screen wiring to forget. */}
-      {step ? <SessionStepper current={step} /> : null}
+      {step ? (
+        // 회기 단계 표시줄도 화면 장치다 — 종이에는 안 나간다.
+        <div data-print-hide>
+          <SessionStepper current={step} />
+        </div>
+      ) : null}
 
+      {/*
+        화면 제목은 종이에 나가지 않는다.
+        
+        인쇄 규칙이 main 바깥은 손대지 않아서, 활동일지를 뽑으면 종이 맨 위에
+        「활동일지 편집 / 오늘의 기록을 정리하고 저장해보세요」가 같이 찍혔다.
+        기관에 제출하는 서류에 앱 화면 안내문이 들어가는 셈이다. 종이에 나갈
+        제목은 [data-print] 블록이 따로 들고 있다.
+      */}
       {title ? (
-        <div className="relative z-10 px-5 pt-3 text-center">
+        <div data-print-hide className="relative z-10 px-5 pt-3 text-center">
           <h1 className="tk-h1">{title}</h1>
           {subtitle ? (
             <p className="mt-2 text-[1rem] font-medium text-ink-500">{subtitle}</p>
