@@ -31,6 +31,14 @@ import type { ArtKey } from './art';
 export type Scene = {
   /** stable id, handy for tests and analytics */
   id: string;
+  /**
+   * 그림 고르는 화면에 뜨는 짧은 이름.
+   *
+   * alt 로는 못 쓴다 — alt 는 "댓돌 위에 나란히 놓인 신발 세 켤레 그림"처럼
+   * 그림을 설명하는 문장이라 96px 타일 밑에 들어가지 않는다. 눈으로 훑어
+   * 찾는 사람에게는 '가족' 두 글자가 필요하다.
+   */
+  label: string;
   /** the artwork shown while the song renders and on the finished song */
   art: ArtKey;
   /** what the picture shows, for screen-reader users */
@@ -58,6 +66,7 @@ export type Scene = {
 export const SCENES: Scene[] = [
   {
     id: 'firstPay',
+    label: '첫 월급',
     // 덱 p.26 의 첫 월급은 구두방이다 — 첫 월급으로 구두를 사 드린 이야기.
     // 덱 그림 자체(scene_paycheck_shop)는 못 쓴다. '월급'과 '구두'가 글자로
     // 박혀 있는데 이 타일은 112px 과 64px 로 쓰이고, 그 크기에서 글자는
@@ -70,24 +79,28 @@ export const SCENES: Scene[] = [
   },
   {
     id: 'grandchild',
+    label: '손주',
     art: 'album_grandchild_day',
     alt: '할머니와 손주가 함께 그림을 그리는 그림',
     match: ['손주', '손자', '손녀', '아이와', '함께한 하루'],
   },
   {
     id: 'firstSteps',
+    label: '아이 첫걸음',
     art: 'album_first_steps',
     alt: '아기 사진첩과 첫 신발이 놓인 그림',
     match: ['첫걸음', '첫 걸음', '아기', '육아', '아이 키우'],
   },
   {
     id: 'wedding',
+    label: '혼례',
     art: 'cover_wedding',
     alt: '나무로 깎은 기러기와 청실홍실 매듭이 놓인 그림',
     match: ['혼례', '결혼식', '예식', '시집가', '장가가', '신부', '신랑'],
   },
   {
     id: 'honeymoon',
+    label: '신혼여행',
     // 덱 p.26 의 신혼여행 타일. '여행'은 아래 travel 로 내려보냈다 — 예전에는
     // 어떤 여행 이야기든 신혼여행 그림이 떴다.
     art: 'album_honeymoon',
@@ -96,96 +109,112 @@ export const SCENES: Scene[] = [
   },
   {
     id: 'travel',
+    label: '여행',
     art: 'cover_travel_case',
     alt: '여행 가방 옆에 종이로 싼 들꽃 다발이 놓인 그림',
     match: ['여행', '기차', '객지', '타향', '서울살이'],
   },
   {
     id: 'hometown',
+    label: '고향·바다',
     art: 'cover_lighthouse',
     alt: '등대 옆에 노란 유채꽃 다발이 놓인 그림',
     match: ['고향', '바다', '바닷', '시골', '동네', '마을', '섬마을', '섬에서'],
   },
   {
     id: 'farming',
+    label: '농사',
     art: 'cover_farming',
     alt: '지게에 기대어 놓인 볏단과 낫 그림',
     match: ['농사', '논밭', '논일', '밭일', '모내기', '추수', '벼 베', '소 먹이'],
   },
   {
     id: 'army',
+    label: '군대',
     art: 'cover_army',
     alt: '군화 한 켤레와 수통, 접힌 편지가 놓인 그림',
     match: ['군대', '군 생활', '입대', '제대', '병역', '훈련소'],
   },
   {
     id: 'market',
+    label: '장사·시장',
     art: 'cover_market',
     alt: '양팔 저울과 나무 됫박이 놓인 그림',
     match: ['장사', '시장', '좌판', '노점', '가게', '점포', '행상'],
   },
   {
     id: 'kimjang',
+    label: '김장',
     art: 'cover_kimjang',
     alt: '장독 옆 소쿠리에 배추 한 포기가 담긴 그림',
     match: ['김장', '배추', '김치 담'],
   },
   {
     id: 'mealTable',
+    label: '밥상',
     art: 'cover_meal_table',
     alt: '소반 위에 밥 한 그릇과 국 한 그릇, 젓가락이 놓인 그림',
     match: ['밥상', '부엌', '반찬', '김치', '장독', '도시락', '음식', '요리'],
   },
   {
     id: 'sewing',
+    label: '바느질',
     art: 'cover_sewing',
     alt: '발재봉틀과 실패 두 개, 골무가 놓인 그림',
     match: ['바느질', '재봉', '삯바느질', '뜨개', '옷 지'],
   },
   {
     id: 'house',
+    label: '이사·우리 집',
     art: 'cover_house_key',
     alt: '나무 문패와 열쇠 세 개가 놓인 그림',
     match: ['이사', '문패', '우리 집', '집 짓', '셋방', '전세', '내 집'],
   },
   {
     id: 'family',
+    label: '가족',
     art: 'cover_family_shoes',
     alt: '댓돌 위에 나란히 놓인 신발 세 켤레 그림',
     match: ['가족', '우리 가족', '어머니', '아버지', '부모'],
   },
   {
     id: 'radio',
+    label: '노래·라디오',
     art: 'cover_radio',
     alt: '나무 라디오와 음반 세 장이 놓인 그림',
     match: ['라디오', '전축', '유행가', '노래', '음악', '가수'],
   },
   {
     id: 'proud',
+    label: '자랑·보람',
     art: 'cover_trophy',
     alt: '월계수 가지 옆에 놓인 금빛 트로피 그림',
     match: ['자랑', '보람', '성취', '상 받'],
   },
   {
     id: 'school',
+    label: '학교',
     art: 'cover_school_bag',
     alt: '가죽 책가방 옆에 공책과 연필이 놓인 그림',
     match: ['학교', '학창', '선생님', '공부'],
   },
   {
     id: 'friends',
+    label: '친구',
     art: 'cover_kettle_bowls',
     alt: '주전자와 사발 두 개가 놓인 그림',
     match: ['친구', '동무'],
   },
   {
     id: 'newYear',
+    label: '설날',
     art: 'cover_tteokguk',
     alt: '놋그릇에 담긴 떡국과 놋숟가락 그림',
     match: ['설날', '정월', '떡국', '설 명절', '세배'],
   },
   {
     id: 'holiday',
+    label: '추석·명절',
     art: 'cover_songpyeon',
     alt: '놋그릇에 담긴 송편과 감 하나가 놓인 그림',
     // '설' 한 글자였다. 그래서 '건설 현장', '소설' 같은 주제가 전부 명절
@@ -194,6 +223,7 @@ export const SCENES: Scene[] = [
   },
   {
     id: 'play',
+    label: '놀이',
     art: 'cover_hoop_marbles',
     alt: '굴렁쇠와 구슬 다섯 알이 놓인 그림',
     // '동무들과'가 있었는데 위 friends 의 '동무'가 늘 먼저 먹어서 한 번도
@@ -202,6 +232,7 @@ export const SCENES: Scene[] = [
   },
   {
     id: 'bicycle',
+    label: '자전거',
     art: 'cover_bicycle',
     alt: '들꽃 한 다발이 놓인 낡은 자전거 그림',
     match: ['자전거', '나들이', '소풍'],
@@ -218,6 +249,7 @@ export const SCENES: Scene[] = [
  */
 export const DEFAULT_SCENE: Scene = {
   id: 'default',
+  label: '기본 그림',
   art: 'cover_photo_album_plain',
   alt: '기와지붕 사진이 붙은 낡은 사진첩 그림',
   match: [],
@@ -231,6 +263,39 @@ export function sceneForTopic(topic: string | undefined | null): Scene {
     if (s.match.some((k) => t.includes(k))) return s;
   }
   return DEFAULT_SCENE;
+}
+
+/**
+ * 복지사가 고를 수 있는 그림 목록. 기본 그림이 맨 앞이다.
+ *
+ * 목록의 순서는 표의 순서 그대로다. 표는 구체적인 것이 위에 오도록 짜여
+ * 있어서(첫 월급·손주·혼례…) 훑어 내려가는 순서로도 자연스럽다.
+ */
+export const COVER_CHOICES: readonly Scene[] = [DEFAULT_SCENE, ...SCENES];
+
+/**
+ * 화면이 실제로 쓰는 해석기 — 복지사가 고른 것이 주제보다 앞선다.
+ *
+ * 열쇠말 스물셋으로는 복지사가 타이핑하는 자유 문장을 절대 다 덮지 못한다.
+ * 그림이 어르신 이야기를 잘못 대변할 때 손댈 자리가 있어야 하고, 그 자리가
+ * 여기다. 고른 것이 없으면(cover === null) 예전 그대로 주제에서 고른다.
+ *
+ * sceneForTopic 은 손대지 않는다. 순수 함수로 남아 있어야 표를 표만으로
+ * 시험할 수 있다.
+ *
+ * 모르는 id 는 없는 셈 친다. 그림을 지우면(실제로 두 장 지웠다) 그걸 고른
+ * 채 저장된 회기가 남는데, 그때 화면이 비거나 터지는 대신 주제 그림으로
+ * 돌아가는 편이 낫다.
+ */
+export function sceneFor(
+  topic: string | undefined | null,
+  cover: string | undefined | null,
+): Scene {
+  if (cover) {
+    const picked = COVER_CHOICES.find((s) => s.id === cover);
+    if (picked) return picked;
+  }
+  return sceneForTopic(topic);
 }
 
 /** 곡 제목은 주제에서 파생된다. 이미 "이야기"로 끝나면 그대로 둔다. */

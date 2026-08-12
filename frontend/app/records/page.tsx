@@ -6,7 +6,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, IconCircle } from '@/components/ui';
 import { IconCalendar, IconDoc, IconMusicNote, IconTextSize } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
-import { sceneForTopic } from '@/lib/scenes';
+import { sceneFor } from '@/lib/scenes';
 import { shelfSongDate, shelfSongTitle, useSongShelf } from '@/lib/useDeviceSong';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
@@ -92,7 +92,7 @@ export default function RecordsPage() {
                     두 곡이 겹쳐 흐를 길이 생긴다. */}
                 <Link href="/library" className="flex items-center gap-3.5">
                   <ArtBox
-                    name={sceneForTopic(m.topic).art as ArtKey}
+                    name={sceneFor(m.topic, m.cover).art as ArtKey}
                     alt=""
                     className="h-[64px] w-[64px] shrink-0 rounded-[12px] object-cover"
                   />

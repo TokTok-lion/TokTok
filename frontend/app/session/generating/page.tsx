@@ -8,7 +8,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, PrimaryButton } from '@/components/ui';
 import { IconDoc, IconHeart, IconMusicNote } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
-import { sceneForTopic } from '@/lib/scenes';
+import { sceneFor } from '@/lib/scenes';
 import { useMusic } from '@/lib/useMusic';
 import { useSession } from '@/lib/store';
 
@@ -27,7 +27,7 @@ export default function GeneratingPage() {
   const { s, set } = useSession();
   const router = useRouter();
   const [pct, setPct] = useState(6);
-  const scene = sceneForTopic(s.topic);
+  const scene = sceneFor(s.topic, s.cover);
   const music = useMusic();
   const started = useRef(false);
   const state = music.state;

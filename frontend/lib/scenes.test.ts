@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { art } from './art.ts';
-import { DEFAULT_SCENE, SCENES, sceneForTopic, songTitleForTopic } from './scenes.ts';
+import {
+  COVER_CHOICES,
+  DEFAULT_SCENE,
+  SCENES,
+  sceneFor,
+  sceneForTopic,
+  songTitleForTopic,
+} from './scenes.ts';
 
 /**
  * 주제 → 그림 표를 지키는 테스트.
@@ -122,6 +129,42 @@ test('함정: 주제가 제 그림으로 간다', () => {
 test('주제가 없어도 터지지 않는다', () => {
   assert.equal(sceneForTopic(null).id, 'default');
   assert.equal(sceneForTopic(undefined).id, 'default');
+});
+
+test('규칙: 모든 장면에 고르는 화면용 짧은 이름이 있다', () => {
+  for (const s of COVER_CHOICES) {
+    assert.ok(s.label.trim().length > 0, `${s.id} 에 label 이 없다`);
+    // 96px 타일 밑 한 줄에 들어가야 한다. 길면 두 줄로 흘러 격자가 어긋난다.
+    assert.ok([...s.label].length <= 8, `${s.id} 의 label '${s.label}' 이 너무 길다`);
+  }
+});
+
+test('고른 그림이 주제보다 앞선다', () => {
+  // 주제는 명절인데 복지사가 농사를 골랐다 — 고른 쪽이 이긴다.
+  assert.equal(sceneFor('추석 차례상', 'farming').id, 'farming');
+  // 안 골랐으면 예전 그대로 주제에서.
+  assert.equal(sceneFor('추석 차례상', null).id, 'holiday');
+  assert.equal(sceneFor('추석 차례상', undefined).id, 'holiday');
+});
+
+test("'고르지 않음'과 '기본 그림을 골랐다'는 다르다", () => {
+  // null 은 주제에 맡긴 상태라 주제를 고치면 그림이 따라온다.
+  assert.equal(sceneFor('군대 시절', null).id, 'army');
+  // 'default' 는 사람이 고른 것이므로 주제가 무엇이든 그대로 있는다.
+  assert.equal(sceneFor('군대 시절', 'default').id, 'default');
+});
+
+test('없는 그림을 고른 채 저장된 회기는 주제 그림으로 돌아간다', () => {
+  // 실제로 커버 두 장을 지웠다. 그때 그것을 고른 채 저장된 회기가 남는다 —
+  // 화면이 비거나 터지는 대신 주제 그림으로 돌아가야 한다.
+  assert.equal(sceneFor('군대 시절', 'cover_지워진것').id, 'army');
+  assert.equal(sceneFor('', 'cover_지워진것').id, 'default');
+});
+
+test('고를 수 있는 목록은 기본 그림으로 시작한다', () => {
+  // 무르는 길이 목록 맨 앞에 없으면, 한 번 고른 뒤로는 되돌릴 수 없다.
+  assert.equal(COVER_CHOICES[0].id, 'default');
+  assert.equal(COVER_CHOICES.length, SCENES.length + 1);
 });
 
 test('곡 제목은 주제를 따른다', () => {

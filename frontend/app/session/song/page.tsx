@@ -6,7 +6,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconBook, IconDoc, IconPause, IconPlay, IconRefresh, IconShield } from '@/components/icons';
 import { MUSIC_STYLES, formatDuration, lyricInputs } from '@/lib/domain';
-import { sceneForTopic, songTitleForTopic } from '@/lib/scenes';
+import { sceneFor, songTitleForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 import { useSongPlayer } from '@/lib/useMusic';
 
@@ -29,7 +29,7 @@ export default function SongPage() {
   const { s } = useSession();
   // 고른 분위기가 없으면 이름을 지어내지 않는다(/session/preview 와 같은 규칙).
   const styleName = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
-  const scene = sceneForTopic(s.topic);
+  const scene = sceneFor(s.topic, s.cover);
   const title = songTitleForTopic(s.topic);
   const player = useSongPlayer();
 

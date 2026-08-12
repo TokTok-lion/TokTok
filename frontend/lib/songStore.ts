@@ -87,6 +87,14 @@ export type SongTag = {
   sessionId: string;
   /** 회기 주제. 없으면 null — 목록이 제목을 지어내지 않게 한다. */
   topic: string | null;
+  /**
+   * 복지사가 고른 앨범 그림(Scene.id). 안 골랐으면 null.
+   *
+   * 곡에 같이 붙여 둬야 보관함에서도 고른 그림이 나온다. 이게 없으면
+   * 복지사가 그림을 바꿔 노래를 만들고, 며칠 뒤 보관함을 열었을 때 주제에서
+   * 다시 계산된 옛 그림이 붙어 있다 — 바꾼 적이 없는 것처럼.
+   */
+  cover: string | null;
   style: MusicStyleId | null;
 };
 
@@ -103,6 +111,8 @@ export type SongMeta = {
    */
   madeAt: number | null;
   topic: string | null;
+  /** 곡을 만들 때 복지사가 고른 그림. 판올림 전 곡에는 없어서 optional. */
+  cover?: string | null;
   style: MusicStyleId | null;
   bytes: number;
 };
@@ -137,6 +147,7 @@ export function songTag(): SongTag {
     // 서버에서 온 어르신은 주제가 '—'로 온다(useElders.toSummary). 그건 주제가
     // 아니라 '아직 없음' 표시라, 목록에 '— 이야기'라는 제목이 생기지 않게 비운다.
     topic: !topic || topic === '—' ? null : topic,
+    cover: s.cover,
     style: s.style,
   };
 }
@@ -300,6 +311,7 @@ async function migrateOnce(db: IDBDatabase): Promise<void> {
       // 지금 시각을 적으면 재지 않은 값을 적는 것이 된다.
       madeAt: null,
       topic: claimed ? tag.topic : null,
+      cover: claimed ? tag.cover : null,
       style: claimed ? tag.style : null,
       bytes: blob.size,
     });
@@ -330,6 +342,7 @@ export async function saveSong(blob: Blob, tag: SongTag = songTag()): Promise<Sa
       sessionId: tag.sessionId,
       madeAt,
       topic: tag.topic,
+      cover: tag.cover,
       style: tag.style,
       bytes: blob.size,
     },

@@ -8,7 +8,7 @@ import { Card, CheckCircle, Chevron, NoteBar, PrimaryButton } from '@/components
 import { IconChat, IconInfo, IconShield } from '@/components/icons';
 import { lyricInputs } from '@/lib/domain';
 import { mmss, useRecorder } from '@/lib/recorder';
-import { sceneForTopic } from '@/lib/scenes';
+import { sceneFor } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 import { autoTranscribe, useTranscribeStatus } from '@/lib/transcribeJob';
 import type { ArtKey } from '@/lib/art';
@@ -73,7 +73,7 @@ export default function ConfirmPage() {
   // 여기만 'album_briefcase_coins' 한 장이 박혀 있어서, 손주 이야기를 확인하는
   // 화면에도 서류가방이 떴다. 주제가 없으면 특정 사건을 그리지 않는 기본
   // 그림이 나오므로 어르신의 이야기를 잘못 대변하지 않는다.
-  const scene = sceneForTopic(s.topic);
+  const scene = sceneFor(s.topic, s.cover);
 
   return (
     <Screen

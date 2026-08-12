@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArtBox } from '@/components/Art';
+import { CoverPicker } from '@/components/CoverPicker';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, NoteBar, OutlineButton, PrimaryButton } from '@/components/ui';
 import { IconHeart, IconPause, IconPlay, IconRefresh } from '@/components/icons';
 import { MUSIC_STYLES, formatDuration } from '@/lib/domain';
-import { sceneForTopic, songTitleForTopic } from '@/lib/scenes';
+import { sceneFor, songTitleForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 import { askRegenerate, useSongPlayer } from '@/lib/useMusic';
 
@@ -30,12 +31,14 @@ export default function PreviewPage() {
   const router = useRouter();
   const player = useSongPlayer();
   const [asking, setAsking] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   // 고른 분위기가 없으면 이름을 지어내지 않는다. 예전에는 '따뜻한 발라드'로
   // 받아 놨는데, 그 값은 목록의 첫 후보가 아니라 씨앗이 들고 있던 값이라
   // 아무도 고르지 않은 회기에서도 발라드를 고른 것처럼 말했다.
   const styleName = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
-  const scene = sceneForTopic(s.topic);
+  // 복지사가 고른 것이 주제보다 앞선다(lib/scenes.ts · sceneFor).
+  const scene = sceneFor(s.topic, s.cover);
   const title = songTitleForTopic(s.topic);
 
   const remake = () => {
@@ -159,6 +162,19 @@ export default function PreviewPage() {
             ) : (
               <p className="mt-1.5 text-[1rem] text-ink-500">분위기를 아직 고르지 않았어요</p>
             )}
+            {/*
+              그림을 바꾸는 자리가 여기인 이유: 이 화면이 곡을 확정하기 전
+              마지막으로 사람이 보는 자리다. 그림은 주제 열쇠말로 정해지는데
+              주제는 자유 입력이라 늘 못 덮는 이야기가 남는다 — 틀렸을 때
+              고칠 데가 없으면 그대로 노래와 보관함에 붙는다.
+            */}
+            <button
+              type="button"
+              onClick={() => setPicking(true)}
+              className="mt-2 inline-flex min-h-[44px] items-center border-b-2 border-leaf-300 px-1 text-[0.9375rem] font-bold text-leaf-700"
+            >
+              그림 바꾸기
+            </button>
           </div>
         </div>
 
@@ -207,6 +223,17 @@ export default function PreviewPage() {
           노래는 회기마다 한 곡을 만들어요. 마음에 안 드시면 다시 만들 수 있어요
         </NoteBar>
       </div>
+
+      {/* 고르면 바로 닫지 않는다. 어느 것을 골랐는지 카드가 바뀌는 것을
+          보고 나가야, 잘못 눌렀을 때 그 자리에서 되돌릴 수 있다. */}
+      {picking ? (
+        <CoverPicker
+          topic={s.topic}
+          cover={s.cover}
+          onPick={(id) => set('cover', id)}
+          onClose={() => setPicking(false)}
+        />
+      ) : null}
     </Screen>
   );
 }

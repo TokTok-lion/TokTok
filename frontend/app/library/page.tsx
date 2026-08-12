@@ -8,7 +8,7 @@ import { Card, PrimaryButton } from '@/components/ui';
 import { IconMusicNote, IconPause, IconPlay, IconPlus } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
 import { formatBytes } from '@/lib/recordingStore';
-import { sceneForTopic } from '@/lib/scenes';
+import { sceneFor } from '@/lib/scenes';
 import {
   DEMO_SESSION,
   LEGACY_SESSION,
@@ -171,7 +171,7 @@ export default function LibraryPage() {
                 ? player.sound.kind
                 : 'idle';
             const on = st === 'playing';
-            const scene = sceneForTopic(m.topic);
+            const scene = sceneFor(m.topic, m.cover);
             const title = shelfSongTitle(m);
             const date = shelfSongDate(m);
             const styleName = MUSIC_STYLES.find((x) => x.id === m.style)?.name ?? null;

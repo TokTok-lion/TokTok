@@ -60,6 +60,18 @@ export type SessionState = {
   elder: Elder;
   /** 오늘 회기 주제 */
   topic: string;
+  /**
+   * 복지사가 손으로 고른 앨범 그림(lib/scenes.ts 의 Scene.id). 안 골랐으면 null.
+   *
+   * 그림은 원래 주제 열쇠말로 정해진다. 그런데 주제는 자유 입력이고 열쇠말은
+   * 스물셋뿐이라 못 덮는 이야기가 늘 남는다. 그림이 어르신 이야기를 잘못
+   * 대변할 때 복지사가 바꿀 수 있어야 해서 이 칸이 있다.
+   *
+   * null 과 'default' 는 다르다. null 은 '주제에 맡긴다'이고 'default' 는
+   * '기본 그림을 골랐다'이다. 앞의 것은 주제를 고치면 그림도 따라 바뀌고,
+   * 뒤의 것은 안 바뀐다.
+   */
+  cover: string | null;
   memoryCard: string | null;
   questionLevel: QuestionLevel;
   checklist: Record<string, boolean>;
@@ -229,6 +241,9 @@ function seedState(): SessionState {
   return {
     elder: SEED_ELDER,
     topic: '첫 직장과 첫 월급',
+    // 씨앗 회기는 고르지 않은 상태로 시작한다 — 주제가 그림을 고르는 것이
+    // 기본 동작이고, 시연에서도 그게 먼저 보여야 한다.
+    cover: null,
     /*
      * 기억 카드는 오늘 주제와 이어져야 한다.
      *

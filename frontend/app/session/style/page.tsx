@@ -6,7 +6,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, PrimaryButton } from '@/components/ui';
 import { IconMusicNote } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
-import { sceneForTopic, songTitleForTopic } from '@/lib/scenes';
+import { sceneFor, songTitleForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
@@ -21,7 +21,7 @@ export default function StylePage() {
   // 주제가 없는 회기는 제목이 '오늘의 노래', 그림은 기본 장면이 된다
   // (lib/scenes.ts). 서버에서 온 어르신에게 '—'가 붙던 시절에는 이 자리에
   // '— 이야기'가 곡 제목으로 떴는데, 이제 주제는 비어서 온다(lib/useElders.ts).
-  const scene = sceneForTopic(s.topic);
+  const scene = sceneFor(s.topic, s.cover);
   const title = songTitleForTopic(s.topic);
   const styleName = MUSIC_STYLES.find((m) => m.id === s.style)?.name;
 
