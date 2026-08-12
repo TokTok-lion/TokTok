@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AuthFrame, Field, FormError, SubmitButton } from '@/components/AuthForm';
 import { useAccount } from '@/lib/auth';
+import { joinTenant } from '@/lib/joinTenant';
 import { getSupabase } from '@/lib/supabase';
 
 /**
@@ -84,13 +85,18 @@ export default function WorkerSignupPage() {
       return;
     }
 
-    const { error: rpcError } = await sb.rpc('join_tenant', { p_code: code.trim() });
+    /*
+     * 갓 만든 토큰으로 곧장 부르면 'JWT issued at future' 가 날 수 있다 —
+     * 발급하는 쪽과 검증하는 쪽 시계가 몇 밀리초 어긋난 것이다. joinTenant 가
+     * 그런 오류만 골라 몇 번 다시 해 본다.
+     */
+    const joined = await joinTenant(code);
     setBusy(false);
 
-    if (rpcError) {
+    if (!joined.ok) {
       // 계정은 이미 만들어졌다. 그 사실을 말해 줘야 다시 가입하려 하지 않는다.
       setError(
-        `${rpcError.message || '기관에 합류하지 못했어요.'} 계정은 만들어졌으니, 코드를 확인하신 뒤 아래 「기관 코드 입력」에서 이어서 하실 수 있어요.`,
+        `${joined.message} 계정은 만들어졌으니, 아래 「기관 코드 입력」에서 이어서 하실 수 있어요.`,
       );
       return;
     }

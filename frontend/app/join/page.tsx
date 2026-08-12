@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AuthFrame, Field, FormError, SubmitButton } from '@/components/AuthForm';
 import { useAccount } from '@/lib/auth';
-import { getSupabase } from '@/lib/supabase';
+import { joinTenant } from '@/lib/joinTenant';
 
 /**
  * 기관 합류 — 로그인은 됐는데 아직 어느 기관에도 속하지 않은 사람의 자리.
@@ -81,14 +81,12 @@ export default function JoinPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const sb = getSupabase();
-    if (!sb) return;
     setBusy(true);
     setError(null);
-    const { error: rpcError } = await sb.rpc('join_tenant', { p_code: code.trim() });
+    const joined = await joinTenant(code);
     setBusy(false);
-    if (rpcError) {
-      setError(rpcError.message || '기관에 합류하지 못했어요.');
+    if (!joined.ok) {
+      setError(joined.message);
       return;
     }
     // 소속이 생겼으니 계정 상태를 다시 읽어야 화면들이 기관 모드로 바뀐다.
