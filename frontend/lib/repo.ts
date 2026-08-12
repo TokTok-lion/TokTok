@@ -17,6 +17,7 @@ import type {
   SourceKind,
   StoryItem,
 } from './domain';
+import { sessionMembers } from './store';
 import type { SessionState } from './store';
 
 /**
@@ -371,7 +372,9 @@ export async function saveProgress(
       .update(row)
       .eq('id', s.remoteSessionId)
       .neq('status', 'done');
-    return error ? null : { sessionId: s.remoteSessionId, step };
+    if (error) return null;
+    await noteMembers(s.remoteSessionId, t, s);
+    return { sessionId: s.remoteSessionId, step };
   }
 
   const { data, error } = await sb
@@ -380,7 +383,34 @@ export async function saveProgress(
     .select('id')
     .single();
   if (error || !data) return null;
+  await noteMembers(data.id, t, s);
   return { sessionId: data.id, step };
+}
+
+/**
+ * 이 회기에 누가 참여했는지 남긴다.
+ *
+ * 1:1 회기도 한 줄이 들어간다. 두 갈래로 세면(sessions.participant_id 와
+ * 이 표) 언젠가 한쪽을 빠뜨리고, 그러면 다섯 분이 모인 회기가 기관 기록에는
+ * 한 분으로 남는다 — 인원은 곧 실적이라 그건 틀린 기록이다.
+ *
+ * 넣기만 하고 지우지 않는다. 회기 도중에 한 분이 빠지시는 일은 있지만, 그때
+ * 참여 기록을 지우면 '그날 그 자리에 계셨다'는 사실 자체가 사라진다.
+ * 겹쳐 넣어도 기본키가 막아 준다.
+ */
+async function noteMembers(sessionId: string, t: string, s: SessionState): Promise<void> {
+  const sb = getSupabase();
+  if (!sb || !s.remoteParticipantId) return;
+  const rows = sessionMembers(s).map((m) => ({
+    session_id: sessionId,
+    participant_id: m.id,
+    tenant_id: t,
+  }));
+  const { error } = await sb.from('session_participants').upsert(rows, {
+    onConflict: 'session_id,participant_id',
+    ignoreDuplicates: true,
+  });
+  if (error) console.warn(`[똑똑] 참여자를 남기지 못했어요: ${error.message}`);
 }
 
 /* ----------------------------------------------------- 작업대 나누기 */

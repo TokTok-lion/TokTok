@@ -59,6 +59,30 @@ const LEGACY_KEYS = ['toktok.session.v1'];
 
 export type SessionState = {
   elder: Elder;
+
+  /**
+   * 함께한 다른 어르신들 (그룹 회기).
+   *
+   * 비어 있으면 1:1 회기다 — 지금까지의 모든 회기가 그렇다.
+   *
+   * ── 왜 elder 를 없애지 않았나
+   *
+   * 현장은 대개 복지사 한 분에 어르신 서넛이다. 그런데 elder 는 앱 서른한
+   * 파일 여든세 자리에서 읽히고, 녹음과 곡의 저장 칸 이름도 그 값으로 만든다
+   * (recordingKey · songTag). 지금 그걸 배열로 갈아엎으면 이번 주에 고친
+   * 공유·이어받기·보관함이 한꺼번에 흔들린다.
+   *
+   * 그래서 elder 의 뜻을 좁혔다 — '이 회기의 임자'가 아니라 **저장 기준**이다.
+   * 실제로 누가 참여했는지는 elder 와 이 배열을 합친 것이고, 그것을 세는 자리는
+   * sessionMembers() 하나뿐이다.
+   *
+   * ── 그룹에서 조심할 것
+   *
+   * 그룹의 이야기는 기본이 '함께 나눈 이야기'다. 누구의 생애인지는 복지사가
+   * 지정했을 때만 정해진다. 목소리로 A·B·C 를 갈라도 그게 김 어르신인지
+   * 박 어르신인지 앱은 알 수 없고, 잘못 붙이면 남의 생애가 그분 노래에 들어간다.
+   */
+  group: ElderIdentity[];
   /** 오늘 회기 주제 */
   topic: string;
   /**
@@ -258,6 +282,7 @@ export type PendingConsent = {
 function seedState(): SessionState {
   return {
     elder: SEED_ELDER,
+    group: [],
     topic: '첫 직장과 첫 월급',
     // 씨앗 회기는 고르지 않은 상태로 시작한다 — 주제가 그림을 고르는 것이
     // 기본 동작이고, 시연에서도 그게 먼저 보여야 한다.
@@ -367,6 +392,8 @@ function load(): SessionState {
       ...base,
       ...saved,
       elder: { ...base.elder, ...saved.elder },
+      // 판올림 전 저장본에는 이 칸이 없다. 없으면 1:1 회기다.
+      group: Array.isArray(saved.group) ? saved.group : [],
       // 이 칸은 나중에 생겼다. 예전 저장본에는 아예 없고, 저장이 중간에 깨진
       // 기기에는 배열이 아닌 것이 들어 있을 수 있다. 그대로 두면 목록을
       // 그리는 화면이 매번 터지므로 모양이 다르면 빈 목록으로 시작한다.
@@ -527,10 +554,47 @@ export function resumeSession(
   });
 }
 
+/**
+ * 이 회기에 참여한 어르신 전부 — 기준 어르신을 맨 앞에 두고.
+ *
+ * 세는 자리를 하나로 묶는 이유가 있다. elder 와 group 을 각자 읽으면, 새로
+ * 추가되는 화면에서 둘 중 하나를 빠뜨린다. 그러면 다섯 분이 모인 회기가
+ * 활동일지에는 한 분으로 남거나, 동의 확인이 네 분만 도는 일이 생긴다 —
+ * 뒤엣것은 동의하지 않은 분의 목소리가 녹음되는 길이다.
+ *
+ * 1:1 회기에서는 한 명짜리 배열이다. 부르는 쪽이 두 경우를 가를 필요가 없다.
+ */
+export function sessionMembers(s: SessionState = state): ElderIdentity[] {
+  return [
+    {
+      id: s.elder.id,
+      displayName: s.elder.displayName,
+      honorific: s.elder.honorific,
+      avatar: s.elder.avatar,
+      stage: s.elder.stage,
+      nextTopic: s.elder.nextTopic,
+    },
+    ...s.group,
+  ];
+}
+
+/** 그룹 회기인가. 화면이 문구를 가를 때 쓴다. */
+export function isGroupSession(s: SessionState = state): boolean {
+  return s.group.length > 0;
+}
+
 export function beginSession(next: {
   elder: ElderIdentity;
   topic: string;
   participantId: string | null;
+  /**
+   * 함께할 다른 어르신들 (그룹 회기). 없으면 1:1.
+   *
+   * 신원만 받는다 — elder 와 같은 이유다. 동의·선호는 사람에게 붙는 값이라
+   * 어르신마다 서버에서 따로 읽어야 하고, 여기로 통째로 넘기면 앞 회기의
+   * 값이 조용히 따라온다.
+   */
+  group?: ElderIdentity[];
 }): void {
   const seed = seedState();
   const live = next.participantId !== null;
@@ -574,6 +638,9 @@ export function beginSession(next: {
      */
     pendingConsents: state.pendingConsents,
     elder,
+    // 그룹은 회기마다 새로 정한다. 앞 회기의 참여자가 따라오면 어르신 두 분의
+    // 회기가 세 분짜리로 기록된다.
+    group: next.group ?? [],
     topic: next.topic,
     remoteParticipantId: next.participantId,
     // 회기가 시작된 시각은 지금이다. 저장할 때 찍으면 시작과 끝이 같은

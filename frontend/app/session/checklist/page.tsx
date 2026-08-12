@@ -8,8 +8,8 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconChat, IconClock, IconInfo, IconMic, IconShield } from '@/components/icons';
 import { checkMicrophone } from '@/lib/recorder';
-import { hasConsent } from '@/lib/domain';
-import { useSession } from '@/lib/store';
+import { isGroupSession, sessionMembers, useSession } from '@/lib/store';
+import { useGroupConsents } from '@/lib/useGroupConsents';
 import { PREP_CHECKS, type PrepCheck } from '@/lib/flow';
 import type { ArtKey } from '@/lib/art';
 import type { ComponentType } from 'react';
@@ -47,6 +47,11 @@ function clockLabel(iso: string): string {
 
 /** 회기 시작 체크리스트 (deck p.20) */
 export default function ChecklistPage() {
+  /*
+   * 참여하신 분들의 동의를 어르신마다 서버에서 읽는다. 1:1 회기는 한 명짜리라
+   * 지금과 다르지 않게 돈다.
+   */
+  const group = useGroupConsents();
   const { s, set, setConsent, toggleChecklist } = useSession();
   /*
    * 마이크 확인 결과. 이 화면에서만 쓰고 회기에 담지 않는다 — 권한은 기기가
@@ -83,9 +88,23 @@ export default function ChecklistPage() {
       toggleChecklist(key);
       return;
     }
-    if (!hasConsent(s.elder.consents, 'recording')) {
+    /*
+     * 그룹 회기는 **전원**이 동의해야 마이크를 연다.
+     *
+     * 방 하나를 녹음하면 그 방에 계신 분들 목소리가 전부 들어간다. 네 분이
+     * 동의하시고 한 분이 거절하셔도, 켜는 순간 그 한 분의 음성이 담긴다.
+     * 그러면 그 거절은 물어본 시늉일 뿐이다.
+     *
+     * 거절이 막다른 길이 되지는 않는다 — 받아 적는 길이 그대로 있다.
+     */
+    const notYet = group.missing('recording');
+    if (notYet.length > 0) {
       toggleChecklist(key);
-      setMicNote('녹음 동의가 없어 마이크는 열지 않았어요. 받아 적기로 진행합니다.');
+      setMicNote(
+        notYet.length === 1
+          ? `${notYet[0].displayName} 어르신의 녹음 동의가 없어 마이크는 열지 않았어요. 받아 적기로 진행합니다.`
+          : `${notYet.map((m) => m.displayName).join(' · ')} 어르신의 녹음 동의가 없어 마이크는 열지 않았어요. 받아 적기로 진행합니다.`,
+      );
       return;
     }
     setMicBusy(true);
@@ -169,6 +188,46 @@ export default function ChecklistPage() {
         </PrimaryButton>
       }
     >
+      {/*
+        그룹 회기면 누가 함께 계신지 먼저 적는다.
+
+        복지사가 목록에서 담을 때 본 그 명단이 회기 안에서도 보여야, 한 분이
+        빠졌거나 잘못 담긴 것을 시작하기 전에 알아챈다. 시작한 뒤에 알면
+        회기를 다시 열어야 한다.
+      */}
+      {isGroupSession(s) ? (
+        <Card className="mb-3 border-2 border-leaf-300 p-4">
+          <p className="text-[1.0625rem] font-extrabold text-ink-900">
+            함께하시는 어르신 {sessionMembers(s).length}분
+          </p>
+          <p className="mt-1 text-[0.9375rem] leading-relaxed text-ink-700">
+            {sessionMembers(s)
+              .map((m) => m.displayName)
+              .join(' · ')}
+          </p>
+          <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+            노래는 <strong className="text-ink-700">한 곡</strong>을 함께 만들어요.
+            나온 이야기는 「함께 나눈 이야기」로 남고, 어느 분의 생애인지는
+            지정하신 것만 개인 기록에 들어갑니다.
+          </p>
+
+          {/*
+            녹음은 방 하나에 계신 분들 목소리가 전부 담긴다. 그래서 전원 동의가
+            아니면 마이크를 열지 않는다 — 그 사실을 시작 전에 말한다.
+          */}
+          {!group.loading && group.missing('recording').length > 0 ? (
+            <p className="mt-2 text-[0.875rem] font-bold leading-relaxed text-danger-600">
+              {group
+                .missing('recording')
+                .map((m) => m.displayName)
+                .join(' · ')}{' '}
+              어르신은 녹음 동의가 없어요. 함께 계시면 녹음을 켜지 않고, 복지사가
+              받아 적어 진행합니다.
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
+
       <Card className="flex items-center gap-4 p-4">
         {/* 등록 화면에서 고른 아바타를 쓴다. 이름은 김○○ 어르신인데 그림은
             늘 할머니였다 — 어르신을 눈으로 확인하는 자리에서 그림이 다른 분을

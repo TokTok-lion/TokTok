@@ -14,7 +14,7 @@ import {
 } from '@/lib/domain';
 import { downloadCsv, printLog, todayStamp, type LogRow } from '@/lib/export';
 import { useAccount } from '@/lib/auth';
-import { useSession } from '@/lib/store';
+import { isGroupSession, sessionMembers, useSession } from '@/lib/store';
 import { useSongShelf } from '@/lib/useDeviceSong';
 import { useServerSave } from '@/lib/useServerSave';
 
@@ -252,7 +252,16 @@ export default function LogPage() {
     // 채운다 — 진행 시간과 같은 표기라 읽는 사람이 헷갈리지 않는다.
     { label: '프로그램명', value: s.topic || '—' },
     { label: '진행 시간', value: durationValue },
-    { label: '어르신', value: s.elder.displayName },
+    /*
+     * 그룹 회기면 참여하신 분들을 다 적는다. 기관 서류에서 인원은 곧 실적이고,
+     * 다섯 분이 모인 회기가 한 분으로 남으면 그건 틀린 기록이다.
+     */
+    {
+      label: isGroupSession(s) ? `어르신 (${sessionMembers(s).length}분)` : '어르신',
+      value: sessionMembers(s)
+        .map((m) => m.displayName)
+        .join(', '),
+    },
     { label: '담당 복지사', value: workerName },
     { label: '만든 노래', value: songCount === null ? '—' : `${songCount}곡` },
     { label: '관찰된 반응', value: selected.map((r) => r.label).join(', ') || '기록 없음' },

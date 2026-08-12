@@ -64,6 +64,17 @@ export default function ElderListPage() {
   const [resume, setResume] = useState<{ elder: ElderSummary; open: OpenSession } | null>(null);
   /** 서버에 물어보는 동안. 누른 뒤 아무 반응이 없으면 두 번 누른다. */
   const [checking, setChecking] = useState<string | null>(null);
+  /**
+   * 그룹 회기로 함께 모실 어르신들.
+   *
+   * 비어 있으면 지금까지처럼 1:1 이다 — 어르신을 누르면 바로 회기가 열린다.
+   * 한 분이라도 담기면 목록이 '고르는 화면'으로 바뀐다.
+   *
+   * 현장이 대개 복지사 한 분에 어르신 서넛이라 넣었다. 다만 그룹은 조심할
+   * 것이 있어서(누가 한 말인지 잘못 붙이면 남의 생애가 그분 노래에 들어간다)
+   * 기본은 1:1 로 두고, 그룹은 눌러서 들어가는 길로 만든다.
+   */
+  const [picked, setPicked] = useState<ElderSummary[]>([]);
 
   useEffect(() => {
     const owner = s.remoteParticipantId;
@@ -114,20 +125,24 @@ export default function ElderListPage() {
    * 다만 말없이 비우지는 않는다. 30분짜리 인터뷰가 잘못 누른 한 번에
    * 사라지면 안 된다.
    */
-  const start = (e: ElderSummary) => {
+  const identity = (e: ElderSummary) => ({
+    id: e.id,
+    displayName: e.displayName,
+    honorific: `${e.displayName} 어르신`,
+    avatar: e.avatar,
+    stage: e.step,
+    nextTopic: e.topic,
+  });
+
+  const start = (e: ElderSummary, withGroup: ElderSummary[] = []) => {
     beginSession({
+      // 함께 모신 분들. 기준 어르신은 여기 넣지 않는다 — 두 번 세어진다.
+      group: withGroup.filter((g) => g.id !== e.id).map(identity),
       // 서버 목록에서 고른 경우에만 실제 participants.id 를 물린다. 씨앗
       // 어르신의 id 를 서버로 보내면 없는 행을 가리키게 된다.
       participantId: live ? e.id : null,
       topic: e.topic,
-      elder: {
-        id: e.id,
-        displayName: e.displayName,
-        honorific: `${e.displayName} 어르신`,
-        avatar: e.avatar,
-        stage: e.step,
-        nextTopic: e.topic,
-      },
+      elder: identity(e),
     });
     router.push('/elder/profile');
   };
@@ -402,6 +417,54 @@ export default function ElderListPage() {
         </p>
       ) : null}
 
+      {/*
+        함께 모신 분들. 한 분이라도 담기면 나타난다.
+
+        그룹 회기는 조심할 것이 있다 — 목소리로 누가 말했는지 갈라도 그게 어느
+        어르신인지 앱은 모른다. 그래서 여기서 그 사실을 미리 적는다. 이야기는
+        기본이 '함께 나눈 이야기'이고, 개인 기록으로 올리는 것은 복지사가
+        지정했을 때뿐이다.
+      */}
+      {picked.length > 0 ? (
+        <Card className="mt-3 border-2 border-leaf-300 p-4">
+          <p className="text-[1.0625rem] font-extrabold text-ink-900">
+            함께 모신 어르신 {picked.length}분
+          </p>
+          <p className="mt-1 text-[0.9375rem] leading-relaxed text-ink-700">
+            {picked.map((x) => x.displayName).join(' · ')}
+          </p>
+          <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+            함께 한 회기를 진행하고 <strong className="text-ink-700">노래 한 곡</strong>을
+            만듭니다. 나온 이야기는 「함께 나눈 이야기」로 남고, 어느 분의
+            생애인지는 복지사께서 지정하신 것만 개인 기록에 들어가요.
+          </p>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setPicked([])}
+              className="min-h-[52px] rounded-[14px] border border-hairline bg-surface-strong text-[1rem] font-bold text-ink-700"
+            >
+              모두 빼기
+            </button>
+            <button
+              type="button"
+              disabled={checking !== null}
+              onClick={() => {
+                // 맨 앞 분이 저장 기준이 된다. 회기의 임자라는 뜻이 아니라
+                // 녹음·곡의 칸 이름이 그 값으로 만들어진다는 뜻이다.
+                const [head, ...rest] = picked;
+                setPicked([]);
+                start(head, rest);
+              }}
+              className="tk-cta min-h-[52px] rounded-[14px] text-[1rem] font-extrabold text-white disabled:opacity-70"
+            >
+              함께 회기 시작
+            </button>
+          </div>
+        </Card>
+      ) : null}
+
       <ul className="mt-3 space-y-2.5">
         {list.map((e) => (
           <Card as="li" key={e.id} className="p-3">
@@ -469,6 +532,34 @@ export default function ElderListPage() {
                 {FAMILY_AVAILABILITY_LABELS[e.family]} · 가족 없이도 끝까지 진행할 수
                 있어요
               </p>
+            ) : null}
+
+            {/*
+              함께 모시기. 눌러 담으면 그룹 회기가 된다.
+              카드 본문(회기 열기)과 따로 둔 이유는 손이 스치는 자리이기
+              때문이다 — 담으려다 회기가 열리면 앞 회기가 지워질 수 있다.
+            */}
+            {live && e.status === 'active' ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setPicked((was) =>
+                    was.some((x) => x.id === e.id)
+                      ? was.filter((x) => x.id !== e.id)
+                      : [...was, e],
+                  )
+                }
+                aria-pressed={picked.some((x) => x.id === e.id)}
+                className={`mt-2 min-h-[44px] w-full rounded-[12px] border text-[0.9375rem] font-bold ${
+                  picked.some((x) => x.id === e.id)
+                    ? 'border-leaf-500 bg-leaf-50 text-leaf-800'
+                    : 'border-hairline bg-surface text-ink-700'
+                }`}
+              >
+                {picked.some((x) => x.id === e.id)
+                  ? '함께 모심 · 빼기'
+                  : '함께 모시기'}
+              </button>
             ) : null}
           </Card>
         ))}
