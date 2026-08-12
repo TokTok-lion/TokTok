@@ -81,6 +81,15 @@ export interface MusicProvider {
 export interface SttProvider {
   readonly name: string;
   /**
+   * 이 녹음 형식을 받을 수 있는가.
+   *
+   * 업체마다 다르다 — v1 은 AAC(m4a)를 아예 못 읽고, v2 는 컨테이너를 보고
+   * 알아서 푼다. 그래서 '무엇을 받을 수 있나'는 라우트가 아니라 제공자가
+   * 답해야 한다. 라우트가 직접 판정하면 업체를 바꿔도 못 받는 형식이 그대로
+   * 남는다.
+   */
+  accepts(contentType: string): boolean;
+  /**
    * topic 은 오늘 회기 주제다. 인식에 미리 알려 줄 낱말을 여기서 뽑는다
    * (lib/speechHints.ts). 없으면 그 시절 낱말만 알려 준다.
    */

@@ -17,6 +17,7 @@ import {
   googleConfigured,
 } from './google';
 import { speechContextsFor } from '../speechHints';
+import { byTurn, type W } from './turns';
 
 /**
  * 녹음을 글로 옮기기 (Google Cloud Speech-to-Text v1).
@@ -102,8 +103,6 @@ function seconds(v: unknown): number {
   return 0;
 }
 
-/** 우리가 다루기 좋은 모양으로 옮긴 단어 하나. */
-type W = { text: string; start: number; end: number; key: string | null };
 
 /**
  * 이 단어를 누가 말했는가. 모르면 null.
@@ -187,81 +186,6 @@ function cumulativeWords(
   return { words: out, pooled };
 }
 
-/**
- * 누가 어르신인가 — 이 함수가 하는 일은 **추정**이다.
- *
- * 구글이 주는 것은 "1번 목소리 · 2번 목소리"까지다. 그중 누가 어르신인지는
- * 응답 어디에도 없고, 알 방법도 없다. 회기에서 말씀을 더 오래 하시는 쪽이
- * 어르신일 가능성이 높다는 것뿐이다 — 복지사는 묻고 어르신은 답하니까.
- * 하지만 말수가 적은 날도 있고, 복지사가 길게 설명한 날도 있다.
- *
- * 그래서 이 추정은 화면에서 뒤집을 수 있어야 한다(전사 교정 화면). 여기서
- * 정한 것이 마지막 말이 되면 안 된다.
- *
- * 화자가 하나뿐이면 null 을 낸다. 갈라지지 않은 것을 한쪽으로 몰아 붙이면
- * 복지사 질문이 어르신 말씀으로 둔갑한다 — 모르는 것은 모른다고 둔다.
- */
-function guessElder(words: W[]): string | null {
-  const spoken = new Map<string, number>();
-  const said = new Map<string, number>();
-  for (const w of words) {
-    if (!w.key) continue;
-    spoken.set(w.key, (spoken.get(w.key) ?? 0) + (w.end - w.start));
-    said.set(w.key, (said.get(w.key) ?? 0) + 1);
-  }
-  if (spoken.size < 2) return null;
-
-  // 발화 시간이 원칙이다. endTime 이 안 와서 전부 0 이면 단어 수로 잰다.
-  const scale = [...spoken.values()].some((v) => v > 0) ? spoken : said;
-  let best: string | null = null;
-  let top = -1;
-  for (const [key, v] of scale) {
-    if (v > top) {
-      top = v;
-      best = key;
-    }
-  }
-  return best;
-}
-
-/**
- * 말차례(turn)로 나눠 줄을 만든다. 화자가 갈리지 않았으면 null.
- *
- * 말차례 하나를 그대로 한 줄로 두지 않고 안에서 문장으로 더 나눈다. 어르신이
- * 40초를 내리 말씀하시면 그것이 한 말차례인데, 통째로 한 줄이면 그 줄의 시각
- * 하나가 40초 전체를 가리킨다 — 고치려던 문제가 그대로 남는다. 문장으로
- * 나누는 규칙(쉬는 자리·길이)은 toSegments 에 이미 있고, 업체가 달라져도
- * 같아야 하는 규칙이라 여기서 다시 쓰지 않는다.
- */
-function byTurn(words: W[]): Segment[] | null {
-  const elder = guessElder(words);
-  if (!elder) return null;
-
-  type Turn = { key: string; words: { text: string; start: number }[] };
-  const turns: Turn[] = [];
-  // 화자표가 빠진 단어는 앞사람 말에 잇는다. 맨 앞이 비어 있으면 처음으로
-  // 화자표가 붙은 사람 것으로 본다 — 어느 쪽이든 말씀을 버리지는 않는다.
-  let last = words.find((w) => w.key)?.key ?? '';
-  let cur: Turn | null = null;
-  for (const w of words) {
-    const key = w.key ?? last;
-    if (!cur || cur.key !== key) {
-      cur = { key, words: [] };
-      turns.push(cur);
-    }
-    cur.words.push({ text: w.text, start: w.start });
-    last = key;
-  }
-
-  const out: Segment[] = [];
-  for (const t of turns) {
-    const speaker = t.key === elder ? ('elder' as const) : ('worker' as const);
-    for (const seg of toSegments(t.words)) {
-      out.push({ id: `seg-${out.length}`, text: seg.text, at: seg.at, speaker });
-    }
-  }
-  return out.length ? out : null;
-}
 
 /**
  * 구글이 나눠 준 결과 하나를 화면의 한 줄로 쓴다.
@@ -466,6 +390,9 @@ function notReady(): Fail | null {
 export const googleStt: SttProvider = {
   name: 'google',
 
+  // v1 이 아는 인코딩만. AAC(m4a)는 목록에 없다.
+  accepts: (contentType) => audioConfigFor(contentType) !== null,
+
   async start(file, topic) {
     const bad = notReady();
     if (bad) return bad;
@@ -476,7 +403,7 @@ export const googleStt: SttProvider = {
     const type = file.type || 'audio/webm';
     // 보내기 전에 형식부터 본다. 못 다루는 형식이면 어르신 목소리를 남의
     // 저장소에 올렸다가 지우는 왕복을 할 이유가 없다.
-    if (!audioConfigFor(type)) return fail(UNSUPPORTED_AUDIO, 415, { settled: true });
+    if (!googleStt.accepts(type)) return fail(UNSUPPORTED_AUDIO, 415, { settled: true });
 
     // 이름에 어르신 정보를 넣지 않는다. 잠깐 있다 사라질 파일이지만,
     // 그 잠깐 동안에도 파일 이름은 로그에 남는다.

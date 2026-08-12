@@ -30,6 +30,21 @@ export function googleConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CREDENTIALS);
 }
 
+/**
+ * 서비스 계정이 속한 프로젝트. v2 는 주소에 프로젝트와 지역이 들어가서
+ * 필요하다(v1 은 필요 없었다).
+ */
+export function googleProjectId(): string | null {
+  const raw = process.env.GOOGLE_CREDENTIALS;
+  if (!raw) return null;
+  try {
+    const { project_id } = JSON.parse(raw) as { project_id?: string };
+    return project_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function googleToken(): Promise<string | null> {
   const a = client();
   if (!a) return null;

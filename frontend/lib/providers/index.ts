@@ -1,4 +1,5 @@
 import { googleStt } from './stt-google';
+import { googleSttV2 } from './stt-google-v2';
 import { googleTts } from './tts-google';
 import { apiframeMusic } from './music-apiframe';
 import { sunoMusic } from './music-suno';
@@ -16,7 +17,21 @@ import type { MusicProvider, SttProvider, TtsProvider } from './types';
  * ElevenLabs 였고, 지금은 앞의 둘이 Google, 곡은 Suno 중계 서버다.
  */
 
-export const stt: SttProvider = pick(process.env.STT_PROVIDER, { google: googleStt }, googleStt);
+/*
+ * 전사 제공자.
+ *
+ * google   — v1 latest_long. 한국어 화자 분리가 안 된다(재서 확인).
+ * googleV2 — v2 chirp_3. 화자 분리가 되고 m4a 도 읽는다. 다만 지금은 `eu`
+ *            지역에서만 되므로 어르신 음성이 유럽으로 간다.
+ *
+ * 기본은 아직 v1 이다. 바꾸는 판단은 실제 회기 녹음 하나를 두 쪽으로 돌려
+ * 보고 내려야 한다 — 합성음으로 정할 일이 아니다.
+ */
+export const stt: SttProvider = pick(
+  process.env.STT_PROVIDER,
+  { google: googleStt, googleV2: googleSttV2 },
+  googleStt,
+);
 export const tts: TtsProvider = pick(process.env.TTS_PROVIDER, { google: googleTts }, googleTts);
 /*
  * 곡은 Treblo 가 기본이다.

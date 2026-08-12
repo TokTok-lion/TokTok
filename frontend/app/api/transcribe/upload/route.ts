@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { audioConfigFor, UNSUPPORTED_AUDIO } from '@/lib/providers/types';
+import { UNSUPPORTED_AUDIO } from '@/lib/providers/types';
+import { stt } from '@/lib/providers';
 import { gcsResumableSession, googleConfigured, GCS_BUCKET } from '@/lib/providers/google';
 
 /**
@@ -39,7 +40,8 @@ export async function POST(req: Request) {
   if (!contentType) {
     return NextResponse.json({ error: '녹음 형식이 없습니다.' }, { status: 400 });
   }
-  if (!audioConfigFor(contentType)) {
+  // 무엇을 받을 수 있는지는 제공자가 안다(업체마다 다르다).
+  if (!stt.accepts(contentType)) {
     return NextResponse.json({ error: UNSUPPORTED_AUDIO }, { status: 415 });
   }
 
