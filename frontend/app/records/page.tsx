@@ -42,13 +42,15 @@ export default function RecordsPage() {
       subtitle="완성된 노래와 지난 기록을 모았어요"
       decoration={<Ornaments variant="leafRight" />}
     >
-      {/* 완성된 노래 — 이 기기에 실제로 있는 것만 센다.
-          예시 곡 세 개를 "완성된 노래 3곡"으로 적어 두었더니, 보관함은
-          "아직 없어요"라고 해서 두 화면이 서로 다른 말을 했다. */}
+      {/* 완성된 노래 — 실제로 있는 것만 센다. 예시 곡 세 개를 "완성된 노래
+          3곡"으로 적어 두었더니, 보관함은 "아직 없어요"라고 해서 두 화면이
+          서로 다른 말을 했다. 지금은 이 기기의 곡과 기관 저장소의 곡을 함께
+          센다 — 보관함과 같은 목록(useSongShelf)을 쓰므로 두 화면은 언제나
+          같은 수를 말한다. */}
       <h2 className="flex items-center gap-2 text-[1.125rem] font-extrabold text-ink-900">
         <IconMusicNote size={21} className="text-brand-500" />
         완성된 노래
-        {shelf.available && !shelf.loading ? (
+        {!shelf.loading ? (
           <span className="text-[0.9375rem] font-semibold text-ink-500">
             {shelf.songs.length}곡
           </span>
@@ -60,7 +62,7 @@ export default function RecordsPage() {
             불러오는 중이에요…
           </p>
         </Card>
-      ) : !shelf.available ? (
+      ) : !shelf.available && shelf.songs.length === 0 ? (
         /* 못 읽은 것과 없는 것은 다른 말이다. 여기서 "없어요"라고 하면 보관함
            화면과 서로 다른 말을 하게 되고, 둘 다 못 믿게 된다. */
         <Card className="mt-3 p-4">
@@ -106,7 +108,8 @@ export default function RecordsPage() {
                       {styleName ? ` · ${styleName}` : ''}
                     </span>
                     <span className="block text-[0.875rem] text-ink-500">
-                      이 기기에 있음 · 보관함에서 듣기
+                      {m.where === 'server' ? '다른 기기에서 만든 곡' : '이 기기에 있음'} ·
+                      보관함에서 듣기
                     </span>
                   </span>
                   <Chevron className="shrink-0 text-ink-300" />

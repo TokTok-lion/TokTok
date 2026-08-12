@@ -4,8 +4,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { claimSound, releaseSound } from '@/components/SamplePlayer';
 import { hasConsent, type LyricSection } from './domain';
 import { settled } from './longJob';
-import { loadSong, loadSongAt, saveSong, songTag, type SaveOutcome } from './songStore';
-import { findServerSong, lyricsHash, songQuotaLeft, uploadSong } from './songSync';
+import {
+  cacheServerSong,
+  loadSong,
+  loadSongAt,
+  saveSong,
+  songTag,
+  type SaveOutcome,
+  type SongMeta,
+} from './songStore';
+import {
+  downloadServerSong,
+  findServerSong,
+  lyricsHash,
+  songQuotaLeft,
+  uploadSong,
+} from './songSync';
 import { currentSession, useSession } from './store';
 import { useDeviceSongState } from './useDeviceSong';
 
@@ -182,7 +196,7 @@ export function useMusic() {
     if (!remake) {
       const fromServer = await findServerSong(hash);
       if (fromServer) {
-        const stored = await saveSong(fromServer, tag);
+        const stored = await saveSong(fromServer, tag, hash);
         if (stored !== 'ok') {
           // 서버에는 그대로 있으므로 잃은 것은 없다. 요금도 나가지 않았다.
           setState({
@@ -269,6 +283,9 @@ export function useMusic() {
         style,
         lengthMs,
         sessionId: now.remoteSessionId,
+        // 고른 그림도 함께 올린다. 안 올리면 다른 태블릿의 보관함이 주제에서
+        // 그림을 다시 계산해, 복지사가 바꾼 적 없는 그림을 보여 준다.
+        cover: tag.cover,
       };
 
       /*
@@ -278,7 +295,7 @@ export function useMusic() {
        * IndexedDB 가 막힌 브라우저). 그러면 화면은 '노래가 완성됐어요'라고
        * 하고 다음 화면에는 곡이 없다 — 요금은 이미 나간 뒤다.
        */
-      const stored = await saveSong(blob, tag);
+      const stored = await saveSong(blob, tag, hash);
       if (stored !== 'ok') {
         // 여기서만은 업로드 결과를 기다린다. 서버에 사본이 남았는지에 따라
         // 복지사가 할 일이 다르고(자리를 비우고 다시 받기 vs 다시 만들기),
@@ -515,7 +532,45 @@ export type ShelfSound =
  * 통째로 메모리에 올릴 이유가 없다. 대신 읽는 동안 표시를 남긴다 —
  * 눌렀는데 몇 초 조용하면 복지사는 한 번 더 누르거나 태블릿을 의심한다
  * (components/SamplePlayer 에서 겪은 그대로다).
+ *
+ * 다른 태블릿에서 만든 곡은 이 기기에 파일이 없다. 그때는 기관 저장소에서
+ * 내려받아 재생하고, 받은 김에 기기에도 남긴다 — 다음번에 어르신 앞에서
+ * 누를 때 통신을 기다리지 않게.
  */
+
+/** 재생할 곡. 기기에 없으면 path 로 기관 저장소에서 받는다. */
+export type PlayTarget = SongMeta & { path?: string };
+
+/**
+ * 곡 파일을 구해 온다 — 기기를 먼저 보고, 없으면 기관 저장소에서.
+ *
+ * 기기가 먼저인 것이 중요하다. 어르신 앞에서 재생을 누르는 자리라, 이미
+ * 가지고 있는 곡까지 통신을 기다리게 하면 안 된다.
+ */
+async function fetchSong(m: PlayTarget): Promise<Blob | null> {
+  const here = await loadSongAt(m.key).catch(() => null);
+  if (here) return here;
+  if (!m.path) return null;
+
+  const got = await downloadServerSong(m.path).catch(() => null);
+  if (!got) return null;
+
+  /*
+   * 받은 김에 기기에도 남긴다. 결과는 기다리지 않는다 — 저장이 안 되더라도
+   * (기기가 꽉 찼거나 비밀 모드) 지금 이 재생은 되어야 한다. 다음번에 다시
+   * 받으면 그만이다.
+   */
+  void cacheServerSong(got, {
+    ownerId: m.ownerId,
+    sessionId: m.sessionId,
+    madeAt: m.madeAt,
+    topic: m.topic,
+    cover: m.cover,
+    style: m.style,
+    hash: m.hash,
+  });
+  return got;
+}
 export function useSongShelfPlayer() {
   const elRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
@@ -547,7 +602,8 @@ export function useSongShelfPlayer() {
   }, [drop]);
 
   const toggle = useCallback(
-    (key: string) => {
+    (m: PlayTarget) => {
+      const key = m.key;
       // 같은 곡을 다시 누르면 멈춘다. 아직 읽는 중이어도 멈출 수 있어야 한다.
       if ((sound.kind === 'playing' || sound.kind === 'loading') && sound.key === key) {
         stop();
@@ -564,7 +620,7 @@ export function useSongShelfPlayer() {
       const n = ++seq.current;
       setSound({ kind: 'loading', key });
 
-      void loadSongAt(key).then(
+      void fetchSong(m).then(
         (blob) => {
           if (n !== seq.current || !alive.current) return;
           if (!blob) {

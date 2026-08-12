@@ -79,6 +79,16 @@ const SLOT_PREFIX = 's2:';
 export const DEMO_SESSION = 'demo';
 /** 판올림 전에 저장돼 있어서 어느 회기 것인지 알 수 없는 곡. */
 export const LEGACY_SESSION = 'legacy';
+/**
+ * 다른 기기에서 만들어 기관 저장소를 통해 온 곡.
+ *
+ * 이 기기가 연 회기가 아니므로 회기 식별자를 지어 붙이지 않는다. 마침 이
+ * 값은 어떤 실제 회기(remoteStartedAt 은 시각 문자열이다)와도 같아질 수
+ * 없어서, loadSong 이 이런 곡을 '이번 회기에 만든 곡'으로 집어 드는 일도
+ * 없다 — 그렇게 집히면 곡 만들기 화면이 남의 회기 곡을 오늘 곡으로 내밀게
+ * 된다.
+ */
+export const SERVER_SESSION = 'server';
 
 /** 지금 회기의 신원 — 곡을 저장할 때 이 값이 그대로 곡에 붙는다. */
 export type SongTag = {
@@ -115,6 +125,15 @@ export type SongMeta = {
   cover?: string | null;
   style: MusicStyleId | null;
   bytes: number;
+  /**
+   * 이 곡을 만든 가사의 지문(songSync.lyricsHash). 모르면 없다.
+   *
+   * 서버 목록과 기기 목록을 합칠 때 "이 둘이 같은 곡인가"를 이것으로 가린다.
+   * 서버 행에도 같은 값이 lyrics_hash 로 들어 있어서, 둘이 맞으면 한 줄로
+   * 접는다. 이 값이 붙기 전에 저장된 곡은 짝을 못 찾아 목록에 두 번 나올 수
+   * 있다 — 보기 싫은 정도이고, 잘못 접어서 다른 곡을 감추는 쪽이 훨씬 나쁘다.
+   */
+  hash?: string | null;
 };
 
 export type SongShelf = {
@@ -154,9 +173,9 @@ export function songTag(): SongTag {
 
 /** 곡 하나에 붙일 새 칸 이름. 같은 밀리초에 두 번 저장돼도 겹치지 않게 한다. */
 let mint = 0;
-function newKey(tag: SongTag, madeAt: number): string {
+function newKey(at: { ownerId: string; sessionId: string }, madeAt: number): string {
   mint += 1;
-  return `${SLOT_PREFIX}${tag.ownerId}::${tag.sessionId}::${madeAt}-${mint}`;
+  return `${SLOT_PREFIX}${at.ownerId}::${at.sessionId}::${madeAt}-${mint}`;
 }
 
 function openDb(): Promise<IDBDatabase | null> {
@@ -330,7 +349,13 @@ async function migrateOnce(db: IDBDatabase): Promise<void> {
  * 만든 곡이 다음 어르신의 보관함으로 들어간다. 곡은 그것을 주문한 회기의
  * 것이므로, 만들기 시작할 때 붙잡아 둔 신원을 그대로 쓴다.
  */
-export async function saveSong(blob: Blob, tag: SongTag = songTag()): Promise<SaveOutcome> {
+export async function saveSong(
+  blob: Blob,
+  tag: SongTag = songTag(),
+  // 가사 지문. 이게 붙어 있어야 나중에 서버 목록과 합칠 때 같은 곡을 한 줄로
+  // 접을 수 있다(SongMeta.hash).
+  hash: string | null = null,
+): Promise<SaveOutcome> {
   const db = await openDb();
   if (!db) return 'unavailable';
   const madeAt = Date.now();
@@ -344,6 +369,38 @@ export async function saveSong(blob: Blob, tag: SongTag = songTag()): Promise<Sa
       topic: tag.topic,
       cover: tag.cover,
       style: tag.style,
+      bytes: blob.size,
+      hash,
+    },
+    blob,
+  );
+  db.close();
+  return out;
+}
+
+/**
+ * 기관 저장소에서 내려받은 곡을 이 기기에도 둔다.
+ *
+ * 다음에 같은 곡을 누를 때 통신을 기다리지 않게 하려는 것이다. 어르신 앞에서
+ * 재생 버튼을 눌렀는데 센터 와이파이를 기다리는 일이 없어야 한다.
+ *
+ * 만든 시각·주제·그림은 서버 행에 적힌 그대로 옮긴다. 지금 시각을 적으면
+ * 몇 달 전 노래에 오늘 날짜가 붙는다.
+ *
+ * 실패해도 재생은 막지 않는다 — 부르는 쪽이 결과를 안 기다린다. 기기가 꽉
+ * 찼거나 비밀 모드일 때 여기서 멈추면, 서버에 멀쩡히 있는 곡을 못 듣는다.
+ */
+export async function cacheServerSong(
+  blob: Blob,
+  meta: Omit<SongMeta, 'key' | 'bytes'>,
+): Promise<SaveOutcome> {
+  const db = await openDb();
+  if (!db) return 'unavailable';
+  const out = await writeSong(
+    db,
+    {
+      ...meta,
+      key: newKey(meta, meta.madeAt ?? 0),
       bytes: blob.size,
     },
     blob,

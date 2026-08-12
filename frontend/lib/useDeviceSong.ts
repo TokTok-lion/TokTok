@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { songTitleForTopic } from './scenes';
-import { loadSong, readSongShelf, type SongMeta } from './songStore';
+import {
+  SERVER_SESSION,
+  loadSong,
+  readSongShelf,
+  songTag,
+  type SongMeta,
+} from './songStore';
+import { listServerSongs } from './songSync';
 
 export type DeviceSong = {
   /** 이 기기에 있는 곡의 재생 주소. 없으면 null. */
@@ -73,9 +80,35 @@ export function useDeviceSong(): string | null {
  * 지금 어르신의 노래 목록
  * ------------------------------------------------------------------ */
 
+/**
+ * 목록에 놓이는 곡 한 줄.
+ *
+ * 기기에 있는 곡과 기관 저장소에만 있는 곡이 한 목록에 섞인다. 어느 쪽인지
+ * 감추지 않는다 — 서버에만 있는 곡은 누르면 그때 내려받느라 몇 초가 걸리고,
+ * 그 몇 초가 설명 없이 오면 고장으로 보인다.
+ */
+export type ShelfItem = SongMeta & {
+  where: 'device' | 'server';
+  /** 서버에만 있는 곡의 파일 위치. 누를 때 이걸로 내려받는다. */
+  path?: string;
+};
+
+/** 기관 저장소를 읽었는가. 'off' 는 서버를 안 쓰거나 못 읽었다는 뜻이다. */
+export type SharedState = 'loading' | 'ok' | 'off';
+
 export type SongShelfState = {
-  /** 지금 어르신의 곡. 이번 회기 → 최근 순. */
-  songs: SongMeta[];
+  /** 지금 어르신의 곡. 이번 회기 → 최근 순. 기기 것과 서버 것이 함께 있다. */
+  songs: ShelfItem[];
+  /** 그중 이 기기에 파일이 있는 곡의 수. 저장 공간 셈에 쓴다. */
+  mine: number;
+  /**
+   * 기관 저장소 쪽 상태.
+   *
+   * 'off' 를 "다른 기기 곡이 없다"로 그리면 안 된다. 서버에 있는 곡을 없다고
+   * 말하는 화면은 복지사에게 한 번 더 만들라고 권하는 것과 같고, 곡 하나가
+   * 1,125크레딧이다.
+   */
+  shared: SharedState;
   /** 이 기기에 있는 모든 곡의 수·용량 (다른 어르신 것 포함, 내용은 열지 않는다) */
   total: number;
   totalBytes: number;
@@ -94,37 +127,115 @@ export type SongShelfState = {
   reload: () => void;
 };
 
-/** 보관함·기록 화면이 함께 쓰는 목록. 파일은 읽지 않고 표만 읽는다. */
+/** 이번 회기 → 최근 순. 만든 시각을 모르는 곡은 맨 뒤로. */
+function shelfOrder(sessionId: string) {
+  return (a: ShelfItem, b: ShelfItem): number => {
+    const at = a.sessionId === sessionId ? 0 : 1;
+    const bt = b.sessionId === sessionId ? 0 : 1;
+    if (at !== bt) return at - bt;
+    if (a.madeAt === null && b.madeAt === null) return 0;
+    if (a.madeAt === null) return 1;
+    if (b.madeAt === null) return -1;
+    return b.madeAt - a.madeAt;
+  };
+}
+
+/**
+ * 보관함·기록 화면이 함께 쓰는 목록. 파일은 읽지 않고 표만 읽는다.
+ *
+ * ── 왜 서버까지 읽는가
+ *
+ * 곡은 진작부터 기관 저장소에 올라가고 있었는데(songSync.uploadSong) 이
+ * 목록은 기기만 읽었다. 그래서 A 태블릿에서 만든 노래가 B 태블릿에서는
+ * 통째로 안 보였다 — 같은 기관으로 로그인해도 마찬가지였다. 센터에 태블릿이
+ * 두 대면 그건 "공유가 안 된다"는 뜻이고, 기관 단위로 파는 서비스에서 그건
+ * 기능이 없는 것과 같다.
+ *
+ * 두 걸음으로 읽는다. 기기 목록을 먼저 그리고, 서버 목록은 도착하는 대로
+ * 끼워 넣는다. 통신을 기다렸다가 한꺼번에 그리면, 내 기기에 있는 곡을 보는
+ * 데도 센터 와이파이를 기다려야 한다.
+ */
 export function useSongShelf(): SongShelfState {
   const [nonce, setNonce] = useState(0);
   const [shelf, setShelf] = useState<Omit<SongShelfState, 'reload'>>({
     songs: [],
+    mine: 0,
     total: 0,
     totalBytes: 0,
     sessionId: '',
     loading: true,
     available: false,
+    shared: 'loading',
   });
 
   useEffect(() => {
     let alive = true;
+
     void readSongShelf()
-      .then((s) => {
+      .then(async (s) => {
         if (!alive) return;
+        const mine: ShelfItem[] = s.songs.map((m) => ({ ...m, where: 'device' }));
         setShelf({
-          songs: s.songs,
+          songs: mine,
+          mine: mine.length,
           total: s.total,
           totalBytes: s.totalBytes,
           sessionId: s.sessionId,
           loading: false,
           available: s.available,
+          shared: 'loading',
         });
+
+        const server = await listServerSongs().catch(() => null);
+        if (!alive) return;
+        if (!server) {
+          setShelf((p) => ({ ...p, shared: 'off' }));
+          return;
+        }
+
+        /*
+         * 같은 곡이 두 줄로 나오지 않게 접는다.
+         *
+         * 근거는 가사 지문(hash) 하나뿐이다. 주제·분위기·시각이 비슷하다고
+         * 같은 곡으로 묶지 않는다 — 「다시 만들기」로 나온 곡은 같은 주제,
+         * 같은 분위기에 몇 분 차이로 만들어지는데, 그건 엄연히 다른 곡이다.
+         * 그걸 접으면 어르신의 노래 한 곡이 목록에서 사라진다. 잘못 접는 쪽이
+         * 두 번 보이는 쪽보다 훨씬 나쁘다.
+         */
+        const here = new Set(
+          mine.map((m) => m.hash).filter((h): h is string => typeof h === 'string' && h.length > 0),
+        );
+        const owner = songTag().ownerId;
+        const extra: ShelfItem[] = server
+          .filter((r) => !r.hash || !here.has(r.hash))
+          .map((r) => ({
+            key: `srv:${r.id}`,
+            ownerId: owner,
+            sessionId: SERVER_SESSION,
+            madeAt: r.madeAt,
+            topic: r.topic,
+            cover: r.cover,
+            style: r.style,
+            // 서버 표에는 파일 크기가 없다. 재지 않은 값을 적지 않는다 —
+            // 저장 공간 셈(total·totalBytes)도 기기 것만 센다.
+            bytes: 0,
+            hash: r.hash,
+            where: 'server',
+            path: r.path,
+          }));
+
+        setShelf((p) => ({
+          ...p,
+          songs: [...mine, ...extra].sort(shelfOrder(s.sessionId)),
+          shared: 'ok',
+        }));
       })
       .catch(() => {
         // 못 읽은 것을 '없음'으로 그리지 않는다. available 이 false 로 남아
         // 화면이 그 사실을 말한다.
-        if (alive) setShelf((p) => ({ ...p, loading: false, available: false }));
+        if (alive) setShelf((p) => ({ ...p, loading: false, available: false, shared: 'off' }));
       });
+
     return () => {
       alive = false;
     };

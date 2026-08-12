@@ -12,11 +12,16 @@ import { sceneFor } from '@/lib/scenes';
 import {
   DEMO_SESSION,
   LEGACY_SESSION,
+  SERVER_SESSION,
   deleteAllSongs,
   deleteSongAt,
-  type SongMeta,
 } from '@/lib/songStore';
-import { shelfSongDate, shelfSongTitle, useSongShelf } from '@/lib/useDeviceSong';
+import {
+  shelfSongDate,
+  shelfSongTitle,
+  useSongShelf,
+  type ShelfItem,
+} from '@/lib/useDeviceSong';
 import { useSongShelfPlayer } from '@/lib/useMusic';
 import { useSession } from '@/lib/store';
 import { useActiveElder } from '@/lib/useActiveElder';
@@ -54,7 +59,7 @@ export default function LibraryPage() {
   const [asking, setAsking] = useState<string | null>(null);
   const [wiping, setWiping] = useState(false);
 
-  const removeOne = async (m: SongMeta) => {
+  const removeOne = async (m: ShelfItem) => {
     // 지우려는 곡이 흐르고 있을 수 있다. 파일이 사라진 뒤에도 소리가 계속
     // 나면 지운 사람이 지웠는지 아닌지 알 수 없다.
     player.stop();
@@ -131,8 +136,20 @@ export default function LibraryPage() {
           않으므로, 호칭은 문장 끝에 그대로 둔다. */}
       <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">
         지금 보시는 것은 <strong className="text-ink-900">{s.elder.honorific}</strong>
-        의 노래예요. 이 기기에 저장돼 있고, 회기마다 한 줄씩 쌓입니다.
+        의 노래예요. 회기마다 한 줄씩 쌓이고, 같은 기관 안에서는 다른 태블릿에서
+        만든 노래도 함께 보입니다.
       </p>
+      {/*
+        서버 쪽을 못 읽었으면 그 사실을 적는다. 조용히 기기 것만 보여 주면
+        복지사는 "다른 선생님이 만든 노래가 없다"고 읽는데, 실제로는 있는데
+        못 가져온 것일 수 있다. 그 오해는 이미 만든 곡을 한 번 더 만들게 한다.
+      */}
+      {shelf.shared === 'off' && !shelf.loading ? (
+        <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">
+          지금은 이 기기에 있는 노래만 보여 드려요. 다른 태블릿에서 만든 노래는
+          기관 계정으로 로그인하고 인터넷이 연결되면 함께 나옵니다.
+        </p>
+      ) : null}
 
       {shelf.loading ? (
         <Card className="mt-3 p-5">
@@ -140,30 +157,37 @@ export default function LibraryPage() {
             보관함을 불러오는 중이에요…
           </p>
         </Card>
-      ) : !shelf.available ? (
-        /* 못 읽은 것을 '없음'으로 그리지 않는다. 여기서 "아직 없어요"라고
-           말하면 있는 곡을 다시 만들라고 권하는 셈이 되고, 그건 요금이다. */
-        <Card className="mt-3 p-5">
-          <p className="text-[1rem] font-bold text-ink-700">
-            이 기기의 보관함을 열지 못했어요.
-          </p>
-          <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
-            저장된 노래가 없다는 뜻은 아니에요. 브라우저의 비밀 모드에서는
-            보관함을 쓸 수 없습니다. 앱을 다시 열어 보시고, 그래도 안 되면
-            아래 예시 곡으로 어떤 소리가 나는지 먼저 들어 보세요.
-          </p>
-        </Card>
-      ) : shelf.songs.length === 0 ? (
-        <Card className="mt-3 p-5 text-center">
-          <p className="text-[1rem] font-bold text-ink-700">
-            아직 이 기기에 저장된 곡이 없어요.
-          </p>
-          <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
-            회기를 마치고 노래를 만들면 여기에 남습니다. 어떤 소리가 나오는지
-            먼저 보시려면 아래 예시를 들어 보세요.
-          </p>
-        </Card>
       ) : (
+        <>
+          {/* 못 읽은 것을 '없음'으로 그리지 않는다. 여기서 "아직 없어요"라고
+              말하면 있는 곡을 다시 만들라고 권하는 셈이 되고, 그건 요금이다.
+              기기 보관함이 막혀 있어도 기관 저장소의 곡은 아래에 나온다. */}
+          {!shelf.available ? (
+            <Card className="mt-3 p-5">
+              <p className="text-[1rem] font-bold text-ink-700">
+                이 기기의 보관함을 열지 못했어요.
+              </p>
+              <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+                저장된 노래가 없다는 뜻은 아니에요. 브라우저의 비밀 모드에서는
+                보관함을 쓸 수 없습니다. 앱을 다시 열어 보시고, 그래도 안 되면
+                아래 예시 곡으로 어떤 소리가 나는지 먼저 들어 보세요.
+              </p>
+            </Card>
+          ) : null}
+
+          {shelf.songs.length === 0 && shelf.available ? (
+            <Card className="mt-3 p-5 text-center">
+              <p className="text-[1rem] font-bold text-ink-700">
+                아직 저장된 곡이 없어요.
+              </p>
+              <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+                회기를 마치고 노래를 만들면 여기에 남습니다. 어떤 소리가 나오는지
+                먼저 보시려면 아래 예시를 들어 보세요.
+              </p>
+            </Card>
+          ) : null}
+
+          {shelf.songs.length > 0 ? (
         <ul className="mt-3 space-y-3.5">
           {shelf.songs.map((m) => {
             const st =
@@ -182,7 +206,11 @@ export default function LibraryPage() {
                 ? '이전 판에서 만든 곡'
                 : m.sessionId === DEMO_SESSION
                   ? '둘러보기 중 만든 곡'
-                  : '지난 회기';
+                  : m.sessionId === SERVER_SESSION
+                    ? '다른 기기에서 만든 곡'
+                    : '지난 회기';
+            /* 아직 이 기기에 파일이 없는 곡. 누르면 그때 내려받는다. */
+            const remote = m.where === 'server';
 
             return (
               <Card as="li" key={m.key} className="p-3.5">
@@ -227,7 +255,7 @@ export default function LibraryPage() {
                           : '재생'
                     }`}
                     aria-busy={st === 'loading'}
-                    onClick={() => player.toggle(m.key)}
+                    onClick={() => player.toggle(m)}
                     className={`flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-full shadow-[0_4px_12px_rgba(122,84,46,0.14)] ${
                       on ? 'tk-cta text-white' : 'bg-surface-strong text-brand-600'
                     }`}
@@ -247,16 +275,35 @@ export default function LibraryPage() {
 
                 {st === 'loading' ? (
                   <p role="status" className="mt-2.5 text-[0.875rem] font-bold text-ink-700">
-                    노래를 준비하고 있어요… 잠시만 기다려 주세요.
+                    {/* 서버에서 받아 오는 곡은 더 오래 걸린다. 왜 기다리는지
+                        적어 두지 않으면 복지사가 한 번 더 누른다. */}
+                    {remote
+                      ? '다른 기기에서 만든 노래를 받아 오고 있어요… 잠시만 기다려 주세요.'
+                      : '노래를 준비하고 있어요… 잠시만 기다려 주세요.'}
                   </p>
                 ) : null}
                 {st === 'error' ? (
                   <p role="alert" className="mt-2.5 text-[0.875rem] font-bold text-danger-600">
-                    이 노래를 열지 못했어요. 다시 눌러 보시겠어요?
+                    {remote
+                      ? '이 노래를 받아 오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 보시겠어요?'
+                      : '이 노래를 열지 못했어요. 다시 눌러 보시겠어요?'}
                   </p>
                 ) : null}
 
-                {asking === m.key ? (
+                {remote ? (
+                  /*
+                   * 다른 기기에서 만든 곡은 여기서 지우지 않는다.
+                   *
+                   * 이 버튼이 지우는 것은 '이 기기의 사본'인데, 사본이 아직
+                   * 없다 — 눌러도 아무 일이 없는 버튼이 된다. 기관 저장소에서
+                   * 지우는 것은 다른 선생님의 곡을 이 태블릿에서 없애는
+                   * 일이라, 그건 이 자리에서 혼자 결정할 일이 아니다.
+                   */
+                  <p className="mt-2.5 text-[0.875rem] leading-relaxed text-ink-500">
+                    기관 저장소에 있는 노래예요. 누르시면 이 기기로 받아 재생하고,
+                    그다음부터는 바로 나옵니다.
+                  </p>
+                ) : asking === m.key ? (
                   <div className="mt-3 rounded-[12px] bg-surface-sunk p-3.5">
                     <p className="text-[0.9375rem] font-bold text-ink-900">
                       이 노래를 지울까요? 되돌릴 수 없어요.
@@ -295,6 +342,8 @@ export default function LibraryPage() {
             );
           })}
         </ul>
+          ) : null}
+        </>
       )}
 
       {/* 저장 공간.
@@ -313,9 +362,11 @@ export default function LibraryPage() {
               결과물이라, 지우는 것은 지우겠다고 하실 때만 합니다. 필요 없는
               곡은 위에서 한 곡씩 지워 주세요.
             </p>
-            {shelf.total > shelf.songs.length ? (
+            {/* 기기에 있는 곡끼리 뺀다. 위 목록에는 기관 저장소에만 있는 곡도
+                섞여 있어서, 그 수까지 빼면 남의 어르신 곡 수가 틀리게 나온다. */}
+            {shelf.total > shelf.mine ? (
               <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
-                이 중 {shelf.total - shelf.songs.length}곡은 다른 어르신의
+                이 중 {shelf.total - shelf.mine}곡은 다른 어르신의
                 노래예요. 이 화면에서는 열지 않아요 — 그 어르신을 고르시면 그분
                 보관함에 나옵니다.
               </p>

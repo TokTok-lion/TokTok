@@ -3,6 +3,8 @@
 import { getSupabase } from './supabase';
 import { currentAccount } from './auth';
 import { currentSession } from './store';
+import type { MusicStyleId } from './domain';
+import { MUSIC_STYLES } from './domain';
 
 /**
  * 곡을 기관 저장소에 두기.
@@ -63,6 +65,92 @@ export async function findServerSong(hash: string): Promise<Blob | null> {
   return file.data;
 }
 
+/* ------------------------------------------------------------------ *
+ * 기관에 있는 곡 목록
+ *
+ * 곡은 처음부터 서버에 올라가고 있었는데, 보관함은 기기(IndexedDB)만
+ * 읽었다. 그래서 A 태블릿에서 만든 노래를 B 태블릿에서 열면 "아직 저장된
+ * 곡이 없어요"였다 — 서버에는 멀쩡히 있는데도. 같은 기관으로 로그인했으면
+ * 그 기관의 노래가 보여야 한다.
+ *
+ * 목록만 읽는다. 파일은 누를 때 내려받는다 — 보관함을 여는 것만으로 몇
+ * MB짜리 곡을 여러 개 당기면, 센터 와이파이에서 화면이 한참 멎는다.
+ * ------------------------------------------------------------------ */
+
+export type ServerSong = {
+  /** songs.id — 기기 칸 이름과 겹치지 않게 앞에 표시를 붙여 쓴다 */
+  id: string;
+  /** storage 안의 위치. 누를 때 이걸로 내려받는다. */
+  path: string;
+  /**
+   * 주제. 서버 title 칸에 들어 있는 값이 그대로 주제다(uploadSong 이
+   * now.topic 을 넣는다). 목록의 제목·그림은 둘 다 여기서 나온다.
+   */
+  topic: string | null;
+  cover: string | null;
+  style: MusicStyleId | null;
+  madeAt: number | null;
+  hash: string | null;
+};
+
+/** 아는 분위기 이름일 때만 돌려준다. 모르는 값은 없는 것으로 둔다. */
+function knownStyle(v: string | null): MusicStyleId | null {
+  return MUSIC_STYLES.some((s) => s.id === v) ? (v as MusicStyleId) : null;
+}
+
+/** 서버에서 온 주제 칸을 기기와 같은 규칙으로 다듬는다(songStore.songTag). */
+function cleanTopic(v: string | null): string | null {
+  const t = v?.trim();
+  return !t || t === '—' ? null : t;
+}
+
+/**
+ * 지금 어르신의 곡 중 기관 저장소에 있는 것.
+ *
+ * null 은 "곡이 없다"가 아니라 "못 읽었다"다 — 서버를 안 쓰는 기기, 로그인
+ * 전, 통신 실패가 여기 들어온다. 화면이 둘을 같게 그리면 있는 곡을 없다고
+ * 말하게 되고, 그러면 복지사가 한 번 더 만든다. 그게 요금이다.
+ */
+export async function listServerSongs(): Promise<ServerSong[] | null> {
+  const c = ctx();
+  if (!c) return null;
+
+  const { data, error } = await c.sb
+    .from('songs')
+    .select('id, title, style, art_key, audio_path, lyrics_hash, created_at')
+    .eq('participant_id', c.participantId)
+    .not('audio_path', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error || !data) return null;
+
+  return data.flatMap((r) => {
+    if (!r.audio_path) return [];
+    const at = Date.parse(r.created_at);
+    return [
+      {
+        id: r.id,
+        path: r.audio_path,
+        topic: cleanTopic(r.title),
+        cover: r.art_key,
+        style: knownStyle(r.style),
+        // 못 읽은 시각을 지어내지 않는다. 목록이 날짜를 말하면 잰 값이어야 한다.
+        madeAt: Number.isNaN(at) ? null : at,
+        hash: r.lyrics_hash,
+      },
+    ];
+  });
+}
+
+/** 목록에서 고른 서버 곡을 내려받는다. 실패하면 null — 화면이 그렇게 말한다. */
+export async function downloadServerSong(path: string): Promise<Blob | null> {
+  const c = ctx();
+  if (!c) return null;
+  const file = await c.sb.storage.from('songs').download(path);
+  if (file.error || !file.data) return null;
+  return file.data;
+}
+
 /**
  * 만든 곡을 기관 저장소에 올린다.
  *
@@ -80,6 +168,15 @@ export async function uploadSong(
     style: string;
     lengthMs: number | null;
     sessionId: string | null;
+    /**
+     * 복지사가 고른 앨범 그림(Scene.id). 안 골랐으면 null.
+     *
+     * 같이 올려야 다른 태블릿의 보관함에도 그 그림이 나온다. 없으면 받는
+     * 쪽이 주제에서 그림을 다시 계산하는데, 그건 복지사가 바꾼 적 없는
+     * 그림을 보여 주는 것이다 — 기기에 저장할 때 cover 를 함께 넣은 이유와
+     * 같다(songStore 의 SongTag.cover).
+     */
+    cover: string | null;
   },
 ): Promise<boolean> {
   const c = ctx();
@@ -100,6 +197,7 @@ export async function uploadSong(
     style: meta.style,
     status: 'complete' as const,
     audio_path: path,
+    art_key: meta.cover,
     lyrics_hash: hash,
     length_ms: meta.lengthMs,
     // 어느 업체가 만든 곡인지 남긴다. 업체를 갈아 끼우면 옛 곡과 새 곡이
