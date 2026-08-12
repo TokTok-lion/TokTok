@@ -3,7 +3,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { hasConsent } from './domain';
 import { settled } from './longJob';
-import { useRecorder } from './recorder';
+import { adoptStoredRecording, useRecorder } from './recorder';
 import { loadRecording } from './recordingStore';
 import { getSupabase } from './supabase';
 import { currentSession, setSessionField, useSession, type SessionState } from './store';
@@ -67,12 +67,12 @@ import { currentSession, setSessionField, useSession, type SessionState } from '
 export type TranscribeState =
   | { kind: 'idle' }
   | { kind: 'busy'; auto: boolean; resumed: boolean }
-  | { kind: 'done'; lines: number; seconds: number }
+  | { kind: 'done'; lines: number; seconds: number | null }
   /** sent: 녹음이 이미 서버로 넘어간 뒤의 실패인가(=요금이 나간 뒤인가) */
   | { kind: 'error'; message: string; sent: boolean };
 
 /** 지금 기기 DB 에 저장돼 있는 녹음. */
-export type DeviceRecording = { savedAt: number; seconds: number } | null;
+export type DeviceRecording = { savedAt: number; seconds: number | null } | null;
 
 /**
  * 지금 화면에 있는 전사가 어느 녹음에서 나왔는가.
@@ -351,7 +351,7 @@ export function hasRealTranscript(): boolean {
  * 다르다. 이 값을 transcribedFrom·표와 견줘 "이 녹음은 이미 다뤘다"를
  * 판단한다.
  */
-async function pending(): Promise<{ blob: Blob; seconds: number; savedAt: number } | null> {
+async function pending(): Promise<{ blob: Blob; seconds: number | null; savedAt: number } | null> {
   const s = currentSession();
   if (!hasConsent(s.elder.consents, 'recording')) return null;
   if (!hasConsent(s.elder.consents, 'externalAi')) return null;
@@ -474,7 +474,7 @@ async function soundless(blob: Blob): Promise<boolean> {
 }
 
 async function start(
-  job: { blob: Blob; seconds: number; savedAt: number },
+  job: { blob: Blob; seconds: number | null; savedAt: number },
   auto: boolean,
 ): Promise<void> {
   emit({ kind: 'busy', auto, resumed: false });
@@ -635,14 +635,17 @@ async function send(blob: Blob): Promise<Response> {
  * 전사는 덮지 않는다'는 규칙은 autoTranscribe 안에 이미 있다.
  */
 export async function recordingReplaced(): Promise<void> {
-  await refreshDevice();
+  // 전사 쪽 상태와 녹음기 스냅샷을 둘 다 새로 읽는다. 예전에는 앞엣것만
+  // 읽어서, 화면 위쪽은 '올렸어요'라고 하는데 아래 재생기는 '녹음이 없어요'
+  // 라고 했다 — 고치려던 그 모순이 한 칸 아래에 그대로 남아 있었다.
+  await Promise.all([refreshDevice(), adoptStoredRecording()]);
   await autoTranscribe();
 }
 
 /** 이미 맡겨 둔 작업의 결과만 받아온다. 녹음은 다시 올리지 않는다. */
 async function resume(
   jobId: string,
-  job: { seconds: number; savedAt: number },
+  job: { seconds: number | null; savedAt: number },
 ): Promise<void> {
   emit({ kind: 'busy', auto: false, resumed: true });
   const auth = await authHeader();
@@ -673,7 +676,7 @@ async function peekJob(res: Response): Promise<string | null> {
 
 async function finish(
   first: Response,
-  job: { seconds: number; savedAt: number },
+  job: { seconds: number | null; savedAt: number },
   jobId: string | null,
 ): Promise<void> {
   let res: Response;

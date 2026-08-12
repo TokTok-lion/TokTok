@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Card } from './ui';
-import { forgetRecording, mmss, useRecorder } from '@/lib/recorder';
+import { forgetRecording, mmssOrUnknown, useRecorder } from '@/lib/recorder';
 import { RETENTION_DAYS, formatBytes, recordingTotals, retentionLeftDays } from '@/lib/recordingStore';
 
 /**
@@ -42,7 +42,7 @@ export function StoredAudio() {
         <div className="flex items-center gap-3">
           <span className="min-w-0 flex-1">
             <span className="block text-[1.0625rem] font-extrabold text-ink-900">
-              {mmss(rec.seconds)} · {formatBytes(rec.bytes)}
+              {mmssOrUnknown(rec.seconds)} · {formatBytes(rec.bytes)}
             </span>
             <span className="block text-[0.875rem] text-ink-500">
               {left}일 뒤 자동으로 지워져요 (보관 {RETENTION_DAYS}일)

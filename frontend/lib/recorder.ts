@@ -29,8 +29,13 @@ export type RecState = 'idle' | 'recording' | 'paused' | 'stopped' | 'denied' | 
 
 type Snap = {
   state: RecState;
-  /** 녹음된 길이(초). 일시정지 중에는 늘지 않는다. */
-  seconds: number;
+  /**
+   * 녹음된 길이(초). 일시정지 중에는 늘지 않는다.
+   *
+   * 밖에서 올린 녹음을 되살린 경우에만 null 이 될 수 있다 — 그 파일의 길이를
+   * 아무도 재지 못했다는 뜻이다. 앱이 직접 녹음한 것은 시계로 재므로 값이 있다.
+   */
+  seconds: number | null;
   /** 재생용 주소. 녹음이 끝나야 생긴다. */
   url: string | null;
   error: string | null;
@@ -174,6 +179,35 @@ function subscribe(cb: () => void) {
   }
   listeners.add(cb);
   return () => listeners.delete(cb);
+}
+
+/**
+ * 기기의 녹음이 녹음기를 거치지 않고 바뀌었다 — 스냅샷을 다시 읽는다.
+ *
+ * 위 subscribe 의 되살리기는 화면당 딱 한 번만 돈다(restored). 그래서 그 뒤에
+ * 들어온 녹음은 스냅샷에 반영되지 않는다. 복지사가 올리는 파일이 정확히 그
+ * 경우다(components/UploadRecording → recordingStore 에 곧장 쓴다).
+ *
+ * 그 결과가 한 화면 안의 모순이었다. 전사 화면 위쪽은 「0:08 녹음을 올렸어요」
+ * 라고 하는데, 바로 아래 「이 회기 녹음」은 「이 기기에 녹음이 없어요」라고
+ * 했다. 한쪽은 전사 쪽 상태(transcribeJob)를 보고, 다른 한쪽은 이 스냅샷을
+ * 보기 때문이다. 앞서 전사 쪽만 고쳤더니 재생기가 남았다.
+ *
+ * 녹음 중에는 아무것도 하지 않는다. 지금 담고 있는 소리가 먼저다.
+ */
+export async function adoptStoredRecording(): Promise<void> {
+  if (isCapturing()) return;
+  const rec = await loadRecording();
+  if (!rec) return;
+  if (snap.url) URL.revokeObjectURL(snap.url);
+  emit({
+    state: 'stopped',
+    seconds: rec.seconds,
+    url: URL.createObjectURL(rec.blob),
+    savedAt: rec.savedAt,
+    bytes: rec.blob.size,
+    error: rec.recovered ? '지난 녹음이 중간에 끊겼어요. 거기까지는 남아 있습니다.' : null,
+  });
 }
 
 /**
@@ -494,4 +528,16 @@ export function useRecorder() {
 
 export function mmss(total: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/**
+ * 길이를 아는 경우에만 '3:24'. 모르면 '길이 모름'.
+ *
+ * 모르는 길이를 0 으로 바꿔 '0:00' 이라고 적는 자리가 여럿 있었다. 재지도
+ * 않고 쟀다고 말하는 것이라, 복지사가 그 숫자를 보고 '녹음이 안 됐구나' 하고
+ * 멀쩡한 녹음을 지우거나 다시 받게 된다 — 어르신께 같은 이야기를 두 번
+ * 여쭙는 일이 그렇게 생긴다.
+ */
+export function mmssOrUnknown(total: number | null): string {
+  return total === null ? '길이 모름' : mmss(total);
 }

@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { Card } from './ui';
 import { ConsentGate, missingConsents } from './ConsentGate';
 import { hasConsent } from '@/lib/domain';
-import { mmss } from '@/lib/recorder';
+import { mmssOrUnknown } from '@/lib/recorder';
 import { useSession } from '@/lib/store';
 import { autoTranscribe, runTranscribe, useTranscribeStatus } from '@/lib/transcribeJob';
 
@@ -135,7 +135,7 @@ export function TranscribeButton() {
       {/* '옮겼어요'는 지금 기기에 있는 그 녹음에 대해서만 참이다. */}
       {job.kind === 'done' && origin === 'thisRecording' ? (
         <p className="mt-2 text-center text-[0.875rem] font-bold text-leaf-700">
-          옮겼어요 — {job.lines}줄 · 녹음 {mmss(job.seconds)}
+          옮겼어요 — {job.lines}줄{job.seconds === null ? '' : ` · 녹음 ${mmssOrUnknown(job.seconds)}`}
         </p>
       ) : null}
 

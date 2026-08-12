@@ -32,7 +32,9 @@ type Stage =
   | { kind: 'idle' }
   | { kind: 'working'; note: string }
   | { kind: 'error'; note: string }
-  | { kind: 'done'; seconds: number; converted: boolean };
+  // seconds 가 null 이면 길이를 못 쟀다는 뜻이다. 0 으로 바꿔 놓지 않는다 —
+  // 「0:00 녹음을 올렸어요」는 재지도 않고 쟀다고 말하는 것이다.
+  | { kind: 'done'; seconds: number | null; converted: boolean };
 
 export function UploadRecording({ onSaved }: { onSaved?: () => void }) {
   const [agreed, setAgreed] = useState(false);
@@ -67,7 +69,11 @@ export function UploadRecording({ onSaved }: { onSaved?: () => void }) {
       });
       return;
     }
-    setStage({ kind: 'done', seconds: Math.round(out.seconds), converted: out.converted });
+    setStage({
+      kind: 'done',
+      seconds: out.seconds === null ? null : Math.round(out.seconds),
+      converted: out.converted,
+    });
     onSaved?.();
   };
 
@@ -138,7 +144,10 @@ export function UploadRecording({ onSaved }: { onSaved?: () => void }) {
           role="status"
           className="mt-3 rounded-[14px] bg-surface-sunk px-3.5 py-3 text-[1rem] font-bold leading-relaxed text-ink-900"
         >
-          {mmss(stage.seconds)} 녹음을 올렸어요. 이제 이 녹음이 이번 회기의 녹음이에요.
+          {stage.seconds === null
+            ? '녹음을 올렸어요. 길이는 확인하지 못했지만 소리는 그대로 저장했어요.'
+            : `${mmss(stage.seconds)} 녹음을 올렸어요.`}{' '}
+          이제 이 녹음이 이번 회기의 녹음이에요.
           {/* 바꿨다는 사실을 숨기지 않는다. 원본과 다른 파일이 저장돼 있고,
               나중에 소리를 견줄 일이 생길 수 있다. */}
           {stage.converted ? ' (전사에 맞는 형식으로 바꿔서 저장했어요)' : ''}

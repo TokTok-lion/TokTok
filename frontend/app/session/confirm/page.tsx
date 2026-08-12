@@ -7,7 +7,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, CheckCircle, Chevron, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconChat, IconInfo, IconShield } from '@/components/icons';
 import { lyricInputs } from '@/lib/domain';
-import { mmss, useRecorder } from '@/lib/recorder';
+import { mmssOrUnknown, useRecorder } from '@/lib/recorder';
 import { sceneFor } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 import { autoTranscribe, useTranscribeStatus } from '@/lib/transcribeJob';
@@ -165,7 +165,7 @@ export default function ConfirmPage() {
 
             {job.kind === 'busy' ? (
               <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-                {mmss(seconds)} 녹음을 옮기는 중이에요. 어르신과 마무리
+                {mmssOrUnknown(seconds)} 녹음을 옮기는 중이에요. 어르신과 마무리
                 인사를 나누시는 동안 뒤에서 계속 돌아가고, 다음 화면에서 결과를
                 보실 수 있어요. 길면 1분이 넘습니다.
               </p>
@@ -180,7 +180,7 @@ export default function ConfirmPage() {
                  전사와 이야기만 남으므로, 화면은 지금 무엇이 무엇의 기록인지
                  밝혀야 한다. */
               <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-                방금 하신 {mmss(seconds)} 녹음은 아직 글로 옮기지 않았어요.
+                방금 하신 {mmssOrUnknown(seconds)} 녹음은 아직 글로 옮기지 않았어요.
                 아래 이야기와 출처(<strong>어르신 음성 0:00</strong> 같은 표시)는
                 그 앞 녹음에서 나온 것이고, 앞 녹음은 다시 녹음하실 때
                 지워졌습니다 — 지금은 눌러도 그 대목을 들려드릴 수 없어요.
@@ -192,7 +192,7 @@ export default function ConfirmPage() {
                  전송에 동의하지 않으신 회기. 어르신 목소리가 기기를 떠나는 일이라
                  그것만은 자동일 수 없다. */
               <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-                {mmss(seconds)} 녹음이 이 기기에 저장돼 있어요. 동의를 받으신
+                {mmssOrUnknown(seconds)} 녹음이 이 기기에 저장돼 있어요. 동의를 받으신
                 뒤 다음 화면에서 <strong>「녹음에서 옮기기」</strong>를 누르면
                 어르신 말씀이 글이 됩니다.
               </p>

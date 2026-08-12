@@ -8,7 +8,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, IconCircle, MicLevel, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconBack, IconInfo, IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
 import { QUESTION_LEVELS, hasConsent, type QuestionLevel } from '@/lib/domain';
-import { mmss, releaseRecording, useMicLevel, useRecorder } from '@/lib/recorder';
+import { mmssOrUnknown, releaseRecording, useMicLevel, useRecorder } from '@/lib/recorder';
 import { PROMPT_KIND_LABEL, interviewFlow } from '@/lib/prompts';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
 import { currentSession, setSessionField, useSession } from '@/lib/store';
@@ -344,7 +344,7 @@ export default function InterviewPage() {
       {replacing ? (
         <div id="rec-replace-warning" className="mt-5">
           <NoteBar tone="amber" icon={<IconInfo size={20} />}>
-            이미 <strong>{mmss(rec.seconds)}</strong> 녹음이 있어요. 다시 녹음을
+            이미 <strong>{mmssOrUnknown(rec.seconds)}</strong> 녹음이 있어요. 다시 녹음을
             시작하면 앞 녹음은 지워지고 되돌릴 수 없습니다.
             {sourcesPointHere
               ? ' 지금 전사와 이야기의 출처가 이 녹음을 가리키고 있어서, 지우면 그 대목을 어르신께 다시 들려드릴 수 없어요.'
@@ -399,7 +399,7 @@ export default function InterviewPage() {
       </div>
 
       <p className="mt-2 text-center text-[0.9375rem] font-semibold tabular-nums text-ink-500">
-        {mmss(rec.seconds)} 녹음됨
+        {mmssOrUnknown(rec.seconds)} 녹음됨
       </p>
 
       {/*
@@ -466,7 +466,7 @@ export default function InterviewPage() {
         3초를 기다리는 이유는 마이크가 열리는 데 시간이 걸리기 때문이다.
         누르자마자 "안 들려요"가 뜨면 그게 더 놀랍다.
       */}
-      {listening && !rec.heard && rec.seconds >= 3 ? (
+      {listening && !rec.heard && (rec.seconds ?? 0) >= 3 ? (
         <div className="mt-3" role="alert">
           <NoteBar tone="amber" icon={<IconInfo size={19} className="text-brand-600" />}>
             <strong>소리가 들어오지 않고 있어요.</strong> 마이크가 꺼져 있거나

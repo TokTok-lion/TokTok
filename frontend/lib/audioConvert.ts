@@ -39,7 +39,20 @@ const TARGET_RATE = 16000;
 export const CONVERT_MAX_SECONDS = 40 * 60;
 
 export type ConvertResult =
-  | { ok: true; blob: Blob; seconds: number; converted: boolean }
+  | {
+      ok: true;
+      blob: Blob;
+      /**
+       * 잰 길이. 못 쟀으면 null 이다.
+       *
+       * 예전에는 여기서 `seconds ?? 0` 으로 메웠다. 그 한 줄이 '모른다'를
+       * '0초다'로 바꿔 놓는다 — 화면은 「0:00 녹음을 올렸어요」라고 적고,
+       * 기기 표에도 0 이 실측처럼 앉는다. 파일 위쪽 readDuration 의 설명이
+       * 바로 그것을 하지 말라는 것이었는데 정작 여기서 하고 있었다.
+       */
+      seconds: number | null;
+      converted: boolean;
+    }
   | { ok: false; reason: 'unsupported' | 'tooLong' | 'failed'; seconds: number | null };
 
 /**
@@ -82,6 +95,44 @@ export function readDuration(file: Blob): Promise<number | null> {
     el.onerror = () => done(null);
     el.src = url;
   });
+}
+
+/**
+ * WAV 는 머리말만 읽어도 길이가 나온다 — 재생기를 거치지 않는다.
+ *
+ * 왜 따로 두는가. readDuration 은 <audio> 에게 물어보는데, 브라우저는 탭이
+ * 화면에 없으면 미디어 읽기를 미룬다. 복지사가 파일을 고르고 다른 탭으로
+ * 넘어가거나 태블릿을 잠그면 그 사이 metadata 가 오지 않고, 15초 뒤 시한이
+ * 지나 '길이를 모르는 파일'이 된다. 실제로 그 상태를 재현해 봤다 — 멀쩡한
+ * 16kHz 모노 WAV 도 숨은 탭에서는 loadedmetadata 가 끝내 오지 않는다.
+ *
+ * WAV 는 그럴 이유가 없다. data 조각의 크기를 초당 바이트로 나누면 그게 길이다.
+ * 우리가 만들어 내는 변환 결과도 WAV 라(toWav), 이 길로 대개 답이 나온다.
+ *
+ * 머리말이 표준 모양이 아니면 null 이다 — 짐작하지 않는다.
+ */
+export function wavDuration(head: ArrayBuffer): number | null {
+  if (head.byteLength < 44) return null;
+  const v = new DataView(head);
+  const tag = (at: number) => String.fromCharCode(v.getUint8(at), v.getUint8(at + 1), v.getUint8(at + 2), v.getUint8(at + 3));
+  if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE') return null;
+
+  // 조각들을 훑는다. fmt 와 data 사이에 다른 조각이 끼어 있는 파일이 있다.
+  let at = 12;
+  let byteRate = 0;
+  while (at + 8 <= head.byteLength) {
+    const kind = tag(at);
+    const size = v.getUint32(at + 4, true);
+    if (kind === 'fmt ' && at + 20 <= head.byteLength) byteRate = v.getUint32(at + 16, true);
+    if (kind === 'data') {
+      if (!byteRate) return null;
+      const seconds = size / byteRate;
+      return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+    }
+    // 조각 길이는 짝수로 맞춰진다. 홀수면 한 바이트가 덧대어 있다.
+    at += 8 + size + (size % 2);
+  }
+  return null;
 }
 
 /** AudioBuffer → 16bit PCM WAV. 채널이 여럿이면 섞어서 하나로 만든다. */
@@ -139,10 +190,18 @@ function toWav(buf: AudioBuffer): Blob {
  */
 export async function toTranscribable(file: File): Promise<ConvertResult> {
   const type = file.type || '';
-  const seconds = await readDuration(file);
+  let seconds = await readDuration(file);
+
+  // 재생기가 답하지 않았어도 WAV 라면 머리말에 답이 있다. 숨은 탭에서 파일을
+  // 고른 경우가 실제로 여기로 온다.
+  if (seconds === null && /wav|wave/i.test(type)) {
+    seconds = wavDuration(await file.slice(0, 4096).arrayBuffer());
+  }
 
   if (audioConfigFor(type)) {
-    return { ok: true, blob: file, seconds: seconds ?? 0, converted: false };
+    // 못 쟀으면 못 쟀다고 넘긴다. 0 으로 메우면 화면과 기기 표에 아무도 재지
+    // 않은 '0초'가 실측처럼 남는다.
+    return { ok: true, blob: file, seconds, converted: false };
   }
 
   // 우리가 풀 수 있는 것은 브라우저가 아는 형식뿐이다. 확장자만 보고

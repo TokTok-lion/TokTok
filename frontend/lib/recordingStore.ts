@@ -50,7 +50,14 @@ const LEGACY_KEY = 'current';
 export const RETENTION_DAYS = 30;
 
 type Meta = {
-  seconds: number;
+  /**
+   * 녹음 길이(초). 모르면 null 이다.
+   *
+   * 앱이 녹음한 것은 시계로 재므로 언제나 값이 있다. null 은 밖에서 올린
+   * 파일에서만 나온다 — 재생기가 길이를 답하지 않고 WAV 머리말도 없을 때다.
+   * 그때 0 을 적으면 화면이 「0:00」을 잰 값처럼 말하게 된다.
+   */
+  seconds: number | null;
   mime: string;
   /** 마지막으로 조각이 들어온 시각 */
   savedAt: number;
@@ -63,7 +70,8 @@ type Meta = {
 
 export type StoredRecording = {
   blob: Blob;
-  seconds: number;
+  /** 녹음 길이(초). 모르면 null — 지어내지 않는다. */
+  seconds: number | null;
   savedAt: number;
   /** 중간에 끊긴 녹음을 되살린 경우 */
   recovered: boolean;
@@ -184,7 +192,7 @@ export async function appendChunk(
  *
  * 이 회기의 앞 녹음만 지운다. 지난 회기 것은 그대로 둔다.
  */
-export async function saveUploaded(blob: Blob, seconds: number): Promise<boolean> {
+export async function saveUploaded(blob: Blob, seconds: number | null): Promise<boolean> {
   const s = currentSession();
   const key = recordingKey();
   await deleteRecording();
@@ -194,7 +202,7 @@ export async function saveUploaded(blob: Blob, seconds: number): Promise<boolean
     t.objectStore(CHUNKS).put(blob, chunkKey(key, 0));
     return t.objectStore(META).put(
       {
-        seconds: Math.round(seconds),
+        seconds: seconds === null ? null : Math.round(seconds),
         mime: blob.type || 'audio/wav',
         savedAt: Date.now(),
         // 이미 다 있는 파일이다. 중간에 끊긴 녹음이 아니므로 되살린 것으로
