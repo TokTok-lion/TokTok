@@ -27,6 +27,16 @@ Sources were exported by hand and renamed on the way into assets-src/covers/:
     family-shoes       <- ChatGPT Image 2026년 8월 12일 오전 12_21_27.png
     kettle-bowls       <- ChatGPT Image 2026년 8월 12일 오전 12_21_31.png
     photo-album-plain  <- ChatGPT Image 2026년 8월 12일 오전 12_21_35.png
+    first-pay-shoes    <- ChatGPT Image 2026년 8월 12일 오후 04_07_24.png
+    farming            <- ChatGPT Image 2026년 8월 12일 오후 04_07_25.png
+    army               <- ChatGPT Image 2026년 8월 12일 오후 04_07_27.png
+    market             <- ChatGPT Image 2026년 8월 12일 오후 04_07_29.png
+    kimjang            <- ChatGPT Image 2026년 8월 12일 오후 04_07_31.png
+    radio              <- ChatGPT Image 2026년 8월 12일 오후 04_07_35.png
+    wedding            <- ChatGPT Image 2026년 8월 12일 오후 04_07_36.png
+    house-key          <- ChatGPT Image 2026년 8월 12일 오후 04_07_38.png
+    sewing             <- ChatGPT Image 2026년 8월 12일 오후 04_07_41.png
+    tteokguk           <- ChatGPT Image 2026년 8월 12일 오후 04_07_44.png
 
 Each is centre-cropped square (they arrive 1:1, so this is usually a no-op),
 resized to 560px like the deck tiles, and written as cover-<name>.webp.
