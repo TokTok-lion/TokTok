@@ -249,7 +249,16 @@ export const apiframeMusic: MusicProvider = {
       return fail('곡을 만들지 못했어요. 가사는 그대로 남아 있습니다.', 502);
     }
 
-    // Suno 는 한 번에 두 곡을 낸다. 첫 번째를 쓴다.
+    /*
+     * Suno 는 한 번에 트랙을 **두 개** 낸다. 같은 가사·같은 스타일로 만든 서로
+     * 다른 두 번의 연주다 — 멜로디와 편곡이 달라진다. 골라 들으라고 주는 것이고,
+     * 값은 두 개를 합쳐 한 번치(11크레딧)로 매겨진다.
+     *
+     * 지금은 첫 번째만 쓰고 두 번째를 버린다. 이미 값을 치른 트랙이므로,
+     * 「두 가지 중에 고르기」 화면은 요금을 더 쓰지 않고도 되살릴 수 있다
+     * (app/session/preview 에 그 이야기를 적어 뒀다). 지금 버리는 이유는
+     * 하나뿐이다 — 아직 그 화면이 없다.
+     */
     const track = json.result?.tracks?.find((t) => t.audioUrl);
     // 다 됐다는데 소리가 없으면 아직이다. 상태만 믿으면 빈 곡이 저장된다.
     if (json.status !== 'COMPLETED' || !track?.audioUrl) {

@@ -4,12 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { songTitleForTopic } from './scenes';
 import {
   SERVER_SESSION,
+  cacheServerSong,
   loadSong,
   readSongShelf,
   songTag,
   type SongMeta,
 } from './songStore';
-import { cacheServerSong } from './songStore';
 import { downloadServerSong, listServerSongs, lyricsHash } from './songSync';
 import { currentSession } from './store';
 
@@ -80,7 +80,6 @@ export function useDeviceSongState(): DeviceSong {
 
   return song;
 }
-
 
 /**
  * 이 회기의 곡을 기관 저장소에서 찾아 온다 — 가사 지문으로 맞춰서.
@@ -178,8 +177,8 @@ export type SongShelfState = {
    * 기관 저장소 쪽 상태.
    *
    * 'off' 를 "다른 기기 곡이 없다"로 그리면 안 된다. 서버에 있는 곡을 없다고
-   * 말하는 화면은 복지사에게 한 번 더 만들라고 권하는 것과 같고, 곡 하나가
-   * 1,125크레딧이다.
+   * 말하는 화면은 복지사에게 한 번 더 만들라고 권하는 것과 같다 — 요금도
+   * 요금이지만, 어르신 앞에서 같은 일을 두 번 하게 만든다.
    */
   shared: SharedState;
   /** 이 기기에 있는 모든 곡의 수·용량 (다른 어르신 것 포함, 내용은 열지 않는다) */
