@@ -55,82 +55,250 @@ export const PROMPT_KIND_LABEL: Record<PromptKind, string> = {
   leave: '남기고 싶은 말',
 };
 
+/**
+ * 단계마다 흐름이 따로 있다.
+ *
+ * 예전에는 흐름이 카드마다 한 벌이었고, 단계는 **맨 앞 한 문장**만 갈랐다.
+ * 그래서 복지사가 선택형을 골라도 「다음 질문」을 한 번 누르는 순간 회상형과
+ * 똑같은 질문이 나왔다 — 열 개 중 아홉 개가 같았다. 고르는 화면만 있고 고른
+ * 것이 지켜지지 않았으니, 그 선택은 장식이었다.
+ *
+ * 단계는 어르신의 그날 상태에 맞추는 장치다. 말문이 잘 안 트이시는 날
+ * "그곳에서 있었던 일을 이야기해 주세요"는 대답할 수 없는 질문이고, 그러면
+ * 어르신은 대답을 못 한 것이 되어 버린다. 그래서 세 벌을 따로 쓴다.
+ *
+ *   1단계 선택형  두 가지를 내밀고 고르시게 한다. 고개만 끄덕여도 답이 된다.
+ *   2단계 단답형  한 마디로 답할 수 있게 묻는다. 이름·장소·나이처럼.
+ *   3단계 회상형  이야기를 청한다. 말문이 트이신 분께.
+ *
+ * 아홉 갈래(장면→사람→감각→행동→사건→마음→변화→지금→전함)는 셋 다 같다.
+ * 순서에 이유가 있고(위 설명) 그 이유는 단계와 무관하다 — 바뀌는 것은 묻는
+ * 방식뿐이다.
+ *
+ * 이 문장들은 우리가 쓴 초안이다. 현장에서 다듬을 곳은 여기 한 곳이다.
+ */
+type Flow = Record<QuestionLevel, Prompt[]>;
+
 /** 카드를 아직 안 고른 회기에서 쓰는 흐름. 주제를 가리지 않는 문장들이다. */
-export const OPEN_FLOW: Prompt[] = [
-  { text: '어릴 적에 사시던 동네는 어떤 곳이었어요?', kind: 'scene' },
-  { text: '그 집에는 누구누구 사셨어요?', kind: 'people' },
-  { text: '아침에 눈뜨면 어떤 소리가 먼저 들렸어요?', kind: 'sense' },
-  { text: '하루를 주로 어떻게 보내셨어요?', kind: 'doing' },
-  { text: '그 시절에 제일 기억에 남는 날이 언제세요?', kind: 'event' },
-  { text: '그날은 마음이 어떠셨어요?', kind: 'feel' },
-  { text: '그 뒤로는 어떻게 지내셨어요?', kind: 'after' },
-  { text: '지금 그때를 생각하면 어떤 마음이 드세요?', kind: 'now' },
-  { text: '그 시절 이야기 중에 꼭 남기고 싶은 게 있으세요?', kind: 'leave' },
-];
+export const OPEN_FLOW: Flow = {
+  1: [
+    { text: '어릴 적 사시던 곳은 시골이었어요, 도시였어요?', kind: 'scene' },
+    { text: '그 시절엔 식구가 많았어요, 단출했어요?', kind: 'people' },
+    { text: '아침에 눈뜨면 사람 소리가 먼저 났어요, 바깥 소리가 먼저 났어요?', kind: 'sense' },
+    { text: '하루를 주로 밖에서 보내셨어요, 집 안에서 보내셨어요?', kind: 'doing' },
+    { text: '기억에 남는 날은 기쁜 날이었어요, 힘든 날이었어요?', kind: 'event' },
+    { text: '그날을 떠올리면 마음이 편하세요, 아릿하세요?', kind: 'feel' },
+    { text: '그 뒤로 그 동네에 계속 사셨어요, 떠나셨어요?', kind: 'after' },
+    { text: '지금도 그 시절이 자주 생각나세요, 가끔 나세요?', kind: 'now' },
+    { text: '그 이야기를 자손들이 알았으면 하세요, 그냥 두고 싶으세요?', kind: 'leave' },
+  ],
+  2: [
+    { text: '어릴 적에 사시던 동네 이름이 어떻게 되세요?', kind: 'scene' },
+    { text: '그 집에 누구누구 사셨어요?', kind: 'people' },
+    { text: '아침에 제일 먼저 들리던 소리가 뭐였어요?', kind: 'sense' },
+    { text: '하루 중에 제일 오래 하시던 일이 뭐였어요?', kind: 'doing' },
+    { text: '제일 기억에 남는 날이 몇 살 때였어요?', kind: 'event' },
+    { text: '그날을 한마디로 하면 어떤 날이었어요?', kind: 'feel' },
+    { text: '그 동네를 떠나신 게 언제였어요?', kind: 'after' },
+    { text: '지금 제일 자주 떠오르는 게 뭐예요?', kind: 'now' },
+    { text: '꼭 남기고 싶은 말 한마디를 고르신다면요?', kind: 'leave' },
+  ],
+  3: [
+    { text: '어릴 적에 사시던 동네는 어떤 곳이었어요?', kind: 'scene' },
+    { text: '그 집에는 누구누구 사셨어요?', kind: 'people' },
+    { text: '아침에 눈뜨면 어떤 소리가 먼저 들렸어요?', kind: 'sense' },
+    { text: '하루를 주로 어떻게 보내셨어요?', kind: 'doing' },
+    { text: '그 시절에 제일 기억에 남는 날이 언제세요?', kind: 'event' },
+    { text: '그날은 마음이 어떠셨어요?', kind: 'feel' },
+    { text: '그 뒤로는 어떻게 지내셨어요?', kind: 'after' },
+    { text: '지금 그때를 생각하면 어떤 마음이 드세요?', kind: 'now' },
+    { text: '그 시절 이야기 중에 꼭 남기고 싶은 게 있으세요?', kind: 'leave' },
+  ],
+};
 
 /**
- * 카드별 질문 흐름.
+ * 카드별·단계별 질문 흐름.
  *
- * 카드를 고르면 그 카드의 단계별 여는 질문(CARD_QUESTIONS)이 맨 앞에 서고,
- * 그 뒤로 이 흐름이 이어진다. 아홉 개 안팎이면 한 회기를 끌고 간다 —
+ * 카드를 고르면 그 카드의 여는 질문(CARD_QUESTIONS)이 맨 앞에 서고, 그 뒤로
+ * 같은 단계의 흐름이 이어진다. 아홉 개 안팎이면 한 회기를 끌고 간다 —
  * 하나에 2~3분씩만 머물러도 20분이 넘는다.
  */
-export const CARD_FLOW: Record<string, Prompt[]> = {
-  friends: [
-    { text: '그 친구는 어디 살았어요? 가까웠어요, 멀었어요?', kind: 'scene' },
-    { text: '그 친구 이름이나 별명이 기억나세요?', kind: 'people' },
-    { text: '둘이 만나면 주로 어디서 만났어요?', kind: 'scene' },
-    { text: '같이 있을 때 무슨 소리가 많이 났어요? 웃음소리요, 아니면 조용했어요?', kind: 'sense' },
-    { text: '둘이서 주로 무엇을 하며 지내셨어요?', kind: 'doing' },
-    { text: '그 친구와 있었던 일 중에 제일 기억에 남는 날이 언제세요?', kind: 'event' },
-    { text: '그 친구를 만나면 마음이 어떠셨어요?', kind: 'feel' },
-    { text: '그 친구와는 언제까지 지내셨어요?', kind: 'after' },
-    { text: '지금 그 친구를 만나면 무슨 말을 해 주고 싶으세요?', kind: 'leave' },
-  ],
-  family: [
-    { text: '가족과 사시던 집은 어떤 집이었어요?', kind: 'scene' },
-    { text: '그 집에 누구누구 계셨어요?', kind: 'people' },
-    { text: '어머니가 해 주시던 음식 중에 뭐가 제일 생각나세요?', kind: 'sense' },
-    { text: '식구들이 모이면 주로 무엇을 하셨어요?', kind: 'doing' },
-    { text: '가족과 함께한 날 중에 특별히 기억나는 날이 있으세요?', kind: 'event' },
-    { text: '그날 마음이 어떠셨어요?', kind: 'feel' },
-    { text: '식구들은 그 뒤로 어떻게 지내셨어요?', kind: 'after' },
-    { text: '지금 가족을 생각하면 어떤 마음이 드세요?', kind: 'now' },
-    { text: '가족에게 꼭 남기고 싶은 말씀이 있으세요?', kind: 'leave' },
-  ],
-  school: [
-    { text: '학교는 어디에 있었어요? 걸어 다니셨어요?', kind: 'scene' },
-    { text: '학교 가는 길에 누구랑 같이 다니셨어요?', kind: 'people' },
-    { text: '학교에서 어떤 냄새나 소리가 기억나세요?', kind: 'sense' },
-    { text: '제일 좋아하던 시간은 무슨 시간이었어요?', kind: 'doing' },
-    { text: '학교에서 있었던 일 중에 잊히지 않는 일이 있으세요?', kind: 'event' },
-    { text: '그때 학교 가는 길은 어떤 기분이었어요?', kind: 'feel' },
-    { text: '학교를 마치고는 무엇을 하셨어요?', kind: 'after' },
-    { text: '지금 그 시절을 생각하면 어떠세요?', kind: 'now' },
-    { text: '그때의 나에게 한마디 한다면 뭐라고 하고 싶으세요?', kind: 'leave' },
-  ],
-  play: [
-    { text: '어릴 때 어디서 노셨어요? 마당이었어요, 골목이었어요?', kind: 'scene' },
-    { text: '누구와 함께 노셨어요?', kind: 'people' },
-    { text: '놀 때 어떤 소리가 났어요?', kind: 'sense' },
-    { text: '그 놀이는 어떻게 하는 거였어요? 저한테 알려 주세요.', kind: 'doing' },
-    { text: '놀다가 있었던 일 중에 웃긴 일이나 크게 혼난 일이 있으세요?', kind: 'event' },
-    { text: '해 질 때까지 놀고 집에 들어갈 때 마음이 어떠셨어요?', kind: 'feel' },
-    { text: '크시면서 그 놀이는 언제까지 하셨어요?', kind: 'after' },
-    { text: '요즘 아이들이 노는 걸 보면 어떤 생각이 드세요?', kind: 'now' },
-    { text: '그 시절 이야기 중에 남겨 두고 싶은 게 있으세요?', kind: 'leave' },
-  ],
-  holiday: [
-    { text: '명절에는 어디로 가셨어요? 집에 계셨어요?', kind: 'scene' },
-    { text: '명절에는 누가 모이셨어요?', kind: 'people' },
-    { text: '명절 아침에 집에서 어떤 냄새가 났어요?', kind: 'sense' },
-    { text: '명절 준비는 어떻게 하셨어요?', kind: 'doing' },
-    { text: '기억에 남는 명절이 있으세요?', kind: 'event' },
-    { text: '식구들이 다 모였을 때 마음이 어떠셨어요?', kind: 'feel' },
-    { text: '명절 지내는 모습이 그 뒤로 많이 달라졌어요?', kind: 'after' },
-    { text: '요즘 명절은 어떠세요?', kind: 'now' },
-    { text: '명절 하면 꼭 남기고 싶은 이야기가 있으세요?', kind: 'leave' },
-  ],
+export const CARD_FLOW: Record<string, Flow> = {
+  friends: {
+    1: [
+      { text: '그 친구 집은 가까웠어요, 멀었어요?', kind: 'scene' },
+      { text: '그 친구는 동갑이었어요, 나이 차이가 있었어요?', kind: 'people' },
+      { text: '둘이 있으면 시끌시끌했어요, 조용했어요?', kind: 'sense' },
+      { text: '주로 밖에서 어울리셨어요, 집에서 지내셨어요?', kind: 'doing' },
+      { text: '그 친구와는 웃던 일이 많았어요, 다툰 일도 있었어요?', kind: 'event' },
+      { text: '그 친구를 만나면 마음이 편하셨어요, 신나셨어요?', kind: 'feel' },
+      { text: '그 친구와는 오래 지내셨어요, 일찍 헤어지셨어요?', kind: 'after' },
+      { text: '지금도 그 친구 소식을 아세요, 모르세요?', kind: 'now' },
+      { text: '지금 만나면 고맙다고 하고 싶으세요, 보고 싶었다고 하고 싶으세요?', kind: 'leave' },
+    ],
+    2: [
+      { text: '그 친구는 어디 살았어요?', kind: 'scene' },
+      { text: '그 친구 이름이나 별명이 어떻게 되세요?', kind: 'people' },
+      { text: '그 친구 하면 어떤 소리가 떠오르세요?', kind: 'sense' },
+      { text: '둘이 만나면 주로 무엇을 하셨어요?', kind: 'doing' },
+      { text: '그 친구와 있었던 일 중에 제일 기억나는 게 뭐예요?', kind: 'event' },
+      { text: '그 친구는 어르신께 어떤 사람이었어요?', kind: 'feel' },
+      { text: '그 친구와 마지막으로 만난 게 언제였어요?', kind: 'after' },
+      { text: '지금 그 친구 이름을 부르면 뭐가 먼저 떠오르세요?', kind: 'now' },
+      { text: '그 친구에게 한마디 한다면 뭐라고 하시겠어요?', kind: 'leave' },
+    ],
+    3: [
+      { text: '그 친구와 함께 있던 곳은 어떤 곳이었어요?', kind: 'scene' },
+      { text: '그 친구는 어떤 사람이었어요?', kind: 'people' },
+      { text: '그 친구와 있을 때 나던 소리나 냄새가 기억나세요?', kind: 'sense' },
+      { text: '둘이서 주로 무엇을 하며 지내셨어요?', kind: 'doing' },
+      { text: '그 친구와 있었던 일 중에 제일 기억에 남는 날을 이야기해 주세요.', kind: 'event' },
+      { text: '그 친구를 만나면 마음이 어떠셨어요?', kind: 'feel' },
+      { text: '그 친구와는 그 뒤로 어떻게 되셨어요?', kind: 'after' },
+      { text: '지금 그 친구를 생각하면 어떤 마음이 드세요?', kind: 'now' },
+      { text: '지금 그 친구를 만나면 무슨 말을 해 주고 싶으세요?', kind: 'leave' },
+    ],
+  },
+  family: {
+    1: [
+      { text: '사시던 집은 마당이 있었어요, 없었어요?', kind: 'scene' },
+      { text: '식구가 많았어요, 단출했어요?', kind: 'people' },
+      { text: '집에서 나던 냄새 하면 밥 짓는 냄새예요, 장작 냄새예요?', kind: 'sense' },
+      { text: '식구들이 모이면 이야기가 많았어요, 조용했어요?', kind: 'doing' },
+      { text: '온 식구가 모이던 날은 명절이었어요, 잔칫날이었어요?', kind: 'event' },
+      { text: '그 시절 집은 북적북적했어요, 차분했어요?', kind: 'feel' },
+      { text: '식구들이 그 뒤로 가까이 사셨어요, 멀리 흩어지셨어요?', kind: 'after' },
+      { text: '지금 가족을 생각하면 든든하세요, 그리우세요?', kind: 'now' },
+      { text: '가족에게 남기고 싶은 말이 고맙다는 말이에요, 보고 싶다는 말이에요?', kind: 'leave' },
+    ],
+    2: [
+      { text: '가족과 사시던 집은 어디에 있었어요?', kind: 'scene' },
+      { text: '그 집에 누구누구 계셨어요?', kind: 'people' },
+      { text: '어머니가 해 주시던 음식 중에 뭐가 제일 생각나세요?', kind: 'sense' },
+      { text: '식구들이 모이면 주로 무엇을 하셨어요?', kind: 'doing' },
+      { text: '가족과 함께한 날 중에 제일 기억나는 날이 언제예요?', kind: 'event' },
+      { text: '그날은 어떤 날이었어요?', kind: 'feel' },
+      { text: '식구들은 그 뒤로 어디에 사셨어요?', kind: 'after' },
+      { text: '지금 제일 자주 떠오르는 식구가 누구세요?', kind: 'now' },
+      { text: '가족에게 한마디 남기신다면 뭐라고 하시겠어요?', kind: 'leave' },
+    ],
+    3: [
+      { text: '가족과 사시던 집은 어떤 집이었어요?', kind: 'scene' },
+      { text: '그 집에 누구누구 계셨어요?', kind: 'people' },
+      { text: '어머니가 해 주시던 음식 중에 뭐가 제일 생각나세요?', kind: 'sense' },
+      { text: '식구들이 모이면 주로 무엇을 하셨어요?', kind: 'doing' },
+      { text: '가족과 함께한 날 중에 특별히 기억나는 날을 이야기해 주세요.', kind: 'event' },
+      { text: '그날 마음이 어떠셨어요?', kind: 'feel' },
+      { text: '식구들은 그 뒤로 어떻게 지내셨어요?', kind: 'after' },
+      { text: '지금 가족을 생각하면 어떤 마음이 드세요?', kind: 'now' },
+      { text: '가족에게 꼭 남기고 싶은 말씀이 있으세요?', kind: 'leave' },
+    ],
+  },
+  school: {
+    1: [
+      { text: '학교는 가까웠어요, 멀었어요?', kind: 'scene' },
+      { text: '학교에 혼자 다니셨어요, 같이 다니는 동무가 있었어요?', kind: 'people' },
+      { text: '학교 하면 종소리가 떠오르세요, 운동장 흙냄새가 떠오르세요?', kind: 'sense' },
+      { text: '공부하는 시간이 좋으셨어요, 노는 시간이 좋으셨어요?', kind: 'doing' },
+      { text: '학교에서 칭찬받은 일이 기억나세요, 혼난 일이 기억나세요?', kind: 'event' },
+      { text: '학교 가는 길이 신나셨어요, 힘드셨어요?', kind: 'feel' },
+      { text: '학교는 오래 다니셨어요, 잠깐 다니셨어요?', kind: 'after' },
+      { text: '지금 그 시절을 생각하면 웃음이 나세요, 아쉬우세요?', kind: 'now' },
+      { text: '그때의 나에게 잘했다고 하고 싶으세요, 고생했다고 하고 싶으세요?', kind: 'leave' },
+    ],
+    2: [
+      { text: '학교는 어디에 있었어요?', kind: 'scene' },
+      { text: '학교 가는 길에 누구랑 같이 다니셨어요?', kind: 'people' },
+      { text: '학교에서 나던 소리나 냄새 하면 뭐가 떠오르세요?', kind: 'sense' },
+      { text: '제일 좋아하던 시간이 무슨 시간이었어요?', kind: 'doing' },
+      { text: '학교에서 있었던 일 중에 잊히지 않는 게 뭐예요?', kind: 'event' },
+      { text: '학교는 어르신께 어떤 곳이었어요?', kind: 'feel' },
+      { text: '학교를 마치고는 무엇을 하셨어요?', kind: 'after' },
+      { text: '지금 그 시절 하면 뭐가 제일 먼저 떠오르세요?', kind: 'now' },
+      { text: '그때의 나에게 한마디 한다면 뭐라고 하시겠어요?', kind: 'leave' },
+    ],
+    3: [
+      { text: '학교는 어디에 있었어요? 어떻게 다니셨어요?', kind: 'scene' },
+      { text: '학교 가는 길에 누구랑 같이 다니셨어요?', kind: 'people' },
+      { text: '학교에서 어떤 냄새나 소리가 기억나세요?', kind: 'sense' },
+      { text: '제일 좋아하던 시간은 무슨 시간이었어요?', kind: 'doing' },
+      { text: '학교에서 있었던 일 중에 잊히지 않는 일을 이야기해 주세요.', kind: 'event' },
+      { text: '그때 학교 가는 길은 어떤 기분이었어요?', kind: 'feel' },
+      { text: '학교를 마치고는 무엇을 하셨어요?', kind: 'after' },
+      { text: '지금 그 시절을 생각하면 어떠세요?', kind: 'now' },
+      { text: '그때의 나에게 한마디 한다면 뭐라고 하고 싶으세요?', kind: 'leave' },
+    ],
+  },
+  play: {
+    1: [
+      { text: '주로 마당에서 노셨어요, 골목에서 노셨어요?', kind: 'scene' },
+      { text: '혼자 노는 게 좋으셨어요, 여럿이 노는 게 좋으셨어요?', kind: 'people' },
+      { text: '놀 때 시끌시끌했어요, 조용했어요?', kind: 'sense' },
+      { text: '뛰어노는 놀이였어요, 앉아서 하는 놀이였어요?', kind: 'doing' },
+      { text: '놀다가 웃긴 일이 많았어요, 혼난 일도 있었어요?', kind: 'event' },
+      { text: '해 질 때 집에 들어가기 싫으셨어요, 얼른 들어가고 싶으셨어요?', kind: 'feel' },
+      { text: '크시고도 그 놀이를 하셨어요, 그만두셨어요?', kind: 'after' },
+      { text: '요즘 아이들 노는 걸 보면 반가우세요, 낯서세요?', kind: 'now' },
+      { text: '그 놀이를 손주에게 알려 주고 싶으세요, 그냥 두고 싶으세요?', kind: 'leave' },
+    ],
+    2: [
+      { text: '어릴 때 어디서 노셨어요?', kind: 'scene' },
+      { text: '누구와 함께 노셨어요?', kind: 'people' },
+      { text: '놀 때 어떤 소리가 났어요?', kind: 'sense' },
+      { text: '제일 자주 하던 놀이가 뭐였어요?', kind: 'doing' },
+      { text: '놀다가 있었던 일 중에 제일 기억나는 게 뭐예요?', kind: 'event' },
+      { text: '놀고 나면 기분이 어떠셨어요?', kind: 'feel' },
+      { text: '그 놀이는 몇 살 때까지 하셨어요?', kind: 'after' },
+      { text: '그 놀이를 그때는 뭐라고 불렀어요?', kind: 'now' },
+      { text: '그 놀이를 누구에게 알려 주고 싶으세요?', kind: 'leave' },
+    ],
+    3: [
+      { text: '어릴 때 어디서 노셨어요? 어떤 곳이었어요?', kind: 'scene' },
+      { text: '누구와 함께 노셨어요?', kind: 'people' },
+      { text: '놀 때 어떤 소리가 났어요?', kind: 'sense' },
+      { text: '그 놀이는 어떻게 하는 거였어요? 저한테 알려 주세요.', kind: 'doing' },
+      { text: '놀다가 있었던 일 중에 기억에 남는 일을 이야기해 주세요.', kind: 'event' },
+      { text: '해 질 때까지 놀고 집에 들어갈 때 마음이 어떠셨어요?', kind: 'feel' },
+      { text: '크시면서 그 놀이는 언제까지 하셨어요?', kind: 'after' },
+      { text: '요즘 아이들이 노는 걸 보면 어떤 생각이 드세요?', kind: 'now' },
+      { text: '그 시절 이야기 중에 남겨 두고 싶은 게 있으세요?', kind: 'leave' },
+    ],
+  },
+  holiday: {
+    1: [
+      { text: '명절에는 집에 계셨어요, 어디로 가셨어요?', kind: 'scene' },
+      { text: '명절에 식구가 많이 모였어요, 조용히 지내셨어요?', kind: 'people' },
+      { text: '명절 아침 하면 전 부치는 냄새예요, 떡국 냄새예요?', kind: 'sense' },
+      { text: '음식 준비를 같이 하셨어요, 옆에서 보셨어요?', kind: 'doing' },
+      { text: '기억에 남는 명절이 어릴 적이에요, 어른이 되고 나서예요?', kind: 'event' },
+      { text: '명절이 기다려지셨어요, 번거로우셨어요?', kind: 'feel' },
+      { text: '명절 지내는 모습이 많이 달라졌어요, 그대로예요?', kind: 'after' },
+      { text: '요즘 명절은 편하세요, 허전하세요?', kind: 'now' },
+      { text: '명절 하면 남기고 싶은 게 음식이에요, 사람이에요?', kind: 'leave' },
+    ],
+    2: [
+      { text: '명절에는 어디서 지내셨어요?', kind: 'scene' },
+      { text: '명절에는 누가 모이셨어요?', kind: 'people' },
+      { text: '명절 아침에 집에서 어떤 냄새가 났어요?', kind: 'sense' },
+      { text: '명절 준비는 무엇부터 하셨어요?', kind: 'doing' },
+      { text: '제일 기억에 남는 명절이 언제예요?', kind: 'event' },
+      { text: '명절은 어르신께 어떤 날이었어요?', kind: 'feel' },
+      { text: '명절 모습이 언제부터 달라졌어요?', kind: 'after' },
+      { text: '요즘 명절은 어떻게 지내세요?', kind: 'now' },
+      { text: '명절 하면 꼭 남기고 싶은 게 뭐예요?', kind: 'leave' },
+    ],
+    3: [
+      { text: '명절에는 어디로 가셨어요? 집에 계셨어요?', kind: 'scene' },
+      { text: '명절에는 누가 모이셨어요?', kind: 'people' },
+      { text: '명절 아침에 집에서 어떤 냄새가 났어요?', kind: 'sense' },
+      { text: '명절 준비는 어떻게 하셨어요?', kind: 'doing' },
+      { text: '기억에 남는 명절 이야기를 들려주시겠어요?', kind: 'event' },
+      { text: '식구들이 다 모였을 때 마음이 어떠셨어요?', kind: 'feel' },
+      { text: '명절 지내는 모습이 그 뒤로 많이 달라졌어요?', kind: 'after' },
+      { text: '요즘 명절은 어떠세요?', kind: 'now' },
+      { text: '명절 하면 꼭 남기고 싶은 이야기가 있으세요?', kind: 'leave' },
+    ],
+  },
 };
 
 /**
@@ -144,7 +312,9 @@ export function interviewFlow(
   card: string | null,
   level: QuestionLevel,
 ): Prompt[] {
-  const rest = card ? CARD_FLOW[card] ?? OPEN_FLOW : OPEN_FLOW;
+  // 카드도 단계도 흐름을 고른다. 카드가 없으면 주제를 가리지 않는 쪽으로.
+  const flow = (card ? CARD_FLOW[card] : undefined) ?? OPEN_FLOW;
+  const rest = flow[level];
   // 여는 질문의 성격은 고른 단계가 정한다. 선택형은 장면을 여는 자리,
   // 회상형은 이미 이야기를 청하는 자리라 종류를 달리 적는다.
   const kind: PromptKind = level === 3 ? 'event' : 'scene';
