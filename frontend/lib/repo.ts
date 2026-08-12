@@ -268,10 +268,20 @@ export async function saveProgress(
   step: number,
 ): Promise<{ sessionId: string; step: number } | null> {
   const sb = getSupabase();
-  const t = tenant();
-  if (!sb || !t || !s.remoteParticipantId) return null;
+  if (!sb || !s.remoteParticipantId) return null;
 
-  const account = currentAccount();
+  /*
+   * 로그인 확인이 끝나기를 기다린다.
+   *
+   * tenant() 는 currentAccount() 를 그 자리에서 읽는다. 다른 저장은 사람이
+   * 버튼을 누를 때 도는 것이라 그때는 이미 확인이 끝나 있지만, 이 함수는
+   * 화면이 뜨자마자 돈다 — 그 순간의 상태는 'loading' 이고, 그러면 소속이
+   * 없는 것으로 읽혀 조용히 아무것도 안 하고 끝난다. 실제로 그렇게 한 번
+   * 놓쳤다.
+   */
+  const account = await accountReady();
+  const t = account.status === 'in' ? account.tenantId : null;
+  if (!t) return null;
   const facilitator =
     account.status === 'in' ? await membershipId(account.userId, t) : null;
 

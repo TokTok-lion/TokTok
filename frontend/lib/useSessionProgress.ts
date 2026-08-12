@@ -50,20 +50,23 @@ export function useSessionProgress(): void {
 
     const mark = `${participant}::${step}`;
     if (sent.current === mark) return;
-    sent.current = mark;
 
+    /*
+     * 성공했을 때만 '보냈다'고 적는다.
+     *
+     * 처음에는 부르기 전에 적었는데, 그러면 실패가 성공처럼 기록된다. 실제로
+     * 그렇게 한 번 놓쳤다 — 로그인 확인이 끝나기 전이라 저장이 조용히 걸러진
+     * 회기가, 표시만 남아 그 단계에서 다시 시도되지 않았다.
+     */
     let alive = true;
     void saveProgress(s, step)
       .then((out) => {
         if (!alive || !out) return;
+        sent.current = mark;
         if (s.remoteSessionId !== out.sessionId) set('remoteSessionId', out.sessionId);
         if (s.remoteStep !== out.step) set('remoteStep', out.step);
       })
-      .catch(() => {
-        // 다음 단계에서 다시 해 본다. 표시를 지워 두지 않으면 이 회기는 남은
-        // 내내 서버에 안 올라간다 — 통신이 잠깐 끊긴 것뿐일 수 있다.
-        if (alive) sent.current = null;
-      });
+      .catch(() => undefined);
 
     return () => {
       alive = false;
