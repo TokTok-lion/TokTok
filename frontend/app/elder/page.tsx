@@ -225,7 +225,7 @@ export default function ElderListPage() {
           </p>
           <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
             다른 태블릿에서 <strong className="text-ink-900">{resume.open.step}단계</strong>까지
-            진행했어요. 지금까지 정리된{' '}
+            진행했어요. 지금까지 정리된 내용을 이어받을 수 있어요 —{' '}
             <strong className="text-ink-900">
               {[
                 resume.open.transcript.length > 0 && `전사 ${resume.open.transcript.length}줄`,
@@ -235,7 +235,7 @@ export default function ElderListPage() {
                 .filter(Boolean)
                 .join(' · ')}
             </strong>
-            을(를) 이어받을 수 있습니다.
+            .
           </p>
           {/* 녹음은 못 따라온다. 그 사실을 여기서 말해야, 이어받은 뒤에
               출처를 눌렀다가 소리가 안 나는 것을 고장으로 여기지 않는다. */}

@@ -35,7 +35,16 @@ export function useSessionProgress(): void {
   const sent = useRef<string | null>(null);
 
   const participant = s.remoteParticipantId;
-  const step = flowState(s).done;
+  /*
+   * 진행도는 뒷걸음질하지 않는다.
+   *
+   * flowState 는 '지금 이 기기의 상태로 몇 단계가 끝났나'를 센다. 그런데
+   * 회기의 진행도는 그것과 다르다 — 전사를 고치러 앞 화면으로 돌아가거나,
+   * 다른 태블릿에서 이어받으면(체크리스트는 기기에만 있다) 그 수가 줄어든다.
+   * 실제로 이어받기를 확인하다 4단계 회기가 2단계로 내려앉는 것을 봤다.
+   * 콘솔의 진행상태는 기관이 업무를 보는 창이라, 되돌아가면 거짓이 된다.
+   */
+  const step = Math.max(flowState(s).done, s.remoteStep);
 
   useEffect(() => {
     // 서버를 안 쓰거나 둘러보기 회기면 할 일이 없다.
