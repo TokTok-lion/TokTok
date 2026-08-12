@@ -1,7 +1,7 @@
 'use client';
 
 import { getSupabase } from './supabase';
-import { currentAccount } from './auth';
+import { accountReady } from './auth';
 import { currentSession } from './store';
 import type { MusicStyleId } from './domain';
 import { MUSIC_STYLES } from './domain';
@@ -32,11 +32,24 @@ export async function lyricsHash(lyrics: string, style: string): Promise<string>
     .slice(0, 32);
 }
 
-function ctx() {
+/**
+ * 서버에 말을 걸 수 있는 상태인가 — 로그인 확인이 끝나기를 기다린 뒤에 답한다.
+ *
+ * 예전에는 currentAccount() 를 그 자리에서 읽었다. 앱이 막 뜬 순간에는 그
+ * 값이 아직 'loading' 이라, 화면이 뜨자마자 부르는 쪽은 전부 "로그인 안 됨"
+ * 으로 취급됐다. 보관함이 정확히 그랬다 — 열자마자 서버를 읽으니 늘 한 발
+ * 빨랐고, 그래서 기관에 있는 곡을 한 곡도 못 가져오면서 화면에는 "이 기기에
+ * 있는 노래만 보여 드려요"라고 적었다. 있는 것을 없다고 말한 것이다.
+ *
+ * accountReady 는 그 확인이 끝날 때까지만 기다리고, 통신이 끊긴 곳에서는
+ * 시간이 지나면 그때 상태로 답한다 — 회기가 서버 때문에 멈추지는 않는다.
+ */
+async function ctx() {
   const sb = getSupabase();
-  const a = currentAccount();
+  if (!sb) return null;
+  const a = await accountReady();
   const s = currentSession();
-  if (!sb || a.status !== 'in' || !s.remoteParticipantId) return null;
+  if (a.status !== 'in' || !s.remoteParticipantId) return null;
   return { sb, tenantId: a.tenantId, participantId: s.remoteParticipantId };
 }
 
@@ -47,7 +60,7 @@ function ctx() {
  * 하는 지점이다.
  */
 export async function findServerSong(hash: string): Promise<Blob | null> {
-  const c = ctx();
+  const c = await ctx();
   if (!c) return null;
 
   const { data, error } = await c.sb
@@ -112,7 +125,7 @@ function cleanTopic(v: string | null): string | null {
  * 말하게 되고, 그러면 복지사가 한 번 더 만든다. 그게 요금이다.
  */
 export async function listServerSongs(): Promise<ServerSong[] | null> {
-  const c = ctx();
+  const c = await ctx();
   if (!c) return null;
 
   const { data, error } = await c.sb
@@ -144,11 +157,27 @@ export async function listServerSongs(): Promise<ServerSong[] | null> {
 
 /** 목록에서 고른 서버 곡을 내려받는다. 실패하면 null — 화면이 그렇게 말한다. */
 export async function downloadServerSong(path: string): Promise<Blob | null> {
-  const c = ctx();
+  const c = await ctx();
   if (!c) return null;
   const file = await c.sb.storage.from('songs').download(path);
   if (file.error || !file.data) return null;
   return file.data;
+}
+
+/**
+ * 올리기가 실패하면 콘솔에 남긴다.
+ *
+ * 이 함수가 왜 있는지: uploadSong 은 실패해도 회기를 막지 않는다. 어르신
+ * 앞에서 통신 때문에 흐름이 멈추는 편이 더 나쁘기 때문이고, 그 판단은
+ * 지금도 맞다. 그런데 결과를 아무 데도 안 남긴 탓에, 표 쓰기가 **한 번도**
+ * 성공하지 못한 채로 오래 지나갔다 — 인덱스 문제(42P10)로 upsert 가 계속
+ * 거절당하고 있었는데 화면에도, 로그에도 흔적이 없었다. 파일만 storage 에
+ * 쌓이고 표는 빈 채였다.
+ *
+ * 회기는 그대로 계속하되, 흔적은 남긴다.
+ */
+function warn(what: string, message: string): void {
+  console.warn(`[똑똑] 곡을 기관 저장소에 두지 못했어요 — ${what}: ${message}`);
 }
 
 /**
@@ -179,14 +208,17 @@ export async function uploadSong(
     cover: string | null;
   },
 ): Promise<boolean> {
-  const c = ctx();
+  const c = await ctx();
   if (!c) return false;
 
   const path = `${c.tenantId}/${c.participantId}/${hash}.mp3`;
   const up = await c.sb.storage
     .from('songs')
     .upload(path, blob, { contentType: 'audio/mpeg', upsert: true });
-  if (up.error) return false;
+  if (up.error) {
+    warn('파일 올리기', up.error.message);
+    return false;
+  }
 
   // 파일과 표를 함께 맞춘다. 표에만 있고 파일이 없으면 다음에 내려받다 실패한다.
   const row = {
@@ -208,7 +240,11 @@ export async function uploadSong(
   const { error } = await c.sb
     .from('songs')
     .upsert(row, { onConflict: 'participant_id,lyrics_hash,style' });
-  return !error;
+  if (error) {
+    warn('표에 적기', error.message);
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -218,7 +254,7 @@ export async function uploadSong(
  * 서버를 안 쓰면 null — 그때는 한도가 없다(기기에서만 도는 시연 모드).
  */
 export async function songQuotaLeft(): Promise<number | null> {
-  const c = ctx();
+  const c = await ctx();
   if (!c) return null;
   const { data, error } = await c.sb.rpc('song_quota_left');
   if (error || typeof data !== 'number') return null;
@@ -227,7 +263,7 @@ export async function songQuotaLeft(): Promise<number | null> {
 
 /** 서버에 올려 둔 곡을 지운다 — 삭제 요청에 응할 수 있어야 한다. */
 export async function deleteServerSongs(): Promise<void> {
-  const c = ctx();
+  const c = await ctx();
   if (!c) return;
   const { data } = await c.sb
     .from('songs')
