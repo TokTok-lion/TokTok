@@ -141,6 +141,68 @@ export async function createParticipant(
   return { ok: true, id: data.id };
 }
 
+/**
+ * 어르신의 이용 상태를 바꾼다 — 이용 중 · 일시중지 · 종료.
+ *
+ * ── 왜 없었나
+ *
+ * participants.status 칸도 있고 목록의 「이용 중/일시중지/종료」 거르개도 있는데,
+ * 그 값을 **바꾸는 코드가 어디에도 없었다**. 그래서 등록한 모든 어르신이 영영
+ * 이용 중이고, 나머지 두 거르개는 언제 눌러도 0명이었다. 화면만 있고 기능이
+ * 없던 자리다.
+ *
+ * 실제로는 자주 일어나는 일이다 — 입원하시거나 한동안 안 나오시면 일시중지,
+ * 퇴소하시면 종료. 목록이 스무 명을 넘어가면 이 구분이 없는 목록은 못 쓴다.
+ *
+ * ── 종료가 끝이 아니다
+ *
+ * 되돌릴 수 있어야 한다. 퇴소하셨다 다시 오시는 일이 있고, 잘못 눌렀을 수도
+ * 있다. 되돌릴 수 없게 만들면 복지사가 무서워서 아무 상태도 안 바꾼다.
+ *
+ * 지우는 것이 아니라는 점이 중요하다. 종료는 목록에서 내리는 표시일 뿐,
+ * 그 어르신의 이야기·곡·기록은 그대로 남는다.
+ */
+/** 이 어르신의 지금 이용 상태. 못 읽으면 null — 화면이 '모른다'로 그린다. */
+export async function readParticipantStatus(
+  participantId: string,
+): Promise<'active' | 'paused' | 'ended' | null> {
+  const sb = getSupabase();
+  if (!sb) return null;
+  const account = await accountReady();
+  const t = account.status === 'in' ? account.tenantId : null;
+  if (!t) return null;
+  const { data } = await sb
+    .from('participants')
+    .select('status')
+    .eq('tenant_id', t)
+    .eq('id', participantId)
+    .maybeSingle();
+  return data?.status ?? null;
+}
+
+export async function setParticipantStatus(
+  participantId: string,
+  status: 'active' | 'paused' | 'ended',
+): Promise<{ ok: boolean; reason?: string }> {
+  const sb = getSupabase();
+  if (!sb) return { ok: false, reason: '로그인이 필요합니다.' };
+  const account = await accountReady();
+  const t = account.status === 'in' ? account.tenantId : null;
+  if (!t) return { ok: false, reason: '로그인이 필요합니다.' };
+
+  const { error } = await sb
+    .from('participants')
+    .update({ status })
+    .eq('tenant_id', t)
+    .eq('id', participantId);
+  if (error) return { ok: false, reason: '이용 상태를 바꾸지 못했습니다.' };
+
+  // 누가 언제 내렸는지 남는다. 종료는 목록에서 사라지게 하는 결정이라,
+  // 나중에 "누가 내렸느냐"를 물을 일이 생긴다.
+  void audit(`participant.${status}`, `participant:${participantId}`);
+  return { ok: true };
+}
+
 /* ------------------------------------------------- 어르신별 동의·선호 */
 
 /** 어르신 한 분에게 붙는 값들. 기기가 아니라 사람에게 귀속된다. */

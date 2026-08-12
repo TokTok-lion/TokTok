@@ -3,7 +3,8 @@
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, OutlineButton, PrimaryButton } from '@/components/ui';
-import { IconEdit } from '@/components/icons';
+import { IconEdit, IconExport } from '@/components/icons';
+import { printLog } from '@/lib/export';
 import { songTitleForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
 
@@ -37,6 +38,15 @@ export default function LyricCardPage() {
       decoration={<Ornaments variant="notes" />}
       footer={
         feature ? (
+          <>
+            {/* 어르신 댁이나 기관 게시판에 붙일 종이. 화면에서 큰 글씨로
+                읽는 것과 종이로 드리는 것은 다른 일이다 — 회기가 끝나도
+                남는 것은 종이 쪽이다. */}
+            <div className="mb-3">
+              <OutlineButton tone="leaf" onClick={printLog} leading={<IconExport size={22} />}>
+                가사 인쇄 · PDF로 저장
+              </OutlineButton>
+            </div>
           <PrimaryButton
             href="/session/sing"
             leading={
@@ -47,6 +57,7 @@ export default function LyricCardPage() {
           >
             함께 부르기
           </PrimaryButton>
+          </>
         ) : (
           // 막다른 길을 두지 않는다. 가사가 없으면 다음 단계로 미는 대신
           // 만들러 갈 수 있는 곳을 준다.
@@ -171,6 +182,33 @@ export default function LyricCardPage() {
           </div>
         </Card>
       ) : null}
+
+      {/* 종이에 나가는 가사. 화면 카드와 따로 두는 이유는 크기다 — 화면은
+          한 절씩 크게 보여 주지만 종이는 전곡이 한 장에 들어가야 한다. */}
+      <div data-print className="hidden">
+        <h1 style={{ fontSize: '22pt', fontWeight: 800, marginBottom: '2mm' }}>
+          {songTitleForTopic(s.topic)}
+        </h1>
+        <p style={{ fontSize: '10pt', color: '#555', marginBottom: '8mm' }}>
+          {s.elder.displayName} 어르신 · {new Date().getFullYear()}년{' '}
+          {new Date().getMonth() + 1}월 {new Date().getDate()}일
+        </p>
+        {s.lyrics.map((sec, i) => (
+          <div key={`${sec.label}-${i}`} style={{ marginBottom: '7mm' }}>
+            <p style={{ fontSize: '11pt', fontWeight: 700, color: '#7a542e', marginBottom: '2mm' }}>
+              {sec.label}
+            </p>
+            {sec.lines.map((line, j) => (
+              <p key={j} style={{ fontSize: '15pt', lineHeight: 1.9, margin: 0 }}>
+                {line}
+              </p>
+            ))}
+          </div>
+        ))}
+        <p style={{ marginTop: '8mm', fontSize: '9pt', color: '#555' }}>
+          어르신께서 들려주신 이야기로 만든 가사입니다 · 똑똑 생애여정 음악지도
+        </p>
+      </div>
     </Screen>
   );
 }

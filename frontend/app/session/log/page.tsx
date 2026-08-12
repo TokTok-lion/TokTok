@@ -13,7 +13,9 @@ import {
   lyricInputs,
 } from '@/lib/domain';
 import { downloadCsv, printLog, todayStamp, type LogRow } from '@/lib/export';
+import { useAccount } from '@/lib/auth';
 import { useSession } from '@/lib/store';
+import { useSongShelf } from '@/lib/useDeviceSong';
 import { useServerSave } from '@/lib/useServerSave';
 
 const MAX = 1000;
@@ -98,6 +100,17 @@ const noClock = () => null;
 export default function LogPage() {
   const { s, set } = useSession();
   const [copied, setCopied] = useState(false);
+  /*
+   * 담당 복지사와 곡 수는 서식에 들어가는 값이라 지어내지 않는다.
+   *
+   * 이름은 로그인한 계정의 것이다 — 이 회기를 진행한 사람이 지금 이 화면을
+   * 보고 있다. 로그인 전이거나 둘러보기면 '—'다.
+   * 곡 수는 이 어르신의 보관함에서 센다(기기 + 기관 저장소).
+   */
+  const { account } = useAccount();
+  const workerName = account.status === 'in' ? account.email ?? '—' : '—';
+  const shelf = useSongShelf();
+  const songCount = shelf.loading ? null : shelf.songs.length;
   const server = useServerSave();
   const selected = REACTIONS.filter((r) => s.reactions.includes(r.id));
 
@@ -217,12 +230,31 @@ export default function LogPage() {
       : '복지사가 직접 적은 값이에요. 자동으로 잰 값이 이 값을 덮지 않습니다.'
     : `${emptyNote(measured, typed !== null)} 오늘 진행한 시간을 적어 주세요. 비워 두면 내보내는 서식에 “—”로 나갑니다.`;
 
+  /*
+   * 서식에 들어가는 값들.
+   *
+   * 기관 활동일지는 대개 날짜·시각·대상·프로그램명·소요시간·내용 칸을 갖는다.
+   * 앞서는 프로그램명·진행 시간·어르신·반응·내용·다음 주제 여섯 줄뿐이라,
+   * 복지사가 종이에 옮겨 적으며 날짜와 시각을 손으로 채워야 했다.
+   *
+   * 재지 않은 값은 넣지 않는다. 회기 시작 시각은 어르신을 고른 순간에 찍히고
+   * (remoteStartedAt), 없으면 '—'다 — 그럴듯한 시각을 지어 채우면 그 종이가
+   * 기관 기록으로 나간다.
+   */
+  const started = s.remoteStartedAt ? new Date(s.remoteStartedAt) : null;
+  const clock = (d: Date) =>
+    `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ` +
+    `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
   const rows: LogRow[] = [
+    { label: '실시일시', value: started ? clock(started) : '—' },
     // 주제 없이 진행한 회기가 있다(lib/useElders.ts). 서식의 빈 칸은 '—'로
     // 채운다 — 진행 시간과 같은 표기라 읽는 사람이 헷갈리지 않는다.
     { label: '프로그램명', value: s.topic || '—' },
     { label: '진행 시간', value: durationValue },
     { label: '어르신', value: s.elder.displayName },
+    { label: '담당 복지사', value: workerName },
+    { label: '만든 노래', value: songCount === null ? '—' : `${songCount}곡` },
     { label: '관찰된 반응', value: selected.map((r) => r.label).join(', ') || '기록 없음' },
     { label: '활동일지', value: s.logDraft },
     // '추천'이 아니라 복지사가 정한 주제다. 앱에는 다음 주제를 고르는 계산이

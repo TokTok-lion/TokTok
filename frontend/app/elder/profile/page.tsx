@@ -12,6 +12,7 @@ import {
   IconSend,
 } from '@/components/icons';
 import { flowState } from '@/lib/flow';
+import { ServiceStatusPanel } from '@/components/ServiceStatusPanel';
 import { useSession } from '@/lib/store';
 import { useActiveElder } from '@/lib/useActiveElder';
 import type { ArtKey } from '@/lib/art';
@@ -230,6 +231,13 @@ export default function ElderPage() {
           회기는 위에서 이어할 수 있어요.
         </p>
       </Card>
+
+      {/*
+        이용 상태. 목록의 「이용 중/일시중지/종료」 거르개를 실제로 움직이는
+        유일한 자리다 — 이게 없어서 세 거르개 중 둘이 언제나 0명이었다.
+        회기 중에도 바꿀 수 있게 프로필에 둔다(입원 연락은 회기 중에도 온다).
+      */}
+      <ServiceStatusPanel participantId={s.remoteParticipantId} honorific={e.honorific} />
     </Screen>
   );
 }
