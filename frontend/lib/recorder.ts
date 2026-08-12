@@ -176,6 +176,40 @@ function stopTicker() {
   ticker = null;
 }
 
+/**
+ * 마이크를 한 번 열었다 바로 닫는다 — 녹음하지 않는다.
+ *
+ * 브라우저 권한 팝업이 뜨는 자리를 옮기려고 있다.
+ *
+ * 여태 getUserMedia 를 부르는 곳은 startRecording() 하나였다. 복지사가 인터뷰
+ * 화면에서 녹음 버튼을 누르는 순간이고, 그때는 이미 어르신과 마주 앉은 뒤다.
+ * 그래서 "이 사이트에서 마이크를 사용하도록 허용하시겠습니까?"가 어르신
+ * 앞에서 떴다. 회기 준비에 '마이크에 소리가 들어오나요?' 항목이 이미 있는데,
+ * 그건 사람이 눈으로 보고 누르는 체크박스라 아무것도 확인하지 않았다 —
+ * 확인했다고 체크하고 들어가서 팝업을 만나는 구조였다.
+ *
+ * 이제 그 항목이 실제로 마이크를 열어 본다. 팝업은 준비 단계에서 뜨고, 한 번
+ * 허용하면 그 기기에 남아 다음 회기부터는 뜨지 않는다.
+ *
+ * 녹음은 하지 않는다. 연 트랙을 곧바로 닫으므로 소리가 어디에도 남지 않는다.
+ * 부르는 쪽에서 녹음 동의를 먼저 확인한다 — 거절하신 회기에서는 시험 삼아
+ * 여는 것도 하지 않는다.
+ */
+export async function checkMicrophone(): Promise<'ok' | 'denied' | 'unsupported'> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    return 'unsupported';
+  }
+  // 녹음 중이면 이미 열려 있다. 여기서 새로 열면 그 녹음이 끊긴다.
+  if (snap.state === 'recording' || snap.state === 'paused') return 'ok';
+  try {
+    const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+    probe.getTracks().forEach((t) => t.stop());
+    return 'ok';
+  } catch {
+    return 'denied';
+  }
+}
+
 /** 마이크를 열고 녹음을 시작한다. 권한 거부는 오류가 아니라 상태다. */
 export async function startRecording(): Promise<void> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {

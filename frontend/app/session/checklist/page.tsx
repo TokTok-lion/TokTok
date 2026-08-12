@@ -1,10 +1,14 @@
 'use client';
 
+import { useState } from 'react';
+
 import { Art } from '@/components/Art';
 import { ConsentAsk, RESULT_CONSENTS, SESSION_CONSENTS, UnrecordedConsents } from '@/components/ConsentGate';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconChat, IconClock, IconInfo, IconMic, IconShield } from '@/components/icons';
+import { checkMicrophone } from '@/lib/recorder';
+import { hasConsent } from '@/lib/domain';
 import { useSession } from '@/lib/store';
 import { PREP_CHECKS, type PrepCheck } from '@/lib/flow';
 import type { ArtKey } from '@/lib/art';
@@ -44,6 +48,52 @@ function clockLabel(iso: string): string {
 /** 회기 시작 체크리스트 (deck p.20) */
 export default function ChecklistPage() {
   const { s, set, setConsent, toggleChecklist } = useSession();
+  /*
+   * 마이크 확인 결과. 이 화면에서만 쓰고 회기에 담지 않는다 — 권한은 기기가
+   * 들고 있는 것이라 회기 기록에 적을 사실이 아니다.
+   */
+  const [micNote, setMicNote] = useState<string | null>(null);
+  const [micBusy, setMicBusy] = useState(false);
+
+  /*
+   * '마이크에 소리가 들어오나요?'가 실제로 마이크를 열어 본다.
+   *
+   * 예전에는 사람이 눈으로 보고 누르는 체크박스였다. 그래서 브라우저 권한
+   * 팝업은 인터뷰 화면에서 녹음 버튼을 누를 때 처음 떴다 — 어르신과 마주
+   * 앉은 뒤다. 확인했다고 체크하고 들어가서 팝업을 만나는 구조였다.
+   *
+   * 여기서 한 번 열면 팝업이 준비 단계에서 뜨고, 허용은 기기에 남아 다음
+   * 회기부터는 뜨지 않는다. 녹음은 하지 않는다(곧바로 닫는다).
+   *
+   * 녹음 동의를 거절하신 회기에서는 열지 않는다. 시험 삼아 여는 것도 마이크를
+   * 켜는 일이고, 그 회기는 받아 적기로 간다.
+   */
+  const onCheck = async (key: PrepCheck) => {
+    if (key !== 'mic' || s.checklist.mic) {
+      toggleChecklist(key);
+      return;
+    }
+    if (!hasConsent(s.elder.consents, 'recording')) {
+      toggleChecklist(key);
+      setMicNote('녹음 동의가 없어 마이크는 열지 않았어요. 받아 적기로 진행합니다.');
+      return;
+    }
+    setMicBusy(true);
+    const out = await checkMicrophone();
+    setMicBusy(false);
+    if (out === 'ok') {
+      toggleChecklist(key);
+      setMicNote(null);
+      return;
+    }
+    // 못 열었으면 체크하지 않는다. 확인되지 않은 것을 확인됐다고 적으면
+    // 복지사는 어르신 앞에서야 알게 된다.
+    setMicNote(
+      out === 'denied'
+        ? '마이크를 쓸 수 없어요. 브라우저 주소창의 마이크 표시에서 허용해 주신 뒤 다시 눌러 주세요. 그대로 진행하시려면 받아 적기로 하실 수 있어요.'
+        : '이 브라우저는 녹음을 지원하지 않아요. 받아 적기로 진행해 주세요.',
+    );
+  };
 
   /**
    * 아직 답하지 않은 것들. 준비 확인 + 이번 회기에 필요한 동의.
@@ -217,7 +267,8 @@ export default function ChecklistPage() {
                 type="button"
                 role="switch"
                 aria-checked={done}
-                onClick={() => toggleChecklist(key)}
+                onClick={() => void onCheck(key)}
+                aria-busy={micBusy && key === 'mic' ? true : undefined}
                 className="flex min-h-[80px] w-full items-center gap-4 rounded-[20px] bg-surface px-4 text-left shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
               >
                 <IconCircle tone={done ? 'leaf' : it.tone} size={54}>
@@ -248,6 +299,18 @@ export default function ChecklistPage() {
           );
         })}
       </ul>
+
+      {/* 못 연 이유는 그 자리에서 말한다. 낭독으로 듣는 사람에게도 닿아야 해서
+          alert 로 둔다 — 체크가 안 된 채로 조용히 넘어가면, 복지사는 어르신
+          앞에서야 마이크가 안 된다는 것을 알게 된다. */}
+      {micNote ? (
+        <p
+          role="alert"
+          className="mt-3 rounded-[14px] bg-surface-sunk px-3.5 py-3 text-[1rem] font-bold leading-relaxed text-ink-900"
+        >
+          {micNote}
+        </p>
+      ) : null}
 
       {/*
         동의를 여쭙는 자리.
