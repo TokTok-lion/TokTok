@@ -9,7 +9,9 @@ import {
   songTag,
   type SongMeta,
 } from './songStore';
-import { listServerSongs } from './songSync';
+import { cacheServerSong } from './songStore';
+import { downloadServerSong, listServerSongs, lyricsHash } from './songSync';
+import { currentSession } from './store';
 
 export type DeviceSong = {
   /** 이 기기에 있는 곡의 재생 주소. 없으면 null. */
@@ -47,10 +49,18 @@ export function useDeviceSongState(): DeviceSong {
     // 도는 경우(개발 모드 이중 마운트)에도 정리가 곧바로 이어지므로 그 사이에
     // IndexedDB 가 답할 틈이 없다 — made 가 null 이라 되돌릴 주소도 없다.
     void loadSong()
-      .then((blob) => {
+      .then(async (blob) => {
         if (!alive) return;
         if (!blob) {
-          setSong({ url: null, loading: false });
+          // 기기에 없으면 기관 저장소를 본다. 이어받은 회기가 여기로 온다.
+          const fetched = await sessionSongFromServer().catch(() => null);
+          if (!alive) return;
+          if (!fetched) {
+            setSong({ url: null, loading: false });
+            return;
+          }
+          made = URL.createObjectURL(fetched);
+          setSong({ url: made, loading: false });
           return;
         }
         made = URL.createObjectURL(blob);
@@ -69,6 +79,69 @@ export function useDeviceSongState(): DeviceSong {
   }, []);
 
   return song;
+}
+
+
+/**
+ * 이 회기의 곡을 기관 저장소에서 찾아 온다 — 가사 지문으로 맞춰서.
+ *
+ * ── 왜 필요한가
+ *
+ * 곡은 '어르신 + 회기 칸'으로 기기에 저장된다(songStore). 회기 칸은 회기를 연
+ * 시각이라, 다른 태블릿에서 이어받으면 그 칸이 없다. 그래서 보관함에서 곡을
+ * 받아 와도 「함께 부르기」와 「미리듣기」는 "이 기기에 곡 파일이 없어요"라고
+ * 했다 — 곡이 바로 그 기기에 있는데도. 어르신 앞에서 노래를 들려드리는 자리라
+ * 이 구멍이 제일 나쁘다.
+ *
+ * ── 무엇을 근거로 '이 회기의 곡'이라 하는가
+ *
+ * 가사 지문이다. 서버 행에 그 곡을 만든 가사의 지문(lyrics_hash)이 있고,
+ * 지금 회기의 가사로 같은 지문을 다시 만들어 견준다. 같으면 같은 가사로 만든
+ * 곡이니 이 회기의 곡이 맞다.
+ *
+ * 시각이나 '가장 최근'으로 고르지 않는다. 그러면 다른 회기의 곡이 이 회기에
+ * 딸려 올 수 있고, 그건 어르신 앞에서 남의 생애로 만든 노래를 트는 일이다.
+ * 지문이 다르면 아무것도 돌려주지 않는다.
+ */
+async function sessionSongFromServer(): Promise<Blob | null> {
+  const s = currentSession();
+  if (!s.lyrics.length) return null;
+
+  const rows = await listServerSongs();
+  if (!rows?.length) return null;
+
+  // 곡을 만들 때와 글자 하나까지 같은 방법으로 잇는다(useMusic). 한 글자라도
+  // 다르면 지문이 달라지고, 그러면 제 회기의 곡을 못 알아본다.
+  const text = s.lyrics
+    .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
+    .join('\n\n');
+
+  for (const row of rows) {
+    if (!row.hash || !row.style) continue;
+    // 지문은 분위기까지 넣어 만든다(songSync.lyricsHash). 서버 행이 들고 있는
+    // 분위기로 계산해야 같은 자리에서 만든 값과 견줄 수 있다.
+    const mine = await lyricsHash(text, row.style);
+    if (mine !== row.hash) continue;
+
+    const blob = await downloadServerSong(row.path);
+    if (!blob) return null;
+
+    /*
+     * 받은 김에 이 회기의 곡으로 기기에 남긴다. 다음에 「함께 부르기」를 열 때
+     * 통신을 기다리지 않는다 — 어르신 앞에서 재생을 누르는 자리다.
+     */
+    void cacheServerSong(blob, {
+      ownerId: s.remoteParticipantId ?? s.elder.id,
+      sessionId: s.remoteStartedAt ?? 'demo',
+      madeAt: row.madeAt,
+      topic: row.topic,
+      cover: row.cover,
+      style: row.style,
+      hash: row.hash,
+    });
+    return blob;
+  }
+  return null;
 }
 
 /** 재생 주소만 있으면 되는 화면용. */
