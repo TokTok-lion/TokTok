@@ -182,8 +182,13 @@ export default function RecordsPage() {
                   </Chip>
                 )}
               </span>
+              {/* 표시와 설명이 같은 값을 봐야 한다. '작성 중'을 달아 놓고
+                  아래에서는 내보내기 이야기만 하니, 이 줄이 왜 계속 작성
+                  중인지도, 무엇을 해야 없어지는지도 알 수 없었다. */}
               <span className="block text-[0.875rem] text-ink-500">
-                기관 양식으로 복사·내보내기
+                {s.logSaved
+                  ? '기관 양식으로 복사·내보내기'
+                  : '아직 저장 전이에요 · 저장해야 회기가 마무리돼요'}
               </span>
             </span>
             <Chevron />

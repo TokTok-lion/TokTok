@@ -28,23 +28,56 @@ export default function WrapPage() {
           <div className="mb-3 empty:mb-0">
             <ServerSaveNote retry />
           </div>
-          <div className="mb-3">
-            <OutlineButton href="/session/log" leading={<IconDoc size={22} />}>
-              초안 다시 보기
-            </OutlineButton>
-          </div>
-          <PrimaryButton
-            href="/home"
-            leading={
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/25">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="m5 13 4.5 4.5L19 7" />
-                </svg>
-              </span>
-            }
-          >
-            저장하고 종료
-          </PrimaryButton>
+          {/*
+            활동일지를 저장해야 회기가 끝난다.
+            'logSaved' 는 표시가 아니라 회기의 끝이다 — 서버 회기 행이 done 으로
+            닫히고 ended_at 이 찍히는 것도(lib/repo.ts), 오늘 화면이 '오늘 회기
+            마무리됨'이라고 적는 것도(lib/flow.ts 9단계) 전부 이 값 하나다.
+
+            그런데 이 화면은 그 값과 상관없이 '저장하고 종료'를 내주고 있었다.
+            관찰 반응 화면에서 '다음 회기 주제' 카드를 누르면 활동일지를 건너뛰고
+            여기로 바로 오는 길이 있어서, 그 길로 온 회기는 사람이 보기에 다
+            마쳤는데 서버에는 running 으로 남고 기록 탭은 '작성 중'을 계속 달고
+            있었다. 실제로 그렇게 끝낸 회기를 두고 "회기가 마무리돼도 계속
+            뜬다"는 제보가 왔다. 저장한 적 없는 것을 저장했다고 말한 쪽이
+            문제지, 표시가 남은 쪽이 문제가 아니었다.
+
+            저장은 여기서 대신 눌러 주지 않는다. 활동일지 초안은 AI가 쓴 글이고
+            (원칙 3 · 사람 검수 필수), 그 글을 띄우지도 않는 화면에서 확정하면
+            아무도 안 읽은 문장이 기관 기록이 된다. 대신 무엇이 남았는지 적고
+            그 화면으로 보낸다.
+          */}
+          {s.logSaved ? (
+            <>
+              <div className="mb-3">
+                <OutlineButton href="/session/log" leading={<IconDoc size={22} />}>
+                  초안 다시 보기
+                </OutlineButton>
+              </div>
+              <PrimaryButton
+                href="/home"
+                leading={
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/25">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m5 13 4.5 4.5L19 7" />
+                    </svg>
+                  </span>
+                }
+              >
+                저장하고 종료
+              </PrimaryButton>
+            </>
+          ) : (
+            <>
+              <p className="mb-3 rounded-[12px] bg-surface-sunk px-3.5 py-3 text-[0.875rem] leading-relaxed text-ink-700">
+                활동일지가 아직 저장 전이에요. 저장해야 이 회기가 마무리되고,{' '}
+                <strong>기록</strong> 탭의 ‘작성 중’ 표시도 없어집니다.
+              </p>
+              <PrimaryButton href="/session/log" leading={<IconDoc size={22} />}>
+                활동일지 쓰고 마무리
+              </PrimaryButton>
+            </>
+          )}
         </>
       }
     >
