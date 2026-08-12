@@ -98,6 +98,39 @@ export async function appendChunk(index: number, blob: Blob, meta: Meta): Promis
 }
 
 /**
+ * 밖에서 녹음해 온 파일을 이 회기의 녹음으로 앉힌다.
+ *
+ * 별도 경로를 파지 않고 여기로 들여보내는 이유가 있다. 이 자리에 들어오면
+ * 그 뒤가 전부 그대로 적용된다 — 전사, 출처 되짚어 듣기, 보관기간이 지나면
+ * 스스로 지워지는 것, 녹음 동의를 거두면 즉시 지워지는 것. 올린 녹음이라고
+ * 해서 그 규칙들이 느슨해질 이유가 없고, 따로 만들면 반드시 하나를 빠뜨린다.
+ *
+ * 앞 녹음은 지운다. 남겨 두면 앞 조각이 새 파일 앞에 이어 붙어 엉뚱한 소리가
+ * 된다(startRecording 과 같은 이유).
+ */
+export async function saveUploaded(blob: Blob, seconds: number): Promise<boolean> {
+  await deleteRecording();
+  const db = await openDb();
+  if (!db) return false;
+  const ok = await run(db, [CHUNKS, META], 'readwrite', (t) => {
+    t.objectStore(CHUNKS).put(blob, 0);
+    return t.objectStore(META).put(
+      {
+        seconds: Math.round(seconds),
+        mime: blob.type || 'audio/wav',
+        savedAt: Date.now(),
+        // 이미 다 있는 파일이다. 중간에 끊긴 녹음이 아니므로 되살린 것으로
+        // 표시하지 않는다 — 화면이 '복구했어요'라고 말하면 거짓이 된다.
+        finished: true,
+      } satisfies Meta,
+      META_KEY,
+    ) as IDBRequest<IDBValidKey>;
+  });
+  db.close();
+  return ok !== null;
+}
+
+/**
  * 저장된 녹음본을 읽어 하나로 잇는다. 보관기간이 지났으면 지우고 없다고 한다 —
  * 읽는 김에 정리하므로 따로 청소하는 작업이 필요 없다.
  */

@@ -2,6 +2,7 @@
 
 import { Ornaments, Screen } from '@/components/Shell';
 import { TranscribeButton } from '@/components/TranscribeButton';
+import { UploadRecording } from '@/components/UploadRecording';
 import { Card, CheckCircle, PrimaryButton } from '@/components/ui';
 import { IconEdit } from '@/components/icons';
 import { useRecorder } from '@/lib/recorder';
@@ -75,6 +76,19 @@ export default function TranscriptPage() {
     >
       {/* 녹음이 있으면 여기서 자동으로 옮기고, 아래에서 사람이 고친다 */}
       <TranscribeButton />
+
+      {/*
+        밖에서 녹음해 온 파일도 여기서 받는다.
+
+        이 자리인 이유: 이 화면이 '녹음을 글로 옮기는' 자리다. 인터뷰 화면에
+        두면 어르신과 마주 앉은 중에 파일 고르기 창이 뜨고, 그 화면은 앱이
+        직접 녹음하는 자리라 두 가지 녹음이 한 화면에서 다툰다.
+
+        올린 파일은 이 회기의 녹음이 되므로, 바로 위 버튼이 그것을 옮긴다.
+      */}
+      <div className="mt-3">
+        <UploadRecording />
+      </div>
 
       <Card className="mt-3 p-4">
         <p className="text-[1rem] font-bold text-ink-500">전사 내용</p>
