@@ -82,6 +82,79 @@ export async function gcsUpload(
   return `gs://${GCS_BUCKET}/${objectName}`;
 }
 
+/**
+ * 브라우저가 저장소로 직접 올릴 수 있는 한 번짜리 주소를 연다.
+ *
+ * 왜 필요한가. 지금까지는 녹음이 우리 함수를 거쳐 갔는데, Vercel 함수의 요청
+ * 본문 한도가 4.5MB 이고 그건 설정으로 못 올린다(인프라 수준 제약). 그래서
+ * 4MB 에서 잘랐고, 그 위는 어르신이 한 시간을 이야기하셨든 413 이었다.
+ *
+ * 파일이 함수를 안 거치면 그 한도가 적용되지 않는다. 그래서 서버는 주소만
+ * 열어 주고 바이트는 브라우저에서 GCS 로 바로 간다. 구글이 안내하는 방식
+ * 그대로다(resumable upload session).
+ *
+ * 이 주소는 우리가 정한 이름의 객체 하나에만 쓸 수 있고, 며칠이면 만료된다.
+ * 이름에 어르신 정보를 넣지 않는 규칙은 여기서도 같다 — 잠깐 있다 사라질
+ * 파일이라도 그 이름은 로그에 남는다.
+ *
+ * 서명 URL 대신 이 방식을 쓰는 이유: 서명은 서비스 계정 개인키로 직접
+ * 계산해야 하는데, 세션 주소는 이미 있는 토큰 한 번으로 열린다. 부품이
+ * 적을수록 어르신 목소리가 지나가는 길이 짧다.
+ */
+export async function gcsResumableSession(
+  objectName: string,
+  contentType: string,
+): Promise<string | null> {
+  const token = await googleToken();
+  if (!token || !GCS_BUCKET) return null;
+  const url =
+    `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(GCS_BUCKET)}/o` +
+    `?uploadType=resumable&name=${encodeURIComponent(objectName)}`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': contentType,
+      },
+      body: JSON.stringify({ name: objectName }),
+    });
+    if (!res.ok) {
+      console.error('gcs resumable session failed', res.status);
+      return null;
+    }
+    // 세션 주소는 본문이 아니라 Location 헤더로 온다.
+    return res.headers.get('location');
+  } catch (e) {
+    console.error('gcs resumable session error', e);
+    return null;
+  }
+}
+
+/**
+ * 올라왔다고 하는 객체가 실제로 있는지, 크기가 얼마인지 확인한다.
+ *
+ * 브라우저가 "다 올렸어요"라고 말하는 것만 믿고 전사를 시작하면, 올라가지
+ * 않은 파일로 작업을 걸어 놓고 기다리게 된다. 요금이 나가는 자리이기도 하다.
+ */
+export async function gcsStat(objectName: string): Promise<{ size: number } | null> {
+  const token = await googleToken();
+  if (!token || !GCS_BUCKET) return null;
+  try {
+    const res = await fetch(
+      `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(GCS_BUCKET)}/o/${encodeURIComponent(objectName)}?fields=size`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) return null;
+    const j = (await res.json()) as { size?: string };
+    const size = Number(j.size ?? 0);
+    return Number.isFinite(size) && size > 0 ? { size } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 실패해도 조용히 넘어간다 — 지우기가 안 됐다고 전사 결과를 버릴 이유는 없다. */
 export async function gcsDelete(objectName: string): Promise<void> {
   const token = await googleToken();

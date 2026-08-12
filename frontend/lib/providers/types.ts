@@ -81,8 +81,55 @@ export interface MusicProvider {
 export interface SttProvider {
   readonly name: string;
   start(file: File): Promise<Job<Segment[]>>;
+  /**
+   * 이미 저장소에 올라와 있는 녹음으로 전사를 시작한다.
+   *
+   * 왜 두 갈래인가. 우리 함수를 거쳐 오는 길에는 4.5MB 한도가 있고(Vercel
+   * 인프라 제약, 설정으로 못 올린다) 회기 녹음은 그보다 길다. 그래서 긴
+   * 녹음은 브라우저가 저장소로 바로 올리고, 여기에는 그 이름만 온다.
+   *
+   * 짧은 녹음까지 이 길로 몰지 않은 이유: 지금 돌아가고 있는 길이 있는데
+   * 새 길 하나에 전부를 걸면, 새 길이 삐끗할 때 되던 것까지 같이 멎는다.
+   */
+  startUploaded(object: string, contentType: string): Promise<Job<Segment[]>>;
   poll(jobId: string): Promise<Job<Segment[]>>;
 }
+
+/**
+ * 이 녹음을 전사에 보낼 수 있는가.
+ *
+ * 구글 v1 이 아는 것은 FLAC · LINEAR16(wav) · MP3 · OGG_OPUS · WEBM_OPUS ·
+ * AMR 뿐이다. **AAC(m4a·mp4)는 목록에 없다.** 그런데 사파리의 MediaRecorder
+ * 는 audio/mp4 를 준다 — 아이패드로 받은 회기 녹음이 그것이다.
+ *
+ * 여기가 조용히 틀리던 자리다. 예전에는 무엇이 오든 config 에 WEBM_OPUS 를
+ * 박아 보냈다. 아이패드 녹음은 AAC 인데 WebM/Opus 라고 말하고 보낸 셈이라,
+ * 구글이 못 알아듣거나 엉뚱한 글자를 냈다. 화면에는 "전사하지 못했어요"만
+ * 떠서, 마이크가 나쁜 줄 알기 딱 좋다.
+ *
+ * 모르는 형식은 모른다고 말한다. 형식을 속여 보내는 것보다 낫다.
+ */
+export type AudioConfig = { encoding: string; sampleRateHertz?: number };
+
+export function audioConfigFor(contentType: string): AudioConfig | null {
+  const t = (contentType || '').toLowerCase();
+  if (t.includes('webm')) return { encoding: 'WEBM_OPUS', sampleRateHertz: 48000 };
+  if (t.includes('ogg') || t.includes('opus')) return { encoding: 'OGG_OPUS', sampleRateHertz: 48000 };
+  if (t.includes('flac')) return { encoding: 'FLAC' };
+  // wav·flac 은 머리말만 보고 구글이 알아낸다. 샘플레이트를 우리가 우겨
+  // 넣으면 오히려 실제 파일과 어긋난다.
+  if (t.includes('wav') || t.includes('x-wav') || t.includes('wave')) {
+    return { encoding: 'LINEAR16' };
+  }
+  if (t.includes('mpeg') || t.includes('mp3')) return { encoding: 'MP3' };
+  if (t.includes('amr')) return { encoding: 'AMR' };
+  return null;
+}
+
+/** 사람에게 보여 줄 말. 무엇을 가져오면 되는지까지 적는다. */
+export const UNSUPPORTED_AUDIO =
+  '이 녹음 형식(m4a·aac 등)은 전사가 되지 않아요. ' +
+  'wav·mp3·webm 으로 바꿔서 올려 주세요.';
 
 export interface TtsProvider {
   readonly name: string;

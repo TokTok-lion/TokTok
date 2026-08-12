@@ -495,12 +495,9 @@ async function start(
     return;
   }
 
-  const form = new FormData();
-  form.append('file', job.blob, 'interview.webm');
-
   let first: Response;
   try {
-    first = await fetch('/api/transcribe', { method: 'POST', body: form });
+    first = await send(job.blob);
   } catch {
     // 여기서 끊긴 것은 녹음 탓이 아니고, 음성도 아직 기기를 떠나지 않았다.
     // 표를 남기지 않아 다음에 다시 시도한다.
@@ -522,6 +519,71 @@ async function start(
   writeAttempt({ savedAt: job.savedAt, jobId, at: Date.now() });
 
   await finish(first, job, jobId);
+}
+
+/**
+ * 우리 함수를 거쳐 갈 수 있는 크기. 그 위는 저장소로 바로 올린다.
+ *
+ * Vercel 함수의 본문 한도가 4.5MB 다. 여유를 두고 3.5MB 로 잡았다 —
+ * multipart 경계와 파일 이름이 본문에 얹히고, 그 얹히는 양을 우리가 정확히
+ * 세고 있지 않다. 한도 언저리에서 아슬아슬하게 실패하는 것보다 조금 일찍
+ * 다른 길로 가는 편이 낫다.
+ */
+const DIRECT_LIMIT = 3.5 * 1024 * 1024;
+
+/**
+ * 녹음을 전사 쪽으로 보낸다. 길면 저장소를 거친다.
+ *
+ * 예전에는 무조건 함수로 보냈고, 4MB 를 넘으면 413 이었다. 브라우저 기본
+ * 비트레이트로는 4분 22초가 그 크기라, 회기 대부분이 그 벽에 부딪혔다.
+ *
+ * 저장소로 바로 올리는 길이 막히면(주소를 못 열거나 업로드가 실패하면) 그냥
+ * 함수 쪽으로 보낸다. 짧은 녹음이면 그래도 성공하고, 길면 어차피 실패하지만
+ * 실패하는 자리가 하나로 모인다 — 여기서 따로 오류 문구를 만들면 화면이
+ * 아는 실패 모양이 둘로 늘어난다.
+ */
+async function send(blob: Blob): Promise<Response> {
+  const type = blob.type || 'audio/webm';
+  const form = () => {
+    const f = new FormData();
+    f.append('file', blob, 'interview.webm');
+    return fetch('/api/transcribe', { method: 'POST', body: f });
+  };
+
+  if (blob.size <= DIRECT_LIMIT) return form();
+
+  try {
+    const opened = await fetch('/api/transcribe/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contentType: type }),
+    });
+    // 형식을 못 다룬다는 답(415)은 저장소를 거쳐도 같다. 그대로 화면에
+    // 넘겨야 "m4a 는 안 된다"는 말이 복지사에게 닿는다.
+    if (opened.status === 415) return opened;
+    if (!opened.ok) return form();
+
+    const { uploadUrl, object } = (await opened.json()) as {
+      uploadUrl?: string;
+      object?: string;
+    };
+    if (!uploadUrl || !object) return form();
+
+    const put = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': type },
+      body: blob,
+    });
+    if (!put.ok) return form();
+
+    return fetch('/api/transcribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ object, contentType: type }),
+    });
+  } catch {
+    return form();
+  }
 }
 
 /** 이미 맡겨 둔 작업의 결과만 받아온다. 녹음은 다시 올리지 않는다. */

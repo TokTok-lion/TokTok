@@ -1,11 +1,21 @@
 import {
+  audioConfigFor,
   fail,
   toSegments,
+  UNSUPPORTED_AUDIO,
+  type Fail,
   type Job,
   type Segment,
   type SttProvider,
 } from './types';
-import { GCS_BUCKET, gcsDelete, gcsUpload, googleToken, googleConfigured } from './google';
+import {
+  GCS_BUCKET,
+  gcsDelete,
+  gcsStat,
+  gcsUpload,
+  googleToken,
+  googleConfigured,
+} from './google';
 
 /**
  * 녹음을 글로 옮기기 (Google Cloud Speech-to-Text v1).
@@ -335,80 +345,132 @@ async function readOperation(operation: string): Promise<Job<Segment[]>> {
   return { ok: true, done: true, value: segments };
 }
 
+/**
+ * 올라와 있는 객체 하나로 전사를 건다. 두 입구(파일·업로드)가 여기서 만난다.
+ *
+ * 실패하면 객체를 지운다 — 시작도 못 한 전사를 위해 어르신 목소리가 남의
+ * 저장소에 남아 있을 이유가 없다.
+ */
+async function recognize(
+  object: string,
+  contentType: string,
+  token: string,
+): Promise<Job<Segment[]>> {
+  const audio = audioConfigFor(contentType);
+  if (!audio) {
+    await gcsDelete(object);
+    return fail(UNSUPPORTED_AUDIO, 415, { settled: true });
+  }
+
+  const res = await fetch(
+    'https://speech.googleapis.com/v1/speech:longrunningrecognize',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        config: {
+          // 녹음이 실제로 어떤 형식인지 그대로 말한다. 다시 인코딩하지
+          // 않는다 — 브라우저에서 30분짜리를 변환하면 태블릿이 못 견딘다.
+          ...audio,
+          languageCode: 'ko-KR',
+          enableWordTimeOffsets: true,
+          enableAutomaticPunctuation: true,
+          /*
+           * 회기는 복지사가 묻고 어르신이 답하는 대화다. 갈라 놓지 않으면
+           * 두 가지가 망가진다 — 사실 추출 입력에 복지사 질문이 섞이고,
+           * 대화 전체가 한 덩어리로 떨어져 출처가 가리킬 자리를 잃는다.
+           *
+           * 마주 앉은 두 사람이니 최소·최대 모두 2 로 못 박는다. 열어 두면
+           * 옆방 소리나 기침을 세 번째 사람으로 세는 일이 생긴다.
+           */
+          diarizationConfig: {
+            enableSpeakerDiarization: true,
+            minSpeakerCount: 2,
+            maxSpeakerCount: 2,
+          },
+          // 긴 대화용 모델. 회상 인터뷰는 짧은 명령이 아니라 이야기다.
+          model: 'latest_long',
+        },
+        audio: { uri: `gs://${GCS_BUCKET}/${object}` },
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    await gcsDelete(object);
+    const quota = res.status === 429;
+    console.error('google stt start failed', res.status);
+    return fail(
+      quota
+        ? '이번 달 전사 한도를 다 썼어요. 복지사가 받아 적어 진행해 주세요.'
+        : '전사하지 못했어요. 녹음은 그대로 남아 있습니다.',
+      quota ? 429 : 502,
+      { quota },
+    );
+  }
+
+  const { name } = (await res.json()) as { name?: string };
+  if (!name) {
+    await gcsDelete(object);
+    return fail('전사를 시작하지 못했어요.', 502);
+  }
+  return { ok: true, done: false, jobId: packJob(name, object) };
+}
+
+/** 두 입구가 공통으로 먼저 확인하는 것. */
+function notReady(): Fail | null {
+  if (!googleConfigured()) {
+    return fail('이 배포에는 전사 기능이 설정되어 있지 않습니다.', 503);
+  }
+  if (!GCS_BUCKET) {
+    return fail('전사용 저장소(GOOGLE_STT_BUCKET)가 설정되지 않았습니다.', 503);
+  }
+  return null;
+}
+
 export const googleStt: SttProvider = {
   name: 'google',
 
   async start(file) {
-    if (!googleConfigured()) {
-      return fail('이 배포에는 전사 기능이 설정되어 있지 않습니다.', 503);
-    }
-    if (!GCS_BUCKET) {
-      return fail('전사용 저장소(GOOGLE_STT_BUCKET)가 설정되지 않았습니다.', 503);
+    const bad = notReady();
+    if (bad) return bad;
+
+    const token = await googleToken();
+    if (!token) return fail('구글 인증에 실패했어요.', 503);
+
+    const type = file.type || 'audio/webm';
+    // 보내기 전에 형식부터 본다. 못 다루는 형식이면 어르신 목소리를 남의
+    // 저장소에 올렸다가 지우는 왕복을 할 이유가 없다.
+    if (!audioConfigFor(type)) return fail(UNSUPPORTED_AUDIO, 415, { settled: true });
+
+    // 이름에 어르신 정보를 넣지 않는다. 잠깐 있다 사라질 파일이지만,
+    // 그 잠깐 동안에도 파일 이름은 로그에 남는다.
+    const object = `${OBJ_PREFIX}${crypto.randomUUID()}`;
+    const uri = await gcsUpload(object, await file.arrayBuffer(), type);
+    if (!uri) return fail('녹음을 전사 서버로 보내지 못했어요.', 502);
+
+    return recognize(object, type, token);
+  },
+
+  async startUploaded(object, contentType) {
+    const bad = notReady();
+    if (bad) return bad;
+
+    // 우리가 연 세션으로 올라온 것만 받는다. 이름 규칙을 벗어난 값이 오면
+    // 남의 객체를 가리키게 만들 수 있다.
+    if (!object.startsWith(OBJ_PREFIX) || object.includes('..')) {
+      return fail('잘못된 업로드입니다.', 400, { settled: true });
     }
 
     const token = await googleToken();
     if (!token) return fail('구글 인증에 실패했어요.', 503);
 
-    // 이름에 어르신 정보를 넣지 않는다. 잠깐 있다 사라질 파일이지만,
-    // 그 잠깐 동안에도 파일 이름은 로그에 남는다.
-    const object = `${OBJ_PREFIX}${crypto.randomUUID()}.webm`;
-    const uri = await gcsUpload(object, await file.arrayBuffer(), file.type || 'audio/webm');
-    if (!uri) return fail('녹음을 전사 서버로 보내지 못했어요.', 502);
+    // 브라우저가 "다 올렸어요"라고 말하는 것만 믿지 않는다. 없는 파일로
+    // 작업을 걸어 놓고 기다리는 자리이자, 요금이 나가는 자리다.
+    const stat = await gcsStat(object);
+    if (!stat) return fail('올린 녹음을 찾지 못했어요. 다시 올려 주세요.', 404, { settled: true });
 
-    const res = await fetch(
-      'https://speech.googleapis.com/v1/speech:longrunningrecognize',
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          config: {
-            // MediaRecorder 가 내는 그대로. 다시 인코딩하지 않는다 —
-            // 브라우저에서 30분짜리를 변환하면 태블릿이 못 견딘다.
-            encoding: 'WEBM_OPUS',
-            sampleRateHertz: 48000,
-            languageCode: 'ko-KR',
-            enableWordTimeOffsets: true,
-            enableAutomaticPunctuation: true,
-            /*
-             * 회기는 복지사가 묻고 어르신이 답하는 대화다. 갈라 놓지 않으면
-             * 두 가지가 망가진다 — 사실 추출 입력에 복지사 질문이 섞이고,
-             * 대화 전체가 한 덩어리로 떨어져 출처가 가리킬 자리를 잃는다.
-             *
-             * 마주 앉은 두 사람이니 최소·최대 모두 2 로 못 박는다. 열어 두면
-             * 옆방 소리나 기침을 세 번째 사람으로 세는 일이 생긴다.
-             */
-            diarizationConfig: {
-              enableSpeakerDiarization: true,
-              minSpeakerCount: 2,
-              maxSpeakerCount: 2,
-            },
-            // 긴 대화용 모델. 회상 인터뷰는 짧은 명령이 아니라 이야기다.
-            model: 'latest_long',
-          },
-          audio: { uri },
-        }),
-      },
-    );
-
-    if (!res.ok) {
-      await gcsDelete(object);
-      const quota = res.status === 429;
-      console.error('google stt start failed', res.status);
-      return fail(
-        quota
-          ? '이번 달 전사 한도를 다 썼어요. 복지사가 받아 적어 진행해 주세요.'
-          : '전사하지 못했어요. 녹음은 그대로 남아 있습니다.',
-        quota ? 429 : 502,
-        { quota },
-      );
-    }
-
-    const { name } = (await res.json()) as { name?: string };
-    if (!name) {
-      await gcsDelete(object);
-      return fail('전사를 시작하지 못했어요.', 502);
-    }
-    return { ok: true, done: false, jobId: packJob(name, object) };
+    return recognize(object, contentType, token);
   },
 
   async poll(jobId) {

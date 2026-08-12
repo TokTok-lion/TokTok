@@ -1,0 +1,56 @@
+import { NextResponse } from 'next/server';
+import { audioConfigFor, UNSUPPORTED_AUDIO } from '@/lib/providers/types';
+import { gcsResumableSession, googleConfigured, GCS_BUCKET } from '@/lib/providers/google';
+
+/**
+ * 긴 녹음을 저장소로 바로 올릴 주소를 연다.
+ *
+ * 왜 이 라우트가 있나. 녹음이 우리 함수를 거쳐 가면 Vercel 의 요청 본문 한도
+ * (4.5MB)에 걸린다. 그건 설정으로 못 올리는 인프라 제약이라, 지금까지는
+ * 4MB 에서 잘랐다 — 5분 넘는 회기는 구글에 닿지도 못하고 413 이었고, 화면은
+ * "20분 이내로 나눠서"라고 말했지만 20분은 그보다 네 배 크다.
+ *
+ * 그래서 바이트는 함수를 안 거치게 한다. 서버는 주소만 열고, 브라우저가
+ * 저장소로 바로 올린다. 파일이 함수를 지나지 않으면 한도가 적용되지 않는다.
+ *
+ * 여기서 형식을 먼저 본다. 못 다루는 형식(m4a·aac)을 30분어치 올린 다음에
+ * 거절하면, 어르신 목소리가 남의 저장소에 한 번 올라갔다 오는 셈이고
+ * 복지사는 그 시간을 버린다. 올리기 전에 말하는 편이 낫다.
+ */
+
+export const runtime = 'nodejs';
+
+export async function POST(req: Request) {
+  if (!googleConfigured() || !GCS_BUCKET) {
+    return NextResponse.json(
+      { error: '이 배포에는 전사 기능이 설정되어 있지 않습니다.' },
+      { status: 503 },
+    );
+  }
+
+  let contentType = '';
+  try {
+    const body = (await req.json()) as { contentType?: string };
+    contentType = (body.contentType ?? '').trim();
+  } catch {
+    return NextResponse.json({ error: '요청을 읽지 못했습니다.' }, { status: 400 });
+  }
+
+  if (!contentType) {
+    return NextResponse.json({ error: '녹음 형식이 없습니다.' }, { status: 400 });
+  }
+  if (!audioConfigFor(contentType)) {
+    return NextResponse.json({ error: UNSUPPORTED_AUDIO }, { status: 415 });
+  }
+
+  // 이름에 어르신 정보를 넣지 않는다. 하루면 사라지는 파일이지만 그동안에도
+  // 이름은 로그에 남는다. 접두어는 전사 쪽이 "우리가 연 세션인지" 가리는
+  // 근거이기도 하다(stt-google · startUploaded).
+  const object = `stt/${crypto.randomUUID()}`;
+  const uploadUrl = await gcsResumableSession(object, contentType);
+  if (!uploadUrl) {
+    return NextResponse.json({ error: '업로드 주소를 열지 못했어요.' }, { status: 502 });
+  }
+
+  return NextResponse.json({ uploadUrl, object });
+}

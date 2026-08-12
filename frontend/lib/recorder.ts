@@ -202,7 +202,29 @@ export async function startRecording(): Promise<void> {
   const mime = ['audio/webm', 'audio/mp4', ''].find(
     (t) => !t || MediaRecorder.isTypeSupported(t),
   );
-  recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+
+  /*
+   * 비트레이트를 우리가 정한다. 안 정하면 크롬이 128kbps 를 쓴다(실측 124).
+   *
+   * 그 값이면 4분 22초짜리 녹음이 4MB 가 된다. 그리고 전사 API 는 4MB 에서
+   * 자른다 — Vercel 함수의 요청 본문 한도가 4.5MB 이고 그건 설정으로 못
+   * 올린다. 즉 5분을 넘긴 회기는 구글에 닿지도 못하고 413 으로 되돌아왔다.
+   * 화면은 "녹음이 너무 길어요. 20분 이내로 나눠서"라고 말하는데, 시키는
+   * 대로 20분을 녹음하면 17.7MB 라 또 거부된다. 복지사 입장에서는 무엇을
+   * 해도 안 되는 것이고, 어르신은 이미 한 시간을 이야기하신 뒤다.
+   *
+   * 32kbps 로 두면 같은 4MB 에 16분쯤 들어간다. 재 보면 실제로는 34.6kbps 로
+   * 나오는데(Opus 가 명목치보다 조금 높다), 그래도 4분 22초가 16분 9초가 된다.
+   * 인식률은 떨어지지 않는다 — 구글이 어차피 16kHz 로 리샘플하고, Opus 는
+   * 음성 대역에서 이 정도면 충분하다. 알아듣는 데 쓰는 소리지 음반이 아니다.
+   *
+   * 이건 그래도 임시방편이다. 30분 회기는 여전히 못 담는다. 진짜 해법은
+   * 브라우저에서 저장소로 바로 올려 함수를 건너뛰는 쪽이다.
+   */
+  recorder = new MediaRecorder(stream, {
+    ...(mime ? { mimeType: mime } : {}),
+    audioBitsPerSecond: 32_000,
+  });
 
   const mimeType = recorder.mimeType;
 
