@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { Art } from '@/components/Art';
 import { ConsentAsk, RESULT_CONSENTS, SESSION_CONSENTS, UnrecordedConsents } from '@/components/ConsentGate';
+import { GroupConsentAsk } from '@/components/GroupConsentAsk';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconChat, IconClock, IconInfo, IconMic, IconShield } from '@/components/icons';
@@ -139,6 +140,15 @@ export default function ChecklistPage() {
 
   const confirmAll = () => {
     for (const k of undoneChecks) toggleChecklist(k);
+    /*
+     * 그룹에서는 동의를 여기서 한꺼번에 처리하지 않는다.
+     *
+     * setConsent 는 기준 어르신 한 분에게만 기록한다. 그룹에서 이 버튼이
+     * 동의까지 켜면 "네 분께 여쭤 확인했다"는 표시가 뜨는데 실제로 기록된
+     * 것은 한 분뿐이다 — 기록만 남고 동의는 없는 상태다. 준비물(마이크)만
+     * 처리하고, 동의는 아래에서 한 분씩 여쭙는다.
+     */
+    if (isGroupSession(s)) return;
     for (const k of unsetConsents) setConsent(k, true);
   };
 
@@ -150,9 +160,13 @@ export default function ChecklistPage() {
    * 아예 없다. 마주 앉기 전에 여쭤야 할 일이라 준비물과 같은 자리에서 세고,
    * 같은 숫자로 보여 준다.
    */
-  const unasked = SESSION_CONSENTS.filter(
-    (kind) => (s.elder.consents[kind] ?? 'unset') === 'unset',
-  ).length;
+  const unasked = isGroupSession(s)
+    ? // 그룹은 참여하신 분 전원 기준이다. 기준 어르신만 세면 "다 여쭸다"고
+      // 나오는데 정작 다른 분들 동의가 없어 마이크가 안 열린다.
+      SESSION_CONSENTS.reduce((n, kind) => n + group.missing(kind).length, 0)
+    : SESSION_CONSENTS.filter(
+        (kind) => (s.elder.consents[kind] ?? 'unset') === 'unset',
+      ).length;
   const pending =
     PREP_CHECKS.filter((key) => !s.checklist[key]).length + unasked;
 
@@ -429,16 +443,28 @@ export default function ChecklistPage() {
         들어 보고 정하시는 편이 맞아서요.
       </p>
 
-      <ul className="mt-3 space-y-3">
-        {SESSION_CONSENTS.map((kind) => (
-          <ConsentAsk
-            key={kind}
-            kind={kind}
-            state={s.elder.consents[kind] ?? 'unset'}
-            onDecide={(granted) => setConsent(kind, granted)}
-          />
-        ))}
-      </ul>
+      {/*
+        그룹이면 어르신 한 분씩 따로 여쭙는다.
+
+        setConsent 는 기준 어르신 한 분에게만 기록한다(store). 1:1 에서는 그게
+        맞지만 그룹에서는 화면이 "박○○ 어르신은 동의가 없어요"라고 알려 주면서
+        정작 그 동의를 받을 자리를 주지 않았다 — 네 분을 모셔 놓고 여쭈었는데
+        적을 데가 없는 상태였다.
+      */}
+      {isGroupSession(s) ? (
+        <GroupConsentAsk group={group} />
+      ) : (
+        <ul className="mt-3 space-y-3">
+          {SESSION_CONSENTS.map((kind) => (
+            <ConsentAsk
+              key={kind}
+              kind={kind}
+              state={s.elder.consents[kind] ?? 'unset'}
+              onDecide={(granted) => setConsent(kind, granted)}
+            />
+          ))}
+        </ul>
+      )}
 
       {/* 마주 앉기 전에 보여야 하는 목록이다. 지난 회기에 못 남긴 철회가 남아
           있으면 오늘 그 항목을 다시 여쭙기 전에 알아야 한다. */}
