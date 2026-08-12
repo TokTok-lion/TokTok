@@ -111,20 +111,22 @@ export default function LoginPage() {
         </button>
       </form>
 
+      {/*
+        여기도 '무료로 시작하기'로 기관 등록을 크게 내밀고 있었다. 첫 화면보다
+        오히려 더 눈에 띄는 자리다 — 로그인이 안 되는 사람이 마지막으로 보는
+        화면이라, 누를 이유가 가장 큰 순간이기도 하다.
+
+        계약해서 계정을 만들어 드리는 방식이므로, 계정이 없다는 것은 아직
+        계약 전이라는 뜻이다. 그때 필요한 것은 가입 버튼이 아니라 연락할 곳이다.
+      */}
       <div className="mt-6 rounded-[16px] border-2 border-brand-200 bg-brand-50 p-4 text-center">
         <p className="text-[0.9375rem] font-bold text-ink-900">
           아직 계정이 없으신가요?
         </p>
         <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-700">
-          기관을 등록하면 무료로 어르신 3분, 노래 3곡까지 만들어 보실 수 있어요.
+          기관 계정은 계약하실 때 만들어 드려요. 도입을 검토 중이시면 먼저
+          둘러보기로 어떤 서비스인지 보실 수 있어요.
         </p>
-        <button
-          type="button"
-          onClick={() => router.push('/signup')}
-          className="mt-3 min-h-[52px] w-full rounded-[14px] bg-brand-700 text-[1rem] font-extrabold text-white"
-        >
-          무료로 시작하기
-        </button>
       </div>
 
       <p className="mt-5 text-center text-[0.875rem] leading-relaxed text-ink-500">

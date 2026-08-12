@@ -59,30 +59,38 @@ export function LandingCta() {
     );
   }
 
+  /*
+   * 기관 등록은 이 화면에서 내밀지 않는다.
+   *
+   * 똑똑은 찾아가서 계약하고 계정을 만들어 드리는 방식으로 판다. 그런데 첫
+   * 화면이 '기관 등록하기'를 크게 내밀면 두 가지가 어긋난다.
+   *
+   *   · 계약하지 않은 곳이 스스로 계정을 만든다. 요금·한도·보관정책을 함께
+   *     정하고 시작해야 하는 서비스인데 그 앞단이 통째로 건너뛰어진다.
+   *   · 같은 센터의 두 번째 복지사가 이 버튼을 누른다. create_my_tenant 는
+   *     새 기관을 만들므로 한 센터가 tenant 두 개로 갈라지고, 그러면 어르신도
+   *     회기도 서로 안 보인다. 되돌릴 길도 없다 — 이미 소속이 있는 사람은
+   *     다른 기관에 들어갈 수 없다.
+   *
+   * /signup 자체는 남겨 둔다. 계약 자리에서 운영자가 주소로 직접 연다.
+   * 숨긴 것이지 잠근 것이 아니므로, 아무나 만들면 곤란해지는 때가 오면
+   * 그때는 서버에서 막아야 한다(create_my_tenant 쪽).
+   */
   return (
     <>
-      {/* 버튼은 다음 화면에서 할 일을 말해야 한다. 누르면 기관 이름을 적는
-          화면이 나오는데 "무료로 시작하기"는 그 일을 가리키지 않아서, 눌러
-          놓고 여기가 맞나 싶어진다. 무료라는 사실은 버튼 아래에서 말한다. */}
-      <PrimaryButton href="/signup" trailing={<Chevron className="text-white" />}>
-        기관 등록하기
+      <PrimaryButton href="/login" trailing={<Chevron className="text-white" />}>
+        로그인
       </PrimaryButton>
       <p className="mt-2 text-center text-[0.875rem] font-semibold text-ink-500">
-        무료로 시작할 수 있어요 · 카드 등록 없음
+        기관 계정은 계약하실 때 만들어 드려요
       </p>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Link
-          href="/login"
-          className="flex min-h-[52px] items-center justify-center rounded-[14px] border-2 border-brand-300 bg-surface-strong text-[1rem] font-bold text-brand-800"
-        >
-          로그인
-        </Link>
-        {/* 가입하지 않고도 볼 수 있어야 한다. 어떤 서비스인지 모르는 채로
-            기관 이름부터 적으라고 하면 대부분 그냥 나간다. */}
+      {/* 가입하지 않고도 볼 수 있어야 한다. 어떤 서비스인지 모르는 채로
+          로그인부터 하라고 하면 대부분 그냥 나간다. */}
+      <div className="mt-3">
         <Link
           href="/home"
-          className="flex min-h-[52px] items-center justify-center rounded-[14px] border border-hairline bg-surface text-[1rem] font-bold text-ink-700"
+          className="flex min-h-[52px] w-full items-center justify-center rounded-[14px] border border-hairline bg-surface text-[1rem] font-bold text-ink-700"
         >
           둘러보기
         </Link>
