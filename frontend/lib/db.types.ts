@@ -185,6 +185,27 @@ export type ActivityLogRow = {
   created_at: string;
 };
 
+/**
+ * 어르신 원음성 (0008). 보관 30일.
+ *
+ * 콘솔에 재생기를 두지 말 것 — 명세의 권한 행렬은 원음성에 '기본 미열람'을
+ * 준다. 여는 일은 사유 확인과 감사로그를 거쳐야 한다.
+ */
+export type RecordingRow = {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  participant_id: string;
+  storage_path: string;
+  /** 길이(초). 못 잰 파일이 실제로 있어 null 을 그대로 둔다. */
+  seconds: number | null;
+  mime: string;
+  bytes: number;
+  created_at: string;
+  /** 이 시각이 지나면 지운다 */
+  expires_at: string;
+};
+
 export type AuditLogRow = {
   id: number;
   tenant_id: string;
@@ -221,6 +242,7 @@ export type Database = {
       fact_sources: Tbl<FactSourceRow, Partial<FactSourceRow> & { fact_id: string; kind: SourceKind; label: string }, Partial<FactSourceRow>>;
       lyrics: Tbl<LyricRow, Partial<LyricRow> & { tenant_id: string; session_id: string; sections: unknown }, Partial<LyricRow>>;
       transcripts: Tbl<TranscriptRow, Partial<TranscriptRow> & { tenant_id: string; session_id: string }, Partial<TranscriptRow>>;
+      recordings: Tbl<RecordingRow, Partial<RecordingRow> & { tenant_id: string; session_id: string; participant_id: string; storage_path: string }, Partial<RecordingRow>>;
       songs: Tbl<SongRow, Partial<SongRow> & { tenant_id: string; title: string }, Partial<SongRow>>;
       observations: Tbl<ObservationRow, Partial<ObservationRow> & { tenant_id: string; session_id: string }, Partial<ObservationRow>>;
       activity_logs: Tbl<ActivityLogRow, Partial<ActivityLogRow> & { tenant_id: string; session_id: string; draft: string }, Partial<ActivityLogRow>>;
@@ -238,6 +260,11 @@ export type Database = {
       join_tenant: {
         Args: { p_code: string };
         Returns: string;
+      };
+      /** 보관기간이 지난 녹음. 부르는 쪽이 파일을 지운 뒤 행을 지운다. */
+      expired_recordings: {
+        Args: Record<PropertyKey, never>;
+        Returns: { id: string; storage_path: string }[];
       };
       my_join_code: {
         Args: Record<string, never>;

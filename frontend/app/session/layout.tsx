@@ -7,7 +7,11 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { stepForScreen } from '@/lib/flow';
 import { useSession } from '@/lib/store';
 import { useActiveElder } from '@/lib/useActiveElder';
-import { useSessionProgress, useWorkbenchSync } from '@/lib/useSessionProgress';
+import {
+  useRecordingSync,
+  useSessionProgress,
+  useWorkbenchSync,
+} from '@/lib/useSessionProgress';
 
 /**
  * 회기 폴더 전체의 자물쇠.
@@ -45,6 +49,12 @@ export default function SessionLayout({ children }: { children: ReactNode }) {
    * 통째로 사라진다.
    */
   useWorkbenchSync();
+  /*
+   * 녹음도 기관 저장소로 올린다 — 다만 녹음이 끝난 뒤 한 번만. 원음성은 가장
+   * 민감한 자료라 보관 30일, 동의 철회 시 삭제, 콘솔 미열람을 함께 지킨다
+   * (lib/recordingSync).
+   */
+  useRecordingSync();
 
   if (elder === 'ok') return <>{children}</>;
 

@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { flowState } from './flow';
 import { saveProgress, saveWorkbench } from './repo';
+import { purgeExpiredRecordings, uploadRecording } from './recordingSync';
+import { useRecorder } from './recorder';
 import { currentSession, useSession } from './store';
 
 /**
@@ -138,4 +140,49 @@ export function useWorkbenchSync(): void {
 
     return () => window.clearTimeout(timer);
   }, [sessionId, mark]);
+}
+
+/**
+ * 녹음을 기관 저장소에 따라 붙인다.
+ *
+ * 다른 것들과 따로 두는 이유가 둘이다.
+ *
+ * 하나. 크다. 20분 회기가 5MB 안팎이고 밖에서 받아 올린 wav 는 그보다 훨씬
+ * 크다. 전사처럼 손이 멈출 때마다 보낼 수 없다 — **녹음이 끝난 뒤 한 번만**
+ * 보낸다(savedAt 이 그 표시다).
+ *
+ * 둘. 녹음 중에는 절대 건드리지 않는다. 어르신이 말씀하시는 동안 업로드가
+ * 태블릿을 붙잡으면 그 회기가 통째로 흔들린다.
+ *
+ * 보관기간이 지난 것도 이 자리에서 함께 치운다. 서버는 아무도 부르지 않으면
+ * 스스로 청소하지 않는다.
+ */
+export function useRecordingSync(): void {
+  const { s } = useSession();
+  const rec = useRecorder();
+  const sessionId = s.remoteSessionId;
+
+  // 녹음이 끝나 기기에 저장된 시각. 녹음 중에는 아직 없다.
+  const savedAt = rec.state === 'recording' || rec.state === 'paused' ? null : rec.savedAt;
+
+  const sent = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId || !savedAt) return;
+    const mark = `${sessionId}::${savedAt}`;
+    if (sent.current === mark) return;
+
+    // 회기 흐름을 방해하지 않게 조금 기다렸다 보낸다. 녹음을 막 멈춘 직후는
+    // 복지사가 다음 화면으로 넘어가는 순간이다.
+    const timer = window.setTimeout(() => {
+      void uploadRecording()
+        .then((ok) => {
+          if (ok) sent.current = mark;
+        })
+        .catch(() => undefined);
+      void purgeExpiredRecordings().catch(() => undefined);
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [sessionId, savedAt]);
 }

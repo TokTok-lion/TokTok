@@ -3,6 +3,7 @@
 import { Ornaments, Screen } from '@/components/Shell';
 import { TranscribeButton } from '@/components/TranscribeButton';
 import { UploadRecording } from '@/components/UploadRecording';
+import { ServerRecordingNote } from '@/components/ServerRecordingNote';
 import { recordingReplaced } from '@/lib/transcribeJob';
 import { Card, CheckCircle, PrimaryButton } from '@/components/ui';
 import { IconEdit } from '@/components/icons';
@@ -191,10 +192,21 @@ export default function TranscriptPage() {
               className="mt-2 w-full"
             />
           ) : (
-            <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
-              이 기기에 녹음이 없어요. 인터뷰 화면에서 녹음하면 여기서 들으며
-              고칠 수 있어요.
-            </p>
+            <>
+              <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+                이 기기에 녹음이 없어요. 인터뷰 화면에서 녹음하면 여기서 들으며
+                고칠 수 있어요.
+              </p>
+              {/*
+                다른 태블릿에서 이어받은 회기라면 녹음은 기관 저장소에 있다.
+                받아 오는 길을 여기 둔다 — 출처를 눌렀는데 소리가 안 나는 것이
+                이 화면에서 제일 답답한 자리다.
+
+                자동으로 받지 않는다. 원음성은 열어 보는 일 자체가 기록에 남는
+                자료라(기본 미열람), 사람이 눌러야 열린다.
+              */}
+              <ServerRecordingNote />
+            </>
           )}
         </div>
       </Card>

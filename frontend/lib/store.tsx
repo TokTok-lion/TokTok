@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { forgetRecordingsOf, keepOnlyRecordingsOf } from './recorder';
+import { deleteServerRecordingsOf } from './recordingSync';
 import { readParticipantRecord, writeConsent } from './repo';
 import { deleteSong } from './songStore';
 import {
@@ -748,6 +749,16 @@ export function useSession() {
       // 이 어르신의 녹음을 전부 지운다. 이번 회기 것만 지우면 지난 회기
       // 녹음이 남아, 거둔 동의가 말뿐이 된다.
       void forgetRecordingsOf(state.remoteParticipantId ?? state.elder.id);
+      /*
+       * 기관 저장소의 사본도 함께 지운다.
+       *
+       * 녹음이 기기에만 있던 동안에는 이 약속이 저절로 지켜졌다. 서버에 두기
+       * 시작한 순간부터는 코드가 지켜야 한다 — 기기에서만 지우고 서버에 남기면,
+       * 어르신께는 지웠다고 말하고 실제로는 남아 있다.
+       */
+      if (state.remoteParticipantId) {
+        void deleteServerRecordingsOf(state.remoteParticipantId);
+      }
     }
 
     const participantId = state.remoteParticipantId;
