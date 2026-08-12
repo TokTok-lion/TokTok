@@ -579,6 +579,22 @@ export function sessionMembers(s: SessionState = state): ElderIdentity[] {
   ];
 }
 
+/**
+ * 회기 도중 함께하실 분을 더한다 — 늦게 오신 분.
+ *
+ * 10시 시작인데 10시 10분에 들어오시는 분이 있다. 그때 명단에 못 넣으면 그분은
+ * 그 자리에 계셨는데 기록에는 없는 사람이 된다.
+ *
+ * 빼는 함수는 일부러 두지 않았다. 녹음이 이미 돌았다면 그분 목소리는 파일에
+ * 들어가 있고, 명단에서 지운다고 없어지지 않는다 — 지우면 기록이 거짓이 된다.
+ * 잘못 담으신 경우는 회기를 열기 전에 목록 화면에서 빼야 한다.
+ */
+export function addSessionMember(elder: ElderIdentity): void {
+  if (elder.id === state.elder.id) return;
+  if (state.group.some((g) => g.id === elder.id)) return;
+  update({ ...state, group: [...state.group, elder] });
+}
+
 /** 그룹 회기인가. 화면이 문구를 가를 때 쓴다. */
 export function isGroupSession(s: SessionState = state): boolean {
   return s.group.length > 0;

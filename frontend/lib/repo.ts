@@ -163,6 +163,61 @@ export async function createParticipant(
  * 지우는 것이 아니라는 점이 중요하다. 종료는 목록에서 내리는 표시일 뿐,
  * 그 어르신의 이야기·곡·기록은 그대로 남는다.
  */
+/**
+ * 지난번 그룹 회기에 함께하신 분들 — 어르신 id 목록.
+ *
+ * ── 왜 필요한가
+ *
+ * 그룹은 인원이 고정이 아니다. 어제 다섯 분이었다고 오늘 다섯 분이 아니고,
+ * 병원·결석·컨디션으로 매번 달라진다. 그렇다고 매번 처음부터 담게 하면 하루에
+ * 몇 번씩 다섯 번을 누른다 — 그 번거로움이 결국 "그냥 종이에 쓰자"가 된다.
+ *
+ * 실제로는 대개 비슷한 분들이다. 그래서 지난번 명단을 불러오고 빠진 분만
+ * 빼게 한다. 다섯 번이 한 번과 얼마간으로 줄어든다.
+ *
+ * 혼자 하신 회기(한 명짜리)는 가져오지 않는다. '지난번과 같은 분들'을 눌렀는데
+ * 한 분만 담기면 그건 도움이 아니라 헷갈림이다.
+ */
+export async function lastGroupMembers(): Promise<string[]> {
+  const sb = getSupabase();
+  if (!sb) return [];
+  const account = await accountReady();
+  const t = account.status === 'in' ? account.tenantId : null;
+  if (!t) return [];
+
+  // 최근 회기부터 훑되 몇 개만 본다. 그룹 회기가 한참 전이면 그때 명단은
+  // 이미 오늘과 다르다 — 오래 뒤져 찾아 주는 편이 오히려 틀린 도움이다.
+  const { data: recent } = await sb
+    .from('sessions')
+    .select('id')
+    .eq('tenant_id', t)
+    .order('started_at', { ascending: false })
+    .limit(20);
+  if (!recent?.length) return [];
+
+  const { data: rows } = await sb
+    .from('session_participants')
+    .select('session_id, participant_id')
+    .in(
+      'session_id',
+      recent.map((r) => r.id),
+    );
+  if (!rows?.length) return [];
+
+  const bySession = new Map<string, string[]>();
+  for (const r of rows) {
+    const list = bySession.get(r.session_id) ?? [];
+    list.push(r.participant_id);
+    bySession.set(r.session_id, list);
+  }
+  // recent 가 최신순이므로 그 순서로 처음 만나는 그룹 회기가 지난번이다.
+  for (const r of recent) {
+    const list = bySession.get(r.id);
+    if (list && list.length > 1) return list;
+  }
+  return [];
+}
+
 /** 이 어르신의 지금 이용 상태. 못 읽으면 null — 화면이 '모른다'로 그린다. */
 export async function readParticipantStatus(
   participantId: string,

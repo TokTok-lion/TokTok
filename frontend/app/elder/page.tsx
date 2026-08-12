@@ -13,7 +13,7 @@ import {
   type ElderSummary,
   type ServiceStatus,
 } from '@/lib/seed';
-import { findOpenSession, type OpenSession } from '@/lib/repo';
+import { findOpenSession, lastGroupMembers, type OpenSession } from '@/lib/repo';
 import { recordingCountOf } from '@/lib/recordingStore';
 import { useElders } from '@/lib/useElders';
 import { beginSession, resumeSession, useSession } from '@/lib/store';
@@ -75,6 +75,16 @@ export default function ElderListPage() {
    * 기본은 1:1 로 두고, 그룹은 눌러서 들어가는 길로 만든다.
    */
   const [picked, setPicked] = useState<ElderSummary[]>([]);
+  /**
+   * 오늘 누구와 하는가 — 한 분과, 아니면 여럿이 함께.
+   *
+   * '모드'라는 말을 화면에 쓰지 않는다. 복지사에게 이건 설정 전환이 아니라
+   * 오늘의 일정이다. 기본은 「한 분과」다 — 앱 전체가 그것을 전제로 지어졌고,
+   * 잘못 눌러 그룹으로 열리는 것보다 그 반대가 안전하다.
+   */
+  const [many, setMany] = useState(false);
+  /** 지난번 명단을 불러오는 중 */
+  const [loadingLast, setLoadingLast] = useState(false);
 
   useEffect(() => {
     const owner = s.remoteParticipantId;
@@ -125,6 +135,23 @@ export default function ElderListPage() {
    * 다만 말없이 비우지는 않는다. 30분짜리 인터뷰가 잘못 누른 한 번에
    * 사라지면 안 된다.
    */
+  /**
+   * 지난번 그룹과 같은 분들로 채운다.
+   *
+   * 인원이 고정이 아니어도 대개 비슷하다. 불러온 뒤 빠진 분만 빼면 되므로
+   * 다섯 번 누를 일이 한 번과 얼마간으로 줄어든다.
+   *
+   * 지금 목록에 없는 분(종료·일시중지로 내려간 분)은 조용히 빠진다 — 명단에
+   * 넣어 두고 회기를 열면 그분이 오늘 계신 것처럼 기록된다.
+   */
+  const fillFromLast = async () => {
+    setLoadingLast(true);
+    const ids = await lastGroupMembers().catch((): string[] => []);
+    setLoadingLast(false);
+    const found = elders.filter((e) => ids.includes(e.id) && e.status === 'active');
+    if (found.length) setPicked(found);
+  };
+
   const identity = (e: ElderSummary) => ({
     id: e.id,
     displayName: e.displayName,
@@ -193,7 +220,20 @@ export default function ElderListPage() {
     start(e);
   };
 
+  const toggle = (e: ElderSummary) =>
+    setPicked((was) =>
+      was.some((x) => x.id === e.id)
+        ? was.filter((x) => x.id !== e.id)
+        : [...was, e],
+    );
+
   const open = (e: ElderSummary) => {
+    // 「여럿이 함께」에서는 카드를 눌러 담는다. 회기는 아래 바에서 연다 —
+    // 담으려다 회기가 열리면 앞 회기가 지워진다.
+    if (many) {
+      toggle(e);
+      return;
+    }
     const switching = live && s.remoteParticipantId !== null && s.remoteParticipantId !== e.id;
     if (switching && losing().length > 0) {
       setAsk(e);
@@ -418,21 +458,84 @@ export default function ElderListPage() {
       ) : null}
 
       {/*
-        함께 모신 분들. 한 분이라도 담기면 나타난다.
+        오늘 누구와 하는가.
 
-        그룹 회기는 조심할 것이 있다 — 목소리로 누가 말했는지 갈라도 그게 어느
-        어르신인지 앱은 모른다. 그래서 여기서 그 사실을 미리 적는다. 이야기는
+        '모드'라는 말을 쓰지 않는다. 복지사에게 이건 설정 전환이 아니라 오늘의
+        일정이다. 그리고 이 자리가 없으면 화면 어디에도 '여럿이 함께'라는 말이
+        없어서, 그런 기능이 있는 줄 아무도 모른다.
+      */}
+      {live ? (
+        <div
+          role="group"
+          aria-label="오늘 누구와 하실지"
+          className="mt-3 grid grid-cols-2 gap-2"
+        >
+          {[
+            { on: false, label: '한 분과' },
+            { on: true, label: '여럿이 함께' },
+          ].map((opt) => (
+            <button
+              key={opt.label}
+              type="button"
+              aria-pressed={many === opt.on}
+              onClick={() => {
+                setMany(opt.on);
+                // 「한 분과」로 돌아가면 담아 둔 명단은 뜻을 잃는다. 남겨 두면
+                // 다음에 「여럿이 함께」를 켰을 때 어제 명단이 되살아난다.
+                if (!opt.on) setPicked([]);
+              }}
+              className={`min-h-[56px] rounded-[14px] border-2 text-[1.0625rem] font-bold ${
+                many === opt.on
+                  ? 'border-brand-400 bg-brand-50 text-brand-800'
+                  : 'border-hairline bg-surface-strong text-ink-700'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {/*
+        오늘 함께하실 분들.
+
+        「여럿이 함께」를 켜면 한 분도 안 담겼어도 나타난다 — 무엇을 해야 하는지
+        (카드를 눌러 담기) 말해 주는 자리이기도 하다.
+
+        그룹은 조심할 것이 있다. 목소리로 누가 말했는지 갈라도 그게 어느
+        어르신인지 앱은 모른다. 그래서 여기서 그 사실을 미리 적는다 — 이야기는
         기본이 '함께 나눈 이야기'이고, 개인 기록으로 올리는 것은 복지사가
         지정했을 때뿐이다.
       */}
-      {picked.length > 0 ? (
+      {many ? (
         <Card className="mt-3 border-2 border-leaf-300 p-4">
           <p className="text-[1.0625rem] font-extrabold text-ink-900">
-            함께 모신 어르신 {picked.length}분
+            오늘 함께하실 어르신 {picked.length}분
           </p>
-          <p className="mt-1 text-[0.9375rem] leading-relaxed text-ink-700">
-            {picked.map((x) => x.displayName).join(' · ')}
-          </p>
+
+          {picked.length === 0 ? (
+            <p className="mt-1 text-[0.9375rem] leading-relaxed text-ink-700">
+              아래 목록에서 오늘 나오신 분들을 눌러 담아 주세요.
+            </p>
+          ) : (
+            <p className="mt-1 text-[0.9375rem] leading-relaxed text-ink-700">
+              {picked.map((x) => x.displayName).join(' · ')}
+            </p>
+          )}
+
+          {/*
+            여섯 분부터는 알린다. 막지는 않는다 — 현장에서 여섯 분이 앉아 계신
+            날이 있고, 그때 앱이 막으면 복지사는 앱을 덮고 종이로 간다.
+            대신 무엇이 나빠지는지는 정확히 적는다.
+          */}
+          {picked.length >= 6 ? (
+            <p className="mt-2 text-[0.875rem] font-bold leading-relaxed text-brand-800">
+              여섯 분이 넘으면 목소리를 가르는 정확도가 크게 떨어져요. 서로 다른
+              분들의 말씀이 한 사람으로 뭉칠 수 있고, 한 분당 말씀하실 시간도
+              5분이 채 안 됩니다. 진행하실 수는 있어요.
+            </p>
+          ) : null}
+
           <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
             함께 한 회기를 진행하고 <strong className="text-ink-700">노래 한 곡</strong>을
             만듭니다. 나온 이야기는 「함께 나눈 이야기」로 남고, 어느 분의
@@ -440,28 +543,43 @@ export default function ElderListPage() {
           </p>
 
           <div className="mt-3 grid grid-cols-2 gap-2">
+            {/*
+              지난번 명단 불러오기. 인원이 고정이 아니어도 대개 비슷하다 —
+              불러온 뒤 빠진 분만 빼면 되므로 다섯 번 누를 일이 한 번이 된다.
+            */}
+            <button
+              type="button"
+              onClick={() => void fillFromLast()}
+              disabled={loadingLast}
+              className="min-h-[52px] rounded-[14px] border border-hairline bg-surface-strong text-[0.9375rem] font-bold text-ink-700 disabled:opacity-70"
+            >
+              {loadingLast ? '불러오는 중…' : '지난번과 같은 분들'}
+            </button>
             <button
               type="button"
               onClick={() => setPicked([])}
-              className="min-h-[52px] rounded-[14px] border border-hairline bg-surface-strong text-[1rem] font-bold text-ink-700"
+              className="min-h-[52px] rounded-[14px] border border-hairline bg-surface-strong text-[0.9375rem] font-bold text-ink-700"
             >
               모두 빼기
             </button>
-            <button
-              type="button"
-              disabled={checking !== null}
-              onClick={() => {
-                // 맨 앞 분이 저장 기준이 된다. 회기의 임자라는 뜻이 아니라
-                // 녹음·곡의 칸 이름이 그 값으로 만들어진다는 뜻이다.
-                const [head, ...rest] = picked;
-                setPicked([]);
-                start(head, rest);
-              }}
-              className="tk-cta min-h-[52px] rounded-[14px] text-[1rem] font-extrabold text-white disabled:opacity-70"
-            >
-              함께 회기 시작
-            </button>
           </div>
+
+          <button
+            type="button"
+            disabled={picked.length < 2 || checking !== null}
+            onClick={() => {
+              // 맨 앞 분이 저장 기준이 된다. 회기의 임자라는 뜻이 아니라
+              // 녹음·곡의 칸 이름이 그 값으로 만들어진다는 뜻이다.
+              const [head, ...rest] = picked;
+              setPicked([]);
+              start(head, rest);
+            }}
+            className="tk-cta mt-2 min-h-[60px] w-full rounded-[14px] text-[1.0625rem] font-extrabold text-white disabled:bg-hairline disabled:text-ink-500"
+          >
+            {picked.length < 2
+              ? '두 분 이상 담아 주세요'
+              : `${picked.length}분과 함께 회기 시작`}
+          </button>
         </Card>
       ) : null}
 
@@ -471,11 +589,16 @@ export default function ElderListPage() {
             <button
               type="button"
               onClick={() => open(e)}
+              aria-pressed={many ? picked.some((x) => x.id === e.id) : undefined}
               // 서버에 진행 중인 회기를 물어보는 동안 한 번 더 눌리면 두 번
               // 간다. 오래 걸리는 일은 아니지만, 조용하면 사람은 다시 누른다.
               disabled={checking !== null}
               aria-busy={checking === e.id}
-              className="flex w-full items-center gap-3.5 text-left disabled:opacity-70"
+              className={`flex w-full items-center gap-3.5 rounded-[12px] text-left disabled:opacity-70 ${
+                many && picked.some((x) => x.id === e.id)
+                  ? 'bg-leaf-50 ring-2 ring-leaf-400'
+                  : ''
+              }`}
             >
               <Art
                 name={e.avatar as ArtKey}
@@ -534,33 +657,6 @@ export default function ElderListPage() {
               </p>
             ) : null}
 
-            {/*
-              함께 모시기. 눌러 담으면 그룹 회기가 된다.
-              카드 본문(회기 열기)과 따로 둔 이유는 손이 스치는 자리이기
-              때문이다 — 담으려다 회기가 열리면 앞 회기가 지워질 수 있다.
-            */}
-            {live && e.status === 'active' ? (
-              <button
-                type="button"
-                onClick={() =>
-                  setPicked((was) =>
-                    was.some((x) => x.id === e.id)
-                      ? was.filter((x) => x.id !== e.id)
-                      : [...was, e],
-                  )
-                }
-                aria-pressed={picked.some((x) => x.id === e.id)}
-                className={`mt-2 min-h-[44px] w-full rounded-[12px] border text-[0.9375rem] font-bold ${
-                  picked.some((x) => x.id === e.id)
-                    ? 'border-leaf-500 bg-leaf-50 text-leaf-800'
-                    : 'border-hairline bg-surface text-ink-700'
-                }`}
-              >
-                {picked.some((x) => x.id === e.id)
-                  ? '함께 모심 · 빼기'
-                  : '함께 모시기'}
-              </button>
-            ) : null}
           </Card>
         ))}
       </ul>
