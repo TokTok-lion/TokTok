@@ -26,6 +26,17 @@ export type Segment = {
   text: string;
   at: number;
   speaker?: 'elder' | 'worker';
+  /**
+   * 몇 번 목소리인가 (업체가 갈라 준 화자 열쇠 그대로).
+   *
+   * 그룹 회기에서 필요하다. speaker 는 '어르신이냐 복지사냐'까지만 말하는데,
+   * 어르신이 세 분이면 그 셋을 서로 가려야 "이건 김 어르신 말씀"이라고 지정할
+   * 수 있다. 업체가 주는 것은 '1번 목소리·2번 목소리'까지고 그게 누구인지는
+   * 응답 어디에도 없으므로, 이름 붙이는 일은 사람이 한다.
+   *
+   * 1:1 회기에서는 쓰지 않는다.
+   */
+  voice?: string;
 };
 
 export type Fail = {
@@ -110,8 +121,16 @@ export interface SttProvider {
   /**
    * topic 은 오늘 회기 주제다. 인식에 미리 알려 줄 낱말을 여기서 뽑는다
    * (lib/speechHints.ts). 없으면 그 시절 낱말만 알려 준다.
+   *
+   * speakers 는 그 방에 몇 사람이 있었는지다 — 어르신 수 + 복지사 한 명.
+   * 없으면 둘로 본다(1:1 회기).
+   *
+   * 이 값이 왜 필요한가. 화자 분리는 "몇 명인지"를 알려 주면 훨씬 잘 갈라진다.
+   * 예전에는 2 로 못 박아 뒀는데, 어르신 네 분이 모인 방을 둘로 갈라 달라고
+   * 하면 서로 다른 분들의 말씀이 한 사람으로 뭉친다 — 그러면 "누가 한 말인가"가
+   * 무너지고, 그게 그룹 회기에서 가장 조심해야 할 일이다.
    */
-  start(file: File, topic?: string | null): Promise<Job<Segment[]>>;
+  start(file: File, topic?: string | null, speakers?: number): Promise<Job<Segment[]>>;
   /**
    * 이미 저장소에 올라와 있는 녹음으로 전사를 시작한다.
    *
@@ -126,6 +145,7 @@ export interface SttProvider {
     object: string,
     contentType: string,
     topic?: string | null,
+    speakers?: number,
   ): Promise<Job<Segment[]>>;
   poll(jobId: string): Promise<Job<Segment[]>>;
 }

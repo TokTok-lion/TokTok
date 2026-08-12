@@ -6,7 +6,13 @@ import { settled } from './longJob';
 import { adoptStoredRecording, useRecorder } from './recorder';
 import { loadRecording } from './recordingStore';
 import { getSupabase } from './supabase';
-import { currentSession, setSessionField, useSession, type SessionState } from './store';
+import {
+  currentSession,
+  sessionMembers,
+  setSessionField,
+  useSession,
+  type SessionState,
+} from './store';
 
 /**
  * 녹음을 글로 옮기는 일 하나.
@@ -591,10 +597,21 @@ async function send(blob: Blob): Promise<Response> {
    * 적어 둔다.
    */
   const topic = currentSession().topic?.trim() ?? '';
+  /*
+   * 그 방에 있던 사람 수 — 어르신 수 + 복지사 한 명.
+   *
+   * 화자 분리는 이 값을 알면 훨씬 잘 갈라진다. 안 보내면 둘로 보는데, 어르신
+   * 네 분이 모인 방을 둘로 갈라 달라고 하면 서로 다른 분들의 말씀이 한 사람으로
+   * 뭉친다 — 그러면 "누가 한 말인가"가 무너지고, 그것이 그룹 회기에서 가장
+   * 조심해야 할 일이다.
+   */
+  const speakers = sessionMembers().length + 1;
+
   const form = () => {
     const f = new FormData();
     f.append('file', blob, 'interview.webm');
     if (topic) f.append('topic', topic);
+    f.append('speakers', String(speakers));
     return fetch('/api/transcribe', { method: 'POST', headers: auth, body: f });
   };
 
@@ -627,7 +644,7 @@ async function send(blob: Blob): Promise<Response> {
     return fetch('/api/transcribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...auth },
-      body: JSON.stringify({ object, contentType: type, topic }),
+      body: JSON.stringify({ object, contentType: type, topic, speakers }),
     });
   } catch {
     return form();

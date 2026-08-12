@@ -149,7 +149,19 @@ function notReady(): Fail | null {
 }
 
 /** 올라와 있는 객체 하나로 전사를 건다. 두 입구가 여기서 만난다. */
-async function recognize(object: string, token: string): Promise<Job<Segment[]>> {
+/**
+ * speakers 는 그 방에 있던 사람 수다 — 어르신 수 + 복지사 한 명.
+ *
+ * 둘 미만이면 갈릴 것이 없고, 너무 크게 잡으면 기침이나 옆방 소리를 사람으로
+ * 센다. 여섯을 넘기지 않는다 — 그 위로는 분리 정확도가 급격히 떨어져서,
+ * 갈랐다는 표시만 있고 실제로는 섞인 결과가 나온다.
+ */
+async function recognize(
+  object: string,
+  token: string,
+  speakers = 2,
+): Promise<Job<Segment[]>> {
+  const speakerCount = Math.min(6, Math.max(2, Math.round(speakers)));
   const project = googleProjectId();
   const res = await fetch(
     `https://${host()}/v2/projects/${project}/locations/${REGION}/recognizers/_:batchRecognize`,
@@ -171,10 +183,16 @@ async function recognize(object: string, token: string): Promise<Job<Segment[]>>
              * 회기는 복지사가 묻고 어르신이 답하는 대화다. 갈라 놓지 않으면
              * 사실 추출 입력에 복지사 질문이 섞인다.
              *
-             * 마주 앉은 두 사람이니 최소·최대 모두 2 로 못 박는다. 열어 두면
-             * 옆방 소리나 기침을 세 번째 사람으로 세는 일이 생긴다.
+             * 사람 수를 정확히 알려 준다. 열어 두면 옆방 소리나 기침을 한 사람
+             * 더로 세고, 좁혀 두면 서로 다른 분들의 말씀이 한 사람으로 뭉친다.
+             * 뭉치는 쪽이 더 나쁘다 — 그러면 "누가 한 말인가"가 무너진다.
+             *
+             * 1:1 회기는 예전과 같이 2·2 다.
              */
-            diarizationConfig: { minSpeakerCount: 2, maxSpeakerCount: 2 },
+            diarizationConfig: {
+              minSpeakerCount: speakerCount,
+              maxSpeakerCount: speakerCount,
+            },
           },
         },
         files: [{ uri: `gs://${GCS_BUCKET}/${object}` }],
@@ -250,7 +268,7 @@ export const googleSttV2: SttProvider = {
 
   accepts: (contentType) => ACCEPTED.test((contentType || '').toLowerCase()),
 
-  async start(file) {
+  async start(file, _topic, speakers) {
     const bad = notReady();
     if (bad) return bad;
 
@@ -263,10 +281,10 @@ export const googleSttV2: SttProvider = {
     const uri = await gcsUpload(object, await file.arrayBuffer(), file.type || 'audio/webm');
     if (!uri) return fail('녹음을 전사 서버로 보내지 못했어요.', 502);
 
-    return recognize(object, token);
+    return recognize(object, token, speakers);
   },
 
-  async startUploaded(object) {
+  async startUploaded(object, _contentType, _topic, speakers) {
     const bad = notReady();
     if (bad) return bad;
 
@@ -283,7 +301,7 @@ export const googleSttV2: SttProvider = {
     const stat = await gcsStat(object);
     if (!stat) return fail('올린 녹음을 찾지 못했어요. 다시 올려 주세요.', 404, { settled: true });
 
-    return recognize(object, token);
+    return recognize(object, token, speakers);
   },
 
   async poll(jobId) {
