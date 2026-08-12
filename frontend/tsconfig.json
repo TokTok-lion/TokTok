@@ -9,6 +9,10 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    // 테스트는 `node --test` 가 바로 돌린다(러너 없음). 그러려면 import 에
+    // '.ts' 를 그대로 적어야 해서 — 노드의 타입 제거는 확장자를 요구한다 —
+    // 이 옵션을 켠다. noEmit 이라 빌드 결과에는 영향이 없다.
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
