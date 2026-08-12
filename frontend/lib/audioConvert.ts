@@ -53,10 +53,27 @@ export function readDuration(file: Blob): Promise<number | null> {
     if (typeof document === 'undefined') return resolve(null);
     const url = URL.createObjectURL(file);
     const el = document.createElement('audio');
+    let settled = false;
     const done = (v: number | null) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
       URL.revokeObjectURL(url);
+      // 붙잡고 있으면 파일이 메모리에 남는다. 30분짜리를 다루는 자리다.
+      el.removeAttribute('src');
       resolve(v);
     };
+    /*
+     * 시한을 둔다. 머리말이 잘린 파일에서는 loadedmetadata 도 error 도 오지
+     * 않고 그대로 멈춘다 — 그러면 이 약속이 영영 안 끝나고, 부르는 쪽
+     * (toTranscribable)이 첫 줄에서 기다리므로 화면이 '녹음을 읽고 있어요…'
+     * 에 붙박인다. 오류도 없고 다시 누를 수도 없어서 새로고침 말고는 길이
+     * 없었다.
+     *
+     * 시한이 지나면 null 이다. 그건 '길이를 모른다'는 뜻이고, 위쪽이 이미
+     * 그 경우를 '못 읽는 파일'로 다루며 무엇을 가져오면 되는지 안내한다.
+     */
+    const timer = window.setTimeout(() => done(null), 15_000);
     el.preload = 'metadata';
     el.onloadedmetadata = () => {
       const d = el.duration;

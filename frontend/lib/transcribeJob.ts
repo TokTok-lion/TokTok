@@ -597,6 +597,27 @@ async function send(blob: Blob): Promise<Response> {
   }
 }
 
+/**
+ * 기기에 있는 녹음이 밖에서 바뀌었다 — 화면이 그것을 알아야 한다.
+ *
+ * 녹음기를 거치지 않고 들어오는 녹음이 하나 있다. 복지사가 올리는 파일이다
+ * (components/UploadRecording). 그건 recordingStore 에 곧장 쓰이므로 녹음기
+ * 스냅샷이 그대로고, 기기 녹음을 다시 읽는 이펙트는 그 스냅샷을 보고 돌기
+ * 때문에(useTranscribeStatus) 아무 일도 일어나지 않았다.
+ *
+ * 그 결과가 나빴다. 카드는 '0:08 녹음을 올렸어요'라고 하는데 바로 위 버튼은
+ * '이 기기에 저장된 녹음이 없어요. 인터뷰 화면에서 먼저 녹음해 주세요'라고
+ * 했다. 한 화면 안에서 서로 반대되는 말이라 복지사는 둘 중 하나를 믿게 된다.
+ *
+ * 이어서 자동 전사까지 부른다. 인터뷰를 마쳤을 때와 같은 동작이어야 한다 —
+ * 올린 사람은 그 녹음을 글로 옮기려고 올린 것이다. 동의 확인과 '사람이 고친
+ * 전사는 덮지 않는다'는 규칙은 autoTranscribe 안에 이미 있다.
+ */
+export async function recordingReplaced(): Promise<void> {
+  await refreshDevice();
+  await autoTranscribe();
+}
+
 /** 이미 맡겨 둔 작업의 결과만 받아온다. 녹음은 다시 올리지 않는다. */
 async function resume(
   jobId: string,

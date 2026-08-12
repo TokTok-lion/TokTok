@@ -34,16 +34,34 @@ export function CoverPicker({
 }) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
-  // 열리면 닫기 단추에 초점을 둔다. 낭독으로 듣는 사람이 시트가 열린 것을
-  // 알아야 하고, ESC 로 닫는 사람에게도 시작점이 필요하다.
+  /*
+   * 초점은 열릴 때 딱 한 번만 옮긴다.
+   *
+   * 예전에는 ESC 처리와 한 이펙트에 묶여 있었고 의존성이 [onClose] 였다.
+   * 부모는 onClose 를 매 렌더 새 화살표로 넘기고(그게 보통이다), 그림을 하나
+   * 고르면 회기 상태가 바뀌어 부모가 다시 그려진다 — 그때마다 이펙트가 다시
+   * 돌아 초점을 닫기 단추로 끌어갔다. 키보드로 격자를 훑던 사람은 한 장 고를
+   * 때마다 맨 아래로 튕겨 나갔고, 스물넷을 훑는 일이 사실상 불가능했다.
+   */
   useEffect(() => {
     closeRef.current?.focus();
+  }, []);
+
+  /*
+   * ESC 는 따로 단다. onClose 가 매 렌더 바뀌어도 듣는 자리를 떼었다 붙이지
+   * 않도록, 최신 값을 ref 로 들고 이펙트는 한 번만 건다.
+   */
+  const closeFn = useRef(onClose);
+  useEffect(() => {
+    closeFn.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') closeFn.current();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
 
   // 자동일 때 실제로 어떤 그림이 오는지 미리 보여 준다. '자동'이라고만 적으면
   // 무엇으로 돌아가는지 모른 채 고르게 된다.

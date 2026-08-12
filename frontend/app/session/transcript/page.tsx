@@ -3,6 +3,7 @@
 import { Ornaments, Screen } from '@/components/Shell';
 import { TranscribeButton } from '@/components/TranscribeButton';
 import { UploadRecording } from '@/components/UploadRecording';
+import { recordingReplaced } from '@/lib/transcribeJob';
 import { Card, CheckCircle, PrimaryButton } from '@/components/ui';
 import { IconEdit } from '@/components/icons';
 import { useRecorder } from '@/lib/recorder';
@@ -87,7 +88,9 @@ export default function TranscriptPage() {
         올린 파일은 이 회기의 녹음이 되므로, 바로 위 버튼이 그것을 옮긴다.
       */}
       <div className="mt-3">
-        <UploadRecording />
+        {/* 올리고 나면 위 버튼이 그 녹음을 알아야 한다. 안 알려 주면 카드는
+            '올렸어요', 버튼은 '녹음이 없어요'라고 같은 화면에서 말한다. */}
+        <UploadRecording onSaved={() => void recordingReplaced()} />
       </div>
 
       <Card className="mt-3 p-4">
