@@ -16,7 +16,7 @@ import { useAccount } from '@/lib/auth';
  *   로그인 후   시작하기 하나. 이미 들어온 사람에게 가입을 권할 이유가 없다.
  */
 export function LandingCta() {
-  const { account } = useAccount();
+  const { account, signOut } = useAccount();
 
   // 아직 확인 중이면 기본 버튼만. 버튼이 깜빡이며 바뀌는 것보다 낫다.
   if (account.status === 'local' || account.status === 'loading') {
@@ -33,9 +33,28 @@ export function LandingCta() {
         <PrimaryButton href="/home" trailing={<Chevron className="text-white" />}>
           시작하기
         </PrimaryButton>
+        {/*
+          기관 이름만 적어 두고 나갈 문을 안 두었었다.
+
+          로그아웃은 더보기 안에 있는데, 이 화면에서 거기까지 가려면 시작하기 →
+          홈 → 더보기 를 거쳐야 한다. 그런데 계정을 바꾸려는 사람은 바로 이
+          화면에서 그 생각을 한다 — 앱을 열었더니 남의 기관 이름이 적혀 있는
+          순간이다. 태블릿을 여럿이 돌려 쓰는 자리라 드문 일이 아니다.
+
+          "이 기관으로 들어와 있다"는 사실과 나가는 문을 같이 둔다.
+        */}
         <p className="mt-3 text-center text-[0.875rem] font-semibold text-ink-500">
-          {account.tenantName}
+          {account.tenantName}(으)로 로그인돼 있어요
         </p>
+        <div className="mt-1 text-center">
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="inline-flex min-h-[44px] items-center border-b-2 border-leaf-300 px-1 text-[0.9375rem] font-bold text-leaf-700"
+          >
+            다른 기관으로 로그인
+          </button>
+        </div>
       </>
     );
   }
