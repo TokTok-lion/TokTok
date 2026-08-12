@@ -22,6 +22,7 @@ import {
   type StaffRole,
 } from '@/lib/center';
 import { CenterStaffLive } from '@/components/CenterStaffLive';
+import { JoinCodePanel } from '@/components/JoinCodePanel';
 import { STAFF } from '@/lib/center-seed';
 
 /**
@@ -70,6 +71,10 @@ export default function StaffPage() {
     >
       {/* 실제 기록에서 센 값. 이 패널은 스스로 로그인 상태를 가린다. */}
       <CenterStaffLive />
+
+      {/* 복지사를 실제로 들어오게 하는 열쇠. 씨앗 초대 폼과 달리 이건 서버에
+          닿는다 — 이 코드로 가입하면 진짜 memberships 에 들어온다. */}
+      <JoinCodePanel />
 
       {/* F-CM-STAFF-004 · 008 상태 점검 */}
       <div className="mt-4">

@@ -27,6 +27,24 @@ export function LandingCta() {
     );
   }
 
+  /*
+   * 로그인은 됐는데 소속이 없다. 이 사람에게 필요한 것은 로그인도 가입도
+   * 아니고 기관 코드다. 예전에는 이 상태가 'out' 과 같아서 로그인 버튼을
+   * 다시 내밀었고, 눌러도 같은 자리로 돌아왔다.
+   */
+  if (account.status === 'noTenant') {
+    return (
+      <>
+        <PrimaryButton href="/join" trailing={<Chevron className="text-white" />}>
+          기관 코드 입력
+        </PrimaryButton>
+        <p className="mt-3 text-center text-[0.875rem] font-semibold text-ink-500">
+          로그인은 됐어요. 아직 소속된 기관이 없습니다
+        </p>
+      </>
+    );
+  }
+
   if (account.status === 'in') {
     return (
       <>
@@ -60,7 +78,7 @@ export function LandingCta() {
   }
 
   /*
-   * 기관 등록은 이 화면에서 내밀지 않는다.
+   * 기관 '등록'은 내밀지 않는다. 복지사 '가입'을 내민다.
    *
    * 똑똑은 찾아가서 계약하고 계정을 만들어 드리는 방식으로 판다. 그런데 첫
    * 화면이 '기관 등록하기'를 크게 내밀면 두 가지가 어긋난다.
@@ -78,19 +96,25 @@ export function LandingCta() {
    */
   return (
     <>
-      <PrimaryButton href="/login" trailing={<Chevron className="text-white" />}>
-        로그인
+      <PrimaryButton href="/signup" trailing={<Chevron className="text-white" />}>
+        복지사 회원가입
       </PrimaryButton>
       <p className="mt-2 text-center text-[0.875rem] font-semibold text-ink-500">
-        기관 계정은 계약하실 때 만들어 드려요
+        일하시는 센터의 기관 코드가 필요해요
       </p>
 
-      {/* 가입하지 않고도 볼 수 있어야 한다. 어떤 서비스인지 모르는 채로
-          로그인부터 하라고 하면 대부분 그냥 나간다. */}
-      <div className="mt-3">
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Link
+          href="/login"
+          className="flex min-h-[52px] items-center justify-center rounded-[14px] border-2 border-brand-300 bg-surface-strong text-[1rem] font-bold text-brand-800"
+        >
+          로그인
+        </Link>
+        {/* 가입하지 않고도 볼 수 있어야 한다. 어떤 서비스인지 모르는 채로
+            코드부터 적으라고 하면 대부분 그냥 나간다. */}
         <Link
           href="/home"
-          className="flex min-h-[52px] w-full items-center justify-center rounded-[14px] border border-hairline bg-surface text-[1rem] font-bold text-ink-700"
+          className="flex min-h-[52px] items-center justify-center rounded-[14px] border border-hairline bg-surface text-[1rem] font-bold text-ink-700"
         >
           둘러보기
         </Link>

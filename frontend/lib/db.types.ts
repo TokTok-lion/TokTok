@@ -211,6 +211,14 @@ export type Database = {
        * 정책이 없고, 이 함수 안에서 "만든 사람만 센터장이 된다"를 강제한다.
        * 그래서 인자로 user_id 를 받지 않는다.
        */
+      join_tenant: {
+        Args: { p_code: string };
+        Returns: string;
+      };
+      my_join_code: {
+        Args: Record<string, never>;
+        Returns: string | null;
+      };
       create_my_tenant: {
         Args: { p_name: string; p_region?: string };
         Returns: string;

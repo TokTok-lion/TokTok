@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Logo } from '@/components/Shell';
@@ -13,9 +14,12 @@ import { useAccount } from '@/lib/auth';
  * 않으면 어떤 표도 0건이다 — 즉 로그인은 "기능 잠금"이 아니라 데이터가
  * 보이기 위한 최소 조건이다.
  *
- * 계정은 센터장이 만들어 나눠 준다. 여기에 가입 버튼을 두지 않는 이유는,
- * 누구나 계정을 만들 수 있으면 어느 기관에도 속하지 않은 계정이 쌓이고
- * 그중 하나가 실수로 어느 기관에 붙는 사고가 생기기 때문이다.
+ * 복지사는 자기 계정으로 가입한다(/signup). 기관은 계약할 때 만들어 드리고,
+ * 복지사는 센터장에게 받은 기관 코드로 그 기관에 합류한다 — 그래야 같은
+ * 센터의 두 사람이 각자 가입해도 어르신이 공유된다.
+ *
+ * 소속 없이 로그인만 된 사람은 /join 으로 간다. 예전에는 그 상태가 로그아웃과
+ * 구분되지 않아 빠져나올 수 없는 자리였다.
  */
 export default function LoginPage() {
   const router = useRouter();
@@ -34,6 +38,27 @@ export default function LoginPage() {
         </p>
         <div className="mt-7">
           <PrimaryButton href="/home">오늘 화면으로</PrimaryButton>
+        </div>
+      </Frame>
+    );
+  }
+
+  if (account.status === 'noTenant') {
+    return (
+      <Frame>
+        <p className="mt-6 text-center text-[1.0625rem] leading-relaxed text-ink-900">
+          로그인은 되어 있어요. 아직 <strong>소속된 기관이 없습니다.</strong>
+        </p>
+        <p className="mt-1.5 text-center text-[0.9375rem] text-ink-500">{account.email}</p>
+        <div className="mt-7 space-y-3">
+          <PrimaryButton href="/join">기관 코드 입력</PrimaryButton>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="min-h-[52px] w-full rounded-[14px] border border-hairline bg-surface text-[1rem] font-bold text-ink-700"
+          >
+            다른 계정으로 로그인
+          </button>
         </div>
       </Frame>
     );
@@ -112,21 +137,25 @@ export default function LoginPage() {
       </form>
 
       {/*
-        여기도 '무료로 시작하기'로 기관 등록을 크게 내밀고 있었다. 첫 화면보다
-        오히려 더 눈에 띄는 자리다 — 로그인이 안 되는 사람이 마지막으로 보는
-        화면이라, 누를 이유가 가장 큰 순간이기도 하다.
-
-        계약해서 계정을 만들어 드리는 방식이므로, 계정이 없다는 것은 아직
-        계약 전이라는 뜻이다. 그때 필요한 것은 가입 버튼이 아니라 연락할 곳이다.
+        여기는 '무료로 시작하기'로 기관 등록을 내밀고 있었다. 로그인이 안 되는
+        사람이 마지막으로 보는 화면이라 누를 이유가 가장 큰 자리인데, 누르면
+        기관이 하나 더 만들어졌다 — 같은 센터의 두 번째 복지사가 정확히 그렇게
+        한다. 이제 가는 곳은 복지사 가입이다.
       */}
       <div className="mt-6 rounded-[16px] border-2 border-brand-200 bg-brand-50 p-4 text-center">
         <p className="text-[0.9375rem] font-bold text-ink-900">
           아직 계정이 없으신가요?
         </p>
         <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-700">
-          기관 계정은 계약하실 때 만들어 드려요. 도입을 검토 중이시면 먼저
-          둘러보기로 어떤 서비스인지 보실 수 있어요.
+          센터장님께 <strong>기관 코드</strong>를 받으신 뒤 가입해 주세요.
+          기관 계정 자체는 계약하실 때 저희가 만들어 드립니다.
         </p>
+        <Link
+          href="/signup"
+          className="mt-3 flex min-h-[52px] w-full items-center justify-center rounded-[14px] bg-brand-700 text-[1rem] font-extrabold text-white"
+        >
+          복지사 회원가입
+        </Link>
       </div>
 
       <p className="mt-5 text-center text-[0.875rem] leading-relaxed text-ink-500">

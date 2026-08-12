@@ -3,34 +3,43 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Logo } from '@/components/Shell';
+import { AuthFrame, Field, FormError, SubmitButton } from '@/components/AuthForm';
 import { useAccount } from '@/lib/auth';
 import { getSupabase } from '@/lib/supabase';
 
 /**
- * 기관 가입.
+ * 복지사 가입.
  *
- * 개인 가입이 아니라 기관 가입이다. 가입하면 그 자리에서 기관이 만들어지고
- * 가입자가 그 기관의 센터장이 된다. 개인 가입을 열면 어느 기관에도 속하지
- * 않은 계정이 쌓이고, 그중 하나가 남의 기관 데이터에 붙는 사고가 난다.
+ * ── 왜 기관 가입에서 복지사 가입으로 바뀌었나
  *
- * 기관을 만드는 것은 DB 함수(create_my_tenant)만 할 수 있다. 앱이 tenants 에
- * 직접 쓸 수 없게 막아 둔 것을 유지하기 위해서다 — 그 함수 안에서 "만든
- * 사람만 센터장이 된다"를 강제한다.
+ * 예전에는 가입이 곧 기관 생성이었다. 무소속 계정을 없애려는 선택이었는데,
+ * 팔면서 두 가지가 어긋났다.
+ *
+ * 하나. 똑똑은 찾아가서 계약하고 계정을 만들어 드리는 방식으로 판다. 누구나
+ * 기관을 만들 수 있으면 요금·한도·보관정책을 함께 정하는 앞단이 건너뛰어진다.
+ *
+ * 둘, 이쪽이 더 나빴다. 같은 센터의 두 번째 복지사가 가입하면 **새 기관**이
+ * 만들어졌다. 한 센터가 tenant 두 개로 갈라지고 어르신도 회기도 서로 안 보인다.
+ * 되돌릴 길도 없다 — 이미 소속이 있는 사람은 다른 기관에 못 들어간다.
+ *
+ * 그래서 복지사는 자기 계정을 만들고 **기관 코드**로 합류한다. 어르신은
+ * tenant 단위 RLS 라 같은 기관이면 저절로 공유된다.
+ *
+ * 기관을 새로 만드는 화면은 /signup/center 로 옮겼다. 계약 자리에서 운영자가
+ * 주소로 직접 연다.
  */
-export default function SignupPage() {
+export default function WorkerSignupPage() {
   const router = useRouter();
   const { account } = useAccount();
-  const [org, setOrg] = useState('');
-  const [region, setRegion] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   if (account.status === 'local') {
     return (
-      <Frame>
+      <AuthFrame title="복지사 가입">
         <p className="mt-6 text-center text-[1rem] leading-relaxed text-ink-700">
           이 기기는 <strong>서버 없이</strong> 동작하도록 설정되어 있어요.
           가입 없이 바로 쓰실 수 있습니다.
@@ -41,7 +50,7 @@ export default function SignupPage() {
         >
           오늘 화면으로
         </Link>
-      </Frame>
+      </AuthFrame>
     );
   }
 
@@ -53,7 +62,6 @@ export default function SignupPage() {
     setBusy(true);
     setError(null);
 
-    // 1) 계정을 만든다
     const signUp = await sb.auth.signUp({ email: email.trim(), password });
     if (signUp.error) {
       setBusy(false);
@@ -65,45 +73,49 @@ export default function SignupPage() {
       return;
     }
 
-    // 메일 확인이 켜져 있으면 여기서 세션이 없다. 그러면 기관은 확인 뒤에
-    // 만들어야 하므로, 지금은 안내만 하고 멈춘다.
+    /*
+     * 메일 확인이 켜져 있으면 여기서 세션이 없다. 그러면 합류는 확인 뒤에
+     * 해야 하는데, 그 길은 /join 에 있다 — 로그인만 하면 코드를 다시 물어본다.
+     * 예전에는 그 길이 없어서 계정이 못 쓰는 상태로 굳었다.
+     */
     if (!signUp.data.session) {
       setBusy(false);
-      setError('메일로 보낸 확인 링크를 눌러 주세요. 그다음 로그인하시면 됩니다.');
+      setError('메일로 보낸 확인 링크를 눌러 주세요. 로그인하시면 기관 코드를 다시 여쭤봅니다.');
       return;
     }
 
-    // 2) 기관을 만든다 (이 함수만이 유일한 통로)
-    const { error: rpcError } = await sb.rpc('create_my_tenant', {
-      p_name: org.trim(),
-      p_region: region.trim() || undefined,
-    });
+    const { error: rpcError } = await sb.rpc('join_tenant', { p_code: code.trim() });
     setBusy(false);
 
     if (rpcError) {
+      // 계정은 이미 만들어졌다. 그 사실을 말해 줘야 다시 가입하려 하지 않는다.
       setError(
-        rpcError.message.includes('이미 소속')
-          ? '이미 소속된 기관이 있어요. 로그인해 주세요.'
-          : rpcError.message || '기관을 만들지 못했어요.',
+        `${rpcError.message || '기관에 합류하지 못했어요.'} 계정은 만들어졌으니, 코드를 확인하신 뒤 아래 「기관 코드 입력」에서 이어서 하실 수 있어요.`,
       );
       return;
     }
     router.push('/home');
   };
 
-  const ready = org.trim().length >= 2 && email.trim() && password.length >= 6;
+  const ready = email.trim().length > 0 && password.length >= 6 && code.trim().length >= 4;
 
   return (
-    <Frame>
+    <AuthFrame title="복지사 가입">
       <p className="mt-2 text-center text-[0.9375rem] leading-relaxed text-ink-500">
-        기관을 등록하면 바로 쓰실 수 있어요.
+        일하시는 센터의 <strong>기관 코드</strong>가 필요해요.
         <br />
-        무료로 <strong>어르신 3분, 노래 3곡</strong>까지 만들어 보실 수 있습니다.
+        센터장님께 받으시면 됩니다.
       </p>
 
       <form onSubmit={submit} className="mt-6 space-y-4">
-        <Field label="기관 이름" value={org} onChange={setOrg} placeholder="○○주야간보호센터" />
-        <Field label="지역 (선택)" value={region} onChange={setRegion} placeholder="충청북도 청주시" />
+        <Field
+          label="기관 코드"
+          value={code}
+          onChange={setCode}
+          placeholder="ABCD2345"
+          uppercase
+          hint="8자리"
+        />
         <Field label="이메일" type="email" value={email} onChange={setEmail} autoComplete="username" />
         <Field
           label="비밀번호"
@@ -114,26 +126,11 @@ export default function SignupPage() {
           hint="6자 이상"
         />
 
-        {error ? (
-          <p
-            role="alert"
-            className="rounded-[12px] bg-surface-sunk px-4 py-3 text-[0.9375rem] font-bold text-danger-600"
-          >
-            {error}
-          </p>
-        ) : null}
+        <FormError>{error}</FormError>
 
-        <button
-          type="submit"
-          disabled={busy || !ready}
-          className={`tk-cta flex min-h-[56px] w-full items-center justify-center rounded-[16px] text-[1.125rem] font-extrabold text-white ${
-            busy || !ready ? 'pointer-events-none bg-surface-sunk text-ink-500' : ''
-          }`}
-        >
-          {/* 첫 화면의 "무료로 시작하기"를 눌러 온 자리다. 여기서 또 같은
-              말이면 누르면 어디로 또 가는 줄 안다. 이 버튼이 하는 일은 등록이다. */}
-          {busy ? '등록하는 중…' : '기관 등록하기'}
-        </button>
+        <SubmitButton busy={busy} ready={ready}>
+          {busy ? '가입하는 중…' : '가입하고 시작하기'}
+        </SubmitButton>
       </form>
 
       <p className="mt-5 text-center text-[0.9375rem] text-ink-500">
@@ -144,63 +141,20 @@ export default function SignupPage() {
       </p>
       <div className="mt-3 text-center">
         <Link
+          href="/join"
+          className="inline-flex min-h-[44px] items-center px-2 text-[0.9375rem] font-bold text-ink-500 underline underline-offset-2"
+        >
+          기관 코드 입력
+        </Link>
+      </div>
+      <div className="mt-1 text-center">
+        <Link
           href="/home"
           className="inline-flex min-h-[44px] items-center px-2 text-[0.9375rem] font-bold text-ink-500 underline underline-offset-2"
         >
           가입 없이 둘러보기
         </Link>
       </div>
-    </Frame>
-  );
-}
-
-function Frame({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="tk-page-bg mx-auto flex min-h-dvh max-w-[440px] flex-col px-6 pb-10 pt-12">
-      <main id="main" className="flex-1">
-        <div className="flex justify-center">
-          <Logo size="md" />
-        </div>
-        <h1 className="mt-5 text-center text-[1.5rem] font-extrabold text-ink-900">
-          기관 등록
-        </h1>
-        {children}
-      </main>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  type = 'text',
-  autoComplete,
-  placeholder,
-  hint,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  autoComplete?: string;
-  placeholder?: string;
-  hint?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="block text-[0.9375rem] font-bold text-ink-700">
-        {label}
-        {hint ? <span className="ml-1.5 font-medium text-ink-500">{hint}</span> : null}
-      </span>
-      <input
-        type={type}
-        value={value}
-        autoComplete={autoComplete}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 min-h-[56px] w-full rounded-[14px] border-2 border-hairline bg-surface-strong px-4 text-[1.0625rem] text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none"
-      />
-    </label>
+    </AuthFrame>
   );
 }

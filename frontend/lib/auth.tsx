@@ -24,6 +24,18 @@ export type Account =
   | { status: 'local' }
   | { status: 'loading' }
   | { status: 'out' }
+  /**
+   * 로그인은 됐는데 어느 기관에도 속하지 않았다.
+   *
+   * 'out' 과 갈라 놓아야 한다. 예전에는 같은 값이라 앱이 로그아웃으로 봤고,
+   * 그러면 복지사가 이 상태에서 빠져나올 수가 없었다 — 다시 가입하려 하면
+   * '이미 가입된 이메일'이고, 로그인하면 다시 여기로 돌아온다. 계정이 영영
+   * 못 쓰는 상태로 굳는다.
+   *
+   * 기관 코드를 넣지 않았거나 잘못 넣은 복지사가 여기 있다. 화면은 이 상태를
+   * 알아보고 코드를 다시 물어야 한다.
+   */
+  | { status: 'noTenant'; userId: string; email: string | null }
   | {
       status: 'in';
       userId: string;
@@ -62,8 +74,9 @@ async function loadMembership(userId: string, email: string | null) {
     .maybeSingle();
 
   if (error || !data) {
-    // 계정은 있는데 어느 기관에도 속하지 않은 경우. 로그인해도 볼 것이 없다.
-    return emit({ status: 'out' });
+    // 계정은 있는데 어느 기관에도 속하지 않았다. 로그아웃과 다르다 —
+    // 이 사람에게 필요한 것은 로그인이 아니라 기관 코드다.
+    return emit({ status: 'noTenant', userId, email });
   }
 
   const { data: tenant } = await sb
