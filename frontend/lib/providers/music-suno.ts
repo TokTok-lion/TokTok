@@ -92,7 +92,12 @@ async function harvest(clips: Clip[]): Promise<Job<MusicResult> | null> {
   if (!res.ok) return fail('만든 곡을 받아 오지 못했어요.', 502);
   const audio = await res.arrayBuffer();
   const seconds = Number(ready.duration) || 0;
-  return { ok: true, done: true, value: { audio, lengthMs: Math.round(seconds * 1000) } };
+  // 중계 서버가 한 곡만 돌려준다. 고를 것이 없으므로 takes 는 1.
+  return {
+    ok: true,
+    done: true,
+    value: { audio, lengthMs: Math.round(seconds * 1000), takes: 1 },
+  };
 }
 
 async function look(ids: string): Promise<Job<MusicResult>> {

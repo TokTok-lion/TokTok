@@ -112,7 +112,8 @@ async function fetchAudio(taskId: string, lengthMs: number): Promise<Job<MusicRe
   return {
     ok: true,
     done: true,
-    value: { audio: await audio.arrayBuffer(), lengthMs },
+    // Treblo 는 한 번에 한 곡이다. 고를 것이 없으므로 takes 는 1.
+    value: { audio: await audio.arrayBuffer(), lengthMs, takes: 1 },
   };
 }
 

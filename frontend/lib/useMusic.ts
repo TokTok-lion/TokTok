@@ -275,6 +275,20 @@ export function useMusic() {
        * 숫자가 아닌 값(중간 프록시가 헤더를 망친 경우)도 같은 취급이다 —
        * 못 믿을 값을 적느니 안 적는 편이 낫다.
        */
+      /*
+       * 같은 요청에서 나온 연주가 몇 개인지, 그 작업 번호가 무엇인지.
+       *
+       * Suno 는 한 번에 트랙을 두 개 내고 값은 두 개를 합쳐 한 번치로
+       * 매겨진다. 두 번째는 이미 치른 값이라, 미리듣기에서 "둘 중에
+       * 고르시겠어요"를 요금 없이 내밀 수 있다. 그러려면 작업 번호가 필요한데
+       * 폴링이 끝나면 잃어버리므로 여기서 붙잡아 회기에 남긴다.
+       */
+      const takes = Number(res.headers.get('X-Music-Takes')) || 1;
+      const job = res.headers.get('X-Music-Job');
+      set('songTakes', takes);
+      set('songTake', 1);
+      set('songJob', job);
+
       const lengthHeader = res.headers.get('X-Music-Length-Ms');
       const measured = lengthHeader === null ? Number.NaN : Number(lengthHeader);
       const lengthMs = Number.isFinite(measured) && measured > 0 ? measured : null;
@@ -348,6 +362,8 @@ export function useMusic() {
  * ------------------------------------------------------------------ */
 
 export type SongPlayer = {
+  /** 곡이 화면 밖에서 갈렸을 때 다시 읽는다(다른 연주로 바꾸기). */
+  reload: () => void;
   /** 이 기기에 곡이 있는가. 없으면 재생 UI 를 아예 감춘다. */
   ready: boolean;
   /**
@@ -395,7 +411,7 @@ export type SongPlayer = {
  * 회기가 흐트러진다(components/SamplePlayer.tsx 와 같은 이유).
  */
 export function useSongPlayer(): SongPlayer {
-  const { url, loading } = useDeviceSongState();
+  const { url, loading, reload } = useDeviceSongState();
   const ref = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
@@ -498,6 +514,8 @@ export function useSongPlayer(): SongPlayer {
   return {
     ready: url !== null,
     loading,
+    // 곡이 화면 밖에서 갈렸을 때 부른다(다른 연주로 바꾸기).
+    reload,
     playing,
     at,
     total,

@@ -10,6 +10,7 @@ import { IconHeart, IconPause, IconPlay, IconRefresh } from '@/components/icons'
 import { MUSIC_STYLES, formatDuration } from '@/lib/domain';
 import { sceneFor, songTitleForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
+import { OtherTakeButton } from '@/components/OtherTakeButton';
 import { askRegenerate, useSongPlayer } from '@/lib/useMusic';
 
 /**
@@ -87,6 +88,10 @@ export default function PreviewPage() {
             >
               이 곡으로 진행
             </PrimaryButton>
+
+            {/* 이미 함께 만들어진 다른 연주. 요금이 들지 않는다 —
+                자세한 이유는 components/OtherTakeButton 에 적어 뒀다. */}
+            <OtherTakeButton onSwitched={player.reload} />
 
             {/* 다시 만들기는 실제로 곡을 한 번 더 만든다 = 요금이 한 번 더
                 나간다. 손이 스쳐서 나갈 돈이 아니므로 한 번 더 여쭙는다. */}

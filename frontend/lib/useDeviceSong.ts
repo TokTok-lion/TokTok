@@ -20,6 +20,9 @@ export type DeviceSong = {
   loading: boolean;
 };
 
+/** 위에 '다시 읽기'를 얹은 것. 화면이 받는 값이다. */
+export type DeviceSongState = DeviceSong & { reload: () => void };
+
 /**
  * 이 기기에 있는 곡 — 읽는 중인지까지 알려준다.
  *
@@ -37,8 +40,15 @@ export type DeviceSong = {
  * 곡을 한 번 더 만드는 자리이니 요금이 걸린 사고다. 모르는 동안에는 모른다고
  * 말하게 한다.
  */
-export function useDeviceSongState(): DeviceSong {
+export function useDeviceSongState(): DeviceSongState {
   const [song, setSong] = useState<DeviceSong>({ url: null, loading: true });
+  /*
+   * 곡이 화면 밖에서 바뀌면 다시 읽어야 한다. 지금은 「다른 연주로 바꾸기」가
+   * 그 경우다 — 회기의 곡이 통째로 갈리는데, 다시 읽지 않으면 앞 연주가
+   * 계속 흐른다.
+   */
+  const [nonce, setNonce] = useState(0);
+  const reload = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     let made: string | null = null;
@@ -76,9 +86,9 @@ export function useDeviceSongState(): DeviceSong {
       alive = false;
       if (made) URL.revokeObjectURL(made);
     };
-  }, []);
+  }, [nonce]);
 
-  return song;
+  return { ...song, reload };
 }
 
 /**

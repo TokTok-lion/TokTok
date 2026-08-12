@@ -57,9 +57,20 @@ const STEP_MS = 4_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function GET(req: Request) {
-  const job = new URL(req.url).searchParams.get('job');
+  const url = new URL(req.url);
+  const job = url.searchParams.get('job');
   if (!job) return NextResponse.json({ error: '작업 번호가 없습니다.' }, { status: 400 });
-  return settle(() => music.poll(job), job);
+
+  /*
+   * take 는 몇 번째 연주를 받을지다. 없으면 첫 번째 — 기존 동작 그대로다.
+   *
+   * Suno 는 한 번 만들 때 트랙을 두 개 낸다. 값은 두 개를 합쳐 한 번치로
+   * 매겨지므로 두 번째는 이미 치른 값이고, 같은 작업 번호로 다시 물어보면
+   * 된다. 새로 만드는 것이 아니라 이미 만들어진 것을 하나 더 받는 것이라
+   * 크레딧이 나가지 않는다.
+   */
+  const take = Number(url.searchParams.get('take')) || 1;
+  return settle(() => music.poll(job, take), job);
 }
 
 export async function POST(req: Request) {
@@ -88,7 +99,10 @@ export async function POST(req: Request) {
 
   const started = await music.start({ lyrics, title, style, lengthMs: LENGTH_MS });
   if (!started.ok) return bad(started);
-  if (started.done) return audio(started.value.audio, started.value.lengthMs);
+  // 곧바로 끝난 경우에는 작업 번호가 없다(Job 타입이 done 과 jobId 를 함께
+  // 들지 않는다). 그러면 두 번째 연주를 물어볼 길이 없으므로 알려 주지 않는다 —
+  // 화면이 있지도 않은 선택지를 내미는 것보다 낫다.
+  if (started.done) return audio(started.value.audio, started.value.lengthMs, 1);
   return settle(() => music.poll(started.jobId), started.jobId);
 }
 
@@ -99,8 +113,17 @@ function bad(f: { error: string; status: number; needsPaidPlan?: boolean; quota?
   );
 }
 
-function audio(buf: ArrayBuffer, lengthMs: number) {
+function audio(buf: ArrayBuffer, lengthMs: number, takes = 1, jobId?: string) {
   const headers: Record<string, string> = { 'Content-Type': 'audio/mpeg' };
+
+  // 작업 번호를 함께 내려 준다. 두 번째 연주를 받으려면 같은 번호로 다시
+  // 물어야 하는데, 클라이언트는 폴링이 끝나면 그 번호를 잃는다.
+  if (jobId) headers['X-Music-Job'] = jobId;
+
+  // 같은 요청에서 나온 연주가 몇 개인지 알려 준다. 화면이 "고르시겠어요"를
+  // 내밀지 말지를 이 값으로 정한다 — 업체를 바꿔 하나만 나오면 1 이 되고,
+  // 고르는 자리는 저절로 사라진다.
+  headers['X-Music-Takes'] = String(takes);
 
   // 길이는 서버가 정한다. 곡을 기관 저장소에 기록할 때 필요하므로
   // 클라이언트가 되짚어 계산하지 않도록 함께 내려 준다.
@@ -123,7 +146,7 @@ async function settle(
   for (;;) {
     const out = await poll();
     if (!out.ok) return bad(out);
-    if (out.done) return audio(out.value.audio, out.value.lengthMs);
+    if (out.done) return audio(out.value.audio, out.value.lengthMs, out.value.takes, jobId);
     if (Date.now() >= until) return NextResponse.json({ job: jobId }, { status: 202 });
     await sleep(STEP_MS);
   }

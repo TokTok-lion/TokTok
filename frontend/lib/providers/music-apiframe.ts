@@ -235,7 +235,7 @@ export const apiframeMusic: MusicProvider = {
     return { ok: true, done: false, jobId };
   },
 
-  async poll(jobId) {
+  async poll(jobId, take = 1) {
     const res = await call(`/jobs/${encodeURIComponent(jobId)}`, { method: 'GET' });
     if (!res) return fail('곡 만들기 서버에 연결하지 못했어요.', 503);
     if (!res.ok) {
@@ -259,7 +259,9 @@ export const apiframeMusic: MusicProvider = {
      * (app/session/preview 에 그 이야기를 적어 뒀다). 지금 버리는 이유는
      * 하나뿐이다 — 아직 그 화면이 없다.
      */
-    const track = json.result?.tracks?.find((t) => t.audioUrl);
+    const playable = (json.result?.tracks ?? []).filter((t) => t.audioUrl);
+    // 고른 번째가 없으면 첫 번째로 돌아간다. 화면이 잘못 물어도 소리는 난다.
+    const track = playable[take - 1] ?? playable[0];
     // 다 됐다는데 소리가 없으면 아직이다. 상태만 믿으면 빈 곡이 저장된다.
     if (json.status !== 'COMPLETED' || !track?.audioUrl) {
       return { ok: true, done: false, jobId };
@@ -273,6 +275,7 @@ export const apiframeMusic: MusicProvider = {
       value: {
         audio: await audio.arrayBuffer(),
         lengthMs: Math.round((track.duration ?? 0) * 1000),
+        takes: playable.length,
       },
     };
   },

@@ -162,6 +162,23 @@ export type SessionState = {
    */
   songKey: string | null;
 
+  /**
+   * 같은 요청에서 나온 연주가 몇 개이고, 지금 몇 번째를 쓰고 있는지.
+   *
+   * Suno 는 한 번 만들 때 트랙을 두 개 낸다 — 같은 가사·같은 분위기로 서로
+   * 다른 두 번의 연주다. 값은 두 개를 합쳐 한 번치로 매겨지므로 두 번째는
+   * 이미 치른 것이고, 그래서 "둘 중에 고르시겠어요"는 요금이 들지 않는다.
+   *
+   * songJob 은 그 작업 번호다. 두 번째를 받으려면 같은 번호로 다시 물어야
+   * 하는데, 폴링이 끝나면 그 번호를 잃어버리기 때문에 여기 남긴다.
+   *
+   * 업체가 하나만 내주면 songTakes 가 1 이고, 고르는 자리는 화면에서 저절로
+   * 사라진다.
+   */
+  songTakes: number;
+  songTake: number;
+  songJob: string | null;
+
   /** 글자 크기 배율 (1 / 1.15 / 1.3) — NFR-A11Y-003 */
   textScale: number;
 
@@ -273,6 +290,9 @@ function seedState(): SessionState {
     storyConfirmed: false,
     lyrics: SEED_LYRICS,
     songKey: null,
+    songTakes: 1,
+    songTake: 1,
+    songJob: null,
     lyricsApproved: false,
     style: 'ballad',
     songStatus: 'draft',
@@ -586,6 +606,9 @@ export function beginSession(next: {
           familyStories: [],
           familyReplies: [],
           songKey: null,
+          songTakes: 1,
+          songTake: 1,
+          songJob: null,
           songStatus: 'draft' as SessionState['songStatus'],
           // 다음 추천 주제를 계산하는 코드는 아직 없다. 씨앗 문자열을 그대로
           // 두면 '가장 자랑스러운 순간'이 모든 어르신의 활동일지·CSV·인쇄본에

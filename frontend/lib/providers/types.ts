@@ -70,12 +70,30 @@ export type MusicRequest = {
   lengthMs: number;
 };
 
-export type MusicResult = { audio: ArrayBuffer; lengthMs: number };
+export type MusicResult = {
+  audio: ArrayBuffer;
+  lengthMs: number;
+  /**
+   * 같은 요청에서 나온 다른 연주가 몇 개인가 (자기 자신 포함).
+   *
+   * Suno 는 한 번 만들 때 트랙을 두 개 낸다 — 같은 가사·같은 분위기로 서로
+   * 다른 두 번의 연주다. 값은 두 개를 합쳐 한 번치로 매겨지므로, 두 번째는
+   * 이미 값을 치른 것이다. 화면이 "고르시겠어요"를 내밀 수 있는지 여기서
+   * 안다. 1 이면 고를 것이 없다는 뜻이다.
+   */
+  takes: number;
+};
 
 export interface MusicProvider {
   readonly name: string;
   start(req: MusicRequest): Promise<Job<MusicResult>>;
-  poll(jobId: string): Promise<Job<MusicResult>>;
+  /**
+   * take 는 몇 번째 연주를 받을지다(1부터). 없으면 첫 번째.
+   *
+   * 업체가 하나만 내주면 무엇을 넣든 그 하나다 — 부르는 쪽이 업체를 가리지
+   * 않게 하려고 인자를 없애지 않고 무시하게 뒀다.
+   */
+  poll(jobId: string, take?: number): Promise<Job<MusicResult>>;
 }
 
 export interface SttProvider {
