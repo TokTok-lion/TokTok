@@ -91,7 +91,14 @@ export type StoryFactRow = {
   id: string;
   tenant_id: string;
   session_id: string;
-  participant_id: string;
+  /**
+   * 이 사실이 누구의 생애인지. null 이면 아직 아무의 것도 아니다 (0009).
+   *
+   * 그룹 회기에서 복지사가 "이 목소리는 김 어르신"이라고 지정하기 전의
+   * 상태다. 개인 생애지도는 이 칸이 찬 것만 읽는다 — 비어 있는 것은
+   * 「함께 나눈 이야기」로 회기에만 남는다.
+   */
+  participant_id: string | null;
   text: string;
   status: FactStatus;
   follow_up: string | null;
@@ -246,7 +253,9 @@ export type Database = {
       participants: Tbl<ParticipantRow, Partial<ParticipantRow> & { tenant_id: string; display_name: string }, Partial<ParticipantRow>>;
       consents: Tbl<ConsentRow, Partial<ConsentRow> & { tenant_id: string; participant_id: string; kind: ConsentKind }, Partial<ConsentRow>>;
       sessions: Tbl<SessionRow, Partial<SessionRow> & { tenant_id: string; participant_id: string; topic: string }, Partial<SessionRow>>;
-      story_facts: Tbl<StoryFactRow, Partial<StoryFactRow> & { tenant_id: string; session_id: string; participant_id: string; text: string }, Partial<StoryFactRow>>;
+      // participant_id 는 비어도 된다(0009). 그룹 회기에서 복지사가 아직
+      // 누구의 말씀인지 지정하지 않은 사실이 그 상태다.
+      story_facts: Tbl<StoryFactRow, Partial<StoryFactRow> & { tenant_id: string; session_id: string; text: string }, Partial<StoryFactRow>>;
       fact_sources: Tbl<FactSourceRow, Partial<FactSourceRow> & { fact_id: string; kind: SourceKind; label: string }, Partial<FactSourceRow>>;
       lyrics: Tbl<LyricRow, Partial<LyricRow> & { tenant_id: string; session_id: string; sections: unknown }, Partial<LyricRow>>;
       transcripts: Tbl<TranscriptRow, Partial<TranscriptRow> & { tenant_id: string; session_id: string }, Partial<TranscriptRow>>;

@@ -17,7 +17,8 @@ import type {
   SourceKind,
   StoryItem,
 } from './domain';
-import { sessionMembers } from './store';
+import { isGroupSession, sessionMembers } from './store';
+import { ownerOfFact } from './voiceOwners';
 import type { SessionState } from './store';
 
 /**
@@ -793,7 +794,22 @@ async function replaceFacts(
       keep.map((i: StoryItem) => ({
         tenant_id: t,
         session_id: sessionId,
-        participant_id: s.remoteParticipantId!,
+        /*
+         * 이 사실이 누구의 생애인가.
+         *
+         * 1:1 회기는 마주 앉은 그 한 분이다 — 가릴 것이 없다.
+         *
+         * 그룹 회기는 다르다. 복지사가 "이 목소리는 김 어르신"이라고 지정한
+         * 것만 그분 기록이 되고, 지정하지 않은 목소리에서 나온 말씀은 null 로
+         * 둔다. 그 빈칸이 「함께 나눈 이야기」다 — 회기에는 남고 개인
+         * 생애지도에는 안 들어간다.
+         *
+         * 여기서 기준 어르신으로 메우면 안 된다. 네 분이 나눈 이야기가 통째로
+         * 한 분의 생애가 되고, 화면상으로는 정상과 구분되지 않는다.
+         */
+        participant_id: isGroupSession(s)
+          ? ownerOfFact(i, s)
+          : s.remoteParticipantId!,
         text: i.text,
         status: 'unverified' as const,
         follow_up: i.followUp ?? null,

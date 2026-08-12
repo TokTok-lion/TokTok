@@ -4,6 +4,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { TranscribeButton } from '@/components/TranscribeButton';
 import { UploadRecording } from '@/components/UploadRecording';
 import { ServerRecordingNote } from '@/components/ServerRecordingNote';
+import { VoiceOwners } from '@/components/VoiceOwners';
 import { recordingReplaced } from '@/lib/transcribeJob';
 import { Card, CheckCircle, PrimaryButton } from '@/components/ui';
 import { IconEdit } from '@/components/icons';
@@ -177,6 +178,10 @@ export default function TranscriptPage() {
             })}
           </ul>
         )}
+
+        {/* 그룹 회기에서만 나온다. 목소리를 어르신께 붙이는 유일한 자리이고,
+            그 지정이 개인 생애지도로 가는 유일한 길이다. */}
+        <VoiceOwners />
 
         {/* 예전에는 '다시 듣기' 버튼과 파형 그림이 있었는데 둘 다 장식이었다 —
             눌러도 아무 소리가 안 났다. 기기에 있는 이 회기 녹음을 그대로

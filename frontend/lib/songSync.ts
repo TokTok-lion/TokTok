@@ -128,10 +128,29 @@ export async function listServerSongs(): Promise<ServerSong[] | null> {
   const c = await ctx();
   if (!c) return null;
 
+  /*
+   * 이 어르신의 곡 + 이 어르신이 함께하신 회기의 곡.
+   *
+   * 그룹 회기는 노래를 한 곡 만들고, 그 곡은 기준 어르신 앞으로 저장된다
+   * (저장 칸 이름이 그 값으로 만들어지기 때문이다). 그러면 함께 부르신 나머지
+   * 분들 보관함에는 그 노래가 안 보인다 — 같이 만든 노래인데.
+   *
+   * 그래서 참여자 표를 거쳐 '내가 함께한 회기'의 곡도 가져온다. 1:1 회기는
+   * 그 표에 한 줄뿐이라 결과가 지금과 같다.
+   */
+  const { data: joined } = await c.sb
+    .from('session_participants')
+    .select('session_id')
+    .eq('participant_id', c.participantId);
+  const sessions = (joined ?? []).map((r) => r.session_id);
+
+  const mine = `participant_id.eq.${c.participantId}`;
+  const shared = sessions.length ? `,session_id.in.(${sessions.join(',')})` : '';
+
   const { data, error } = await c.sb
     .from('songs')
     .select('id, title, style, art_key, audio_path, lyrics_hash, created_at')
-    .eq('participant_id', c.participantId)
+    .or(`${mine}${shared}`)
     .not('audio_path', 'is', null)
     .order('created_at', { ascending: false })
     .limit(200);

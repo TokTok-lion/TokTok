@@ -118,8 +118,27 @@ export type SessionState = {
     at: number;
     example?: true;
     speaker?: 'elder' | 'worker';
+    /**
+     * 몇 번 목소리인가 (업체가 갈라 준 화자 열쇠 그대로).
+     *
+     * 그룹 회기에서 "이 목소리는 김 어르신"이라고 지정하는 근거다. 1:1 에서는
+     * 쓰지 않는다 — 마주 앉은 한 분의 말씀이라 가릴 것이 없다.
+     */
+    voice?: string;
   }[];
   transcriptConfirmed: boolean;
+
+  /**
+   * 어느 목소리가 어느 어르신인가 (그룹 회기).
+   *
+   * 업체가 주는 것은 '1번 목소리·2번 목소리'까지고, 그게 누구인지는 응답
+   * 어디에도 없다. 지정할 수 있는 사람은 그 자리에 계셨던 복지사뿐이다.
+   *
+   * 지정하지 않은 목소리는 여기 없다. 그 목소리에서 나온 이야기는 아무의 것도
+   * 아닌 채로 남아 「함께 나눈 이야기」가 되고, 개인 생애지도에는 들어가지
+   * 않는다 — 모르는 것을 아는 척하지 않는 편이 언제나 낫다.
+   */
+  voiceOwners: Record<string, string>;
   /**
    * 지금 전사가 어느 녹음에서 나왔는지 (recordingStore 의 savedAt).
    *
@@ -308,6 +327,7 @@ function seedState(): SessionState {
     checklist: { elder: true, cards: true, familyNote: true, mic: true },
     transcript: SEED_TRANSCRIPT,
     transcriptConfirmed: false,
+    voiceOwners: {},
     // 씨앗 전사는 어느 녹음에서도 나오지 않았다. 표를 비워 두면 기기에 녹음이
     // 생기는 순간 자동 전사가 그 녹음을 옮긴다.
     transcribedFrom: null,
@@ -395,6 +415,11 @@ function load(): SessionState {
       elder: { ...base.elder, ...saved.elder },
       // 판올림 전 저장본에는 이 칸이 없다. 없으면 1:1 회기다.
       group: Array.isArray(saved.group) ? saved.group : [],
+      // 판올림 전 저장본에는 이 칸이 없다. 없으면 아무 목소리도 지정 안 된 것.
+      voiceOwners:
+        saved.voiceOwners && typeof saved.voiceOwners === 'object'
+          ? (saved.voiceOwners as Record<string, string>)
+          : {},
       // 이 칸은 나중에 생겼다. 예전 저장본에는 아예 없고, 저장이 중간에 깨진
       // 기기에는 배열이 아닌 것이 들어 있을 수 있다. 그대로 두면 목록을
       // 그리는 화면이 매번 터지므로 모양이 다르면 빈 목록으로 시작한다.
@@ -535,6 +560,8 @@ export function resumeSession(
     lyrics: SessionState['lyrics'];
     lyricsApproved: boolean;
     story: SessionState['story'];
+    /** 이어받는 쪽은 목소리 지정을 물려받지 않는다 — 받아도 무방하게 열어 둔다. */
+    voiceOwners?: Record<string, string>;
   },
 ): void {
   beginSession(next);
@@ -546,6 +573,9 @@ export function resumeSession(
     ...(open.startedAt ? { remoteStartedAt: open.startedAt } : {}),
     transcript: open.transcript,
     transcriptConfirmed: open.transcriptConfirmed,
+    // 목소리 지정은 서버에 올리지 않는다. 이어받은 쪽에서는 비어 있고,
+    // 필요하면 다시 지정한다 — 지정은 그 자리에 계셨던 분만 할 수 있다.
+    voiceOwners: open.voiceOwners ?? {},
     // 어느 녹음에서 나온 전사인지는 이 기기가 알 수 없다. 이어받은 쪽에는 그
     // 녹음이 없으므로, 비워 두어 '출처 소리를 들려줄 수 없다'고 말하게 한다.
     transcribedFrom: null,
@@ -667,6 +697,7 @@ export function beginSession(next: {
       ? {
           transcript: [],
           transcriptConfirmed: false,
+          voiceOwners: {},
           transcribedFrom: null,
           interviewStartedAt: null,
           story: [],
