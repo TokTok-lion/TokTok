@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, PrimaryButton } from '@/components/ui';
@@ -13,6 +13,7 @@ import {
   type ElderSummary,
   type ServiceStatus,
 } from '@/lib/seed';
+import { recordingCountOf } from '@/lib/recordingStore';
 import { useElders } from '@/lib/useElders';
 import { beginSession, useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
@@ -45,6 +46,30 @@ export default function ElderListPage() {
   const [filter, setFilter] = useState<ServiceStatus | 'all'>('all');
   /** 진행 중인 회기를 지우기 전에 물어볼 대상 */
   const [ask, setAsk] = useState<ElderSummary | null>(null);
+  /**
+   * 지금 어르신의 녹음이 이 기기에 몇 개 있는가.
+   *
+   * 어르신을 바꾸면 그 녹음들이 지워지는데(recorder.keepOnlyRecordingsOf),
+   * 녹음은 서버로 올라가지 않아 되찾을 길이 없다. 그래서 묻기 전에 센다.
+   */
+  const [recCount, setRecCount] = useState(0);
+
+  useEffect(() => {
+    const owner = s.remoteParticipantId;
+    let alive = true;
+    // 이펙트 본문에서 곧장 setState 하지 않는다 — 렌더가 연쇄로 돈다.
+    // 어르신이 없을 때도 콜백을 거쳐 0 으로 되돌린다.
+    void (owner ? recordingCountOf(owner) : Promise.resolve(0))
+      .then((n) => {
+        if (alive) setRecCount(n);
+      })
+      // 못 셌으면 0 이 아니라 '모른다'인데, 화면이 할 일은 같다 — 아래
+      // losing() 의 다른 근거들이 여전히 묻게 만든다.
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [s.remoteParticipantId]);
   // 로그인해서 기관이 정해졌으면 서버 목록, 아니면 시연용 씨앗
   const { elders, live, loading } = useElders();
 
@@ -96,14 +121,28 @@ export default function ElderListPage() {
     router.push('/elder/profile');
   };
 
+  /**
+   * 넘어가면 사라질 것들. 이름을 댈 수 있어야 물어보는 의미가 있다.
+   *
+   * 예전에는 전사·이야기·곡만 봤다. 그래서 **녹음만 해 둔 회기**가 구멍이었다 —
+   * 어르신 말씀을 30분 받아 놓고 아직 글로 옮기기 전이면 transcript 도 story 도
+   * 비어 있어서, 아무 말 없이 다음 어르신으로 넘어가고 그 소리가 지워졌다.
+   * 되찾을 길이 없는 유일한 자료가 정확히 그것이다(녹음은 서버로 안 간다).
+   */
+  const losing = (): string[] => {
+    const out: string[] = [];
+    if (recCount > 0) out.push(recCount > 1 ? `녹음 ${recCount}개` : '녹음');
+    if (s.transcript.length > 0) out.push(`전사 ${s.transcript.length}줄`);
+    if (s.story.length > 0) out.push(`이야기 ${s.story.length}개`);
+    if (s.lyrics.length > 0) out.push('가사');
+    if (s.reactions.length > 0 || s.reactionNote.trim()) out.push('관찰 기록');
+    if (s.logDraft.trim() && !s.logSaved) out.push('활동일지 초안');
+    return out;
+  };
+
   const open = (e: ElderSummary) => {
     const switching = live && s.remoteParticipantId !== null && s.remoteParticipantId !== e.id;
-    const hasWork =
-      s.transcript.length > 0 ||
-      s.story.length > 0 ||
-      s.storyConfirmed ||
-      Boolean(s.songKey);
-    if (switching && hasWork) {
+    if (switching && losing().length > 0) {
       setAsk(e);
       return;
     }
@@ -138,17 +177,32 @@ export default function ElderListPage() {
       }
     >
       {/* 30분짜리 인터뷰가 잘못 누른 한 번에 사라지면 안 된다.
-          무엇이 사라지는지 이름을 대고 묻는다. */}
+          무엇이 사라지는지 이름을 대고 묻고, 살릴 길을 함께 준다. */}
       {ask ? (
         <Card className="mb-4 border-2 border-brand-300 p-4">
           <p className="text-[1.0625rem] font-extrabold text-ink-900">
             {s.elder.honorific} 회기가 진행 중이에요
           </p>
           <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-            {ask.displayName} 어르신으로 넘어가면 지금까지의 전사·이야기·가사와
-            이 기기에 남은 녹음이 지워집니다. 기관 기록에 저장한 내용은 그대로
-            남아요.
+            {ask.displayName} 어르신으로 넘어가면 이 기기에서{' '}
+            <strong className="text-ink-900">{losing().join(' · ')}</strong>이(가)
+            지워집니다.
           </p>
+          {/*
+            녹음은 따로 말한다. 다른 자료와 무게가 다르다 — 기관 서버로 올라가지
+            않으므로, 여기서 지워지면 어르신 목소리는 어디에도 남지 않는다.
+          */}
+          {recCount > 0 ? (
+            <p className="mt-1.5 text-[0.9375rem] font-bold leading-relaxed text-danger-600">
+              녹음은 이 기기에만 있어요. 지워지면 되살릴 수 없습니다.
+            </p>
+          ) : null}
+          <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
+            {s.logSaved
+              ? '활동일지는 기관 기록에 저장돼 있어요. 그 내용은 그대로 남습니다.'
+              : '이 회기는 아직 기관 기록에 저장되지 않았어요. 활동일지에서 저장하시면 이야기와 관찰이 남고, 다른 태블릿에서도 보입니다.'}
+          </p>
+
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -169,6 +223,21 @@ export default function ElderListPage() {
               지우고 넘어가기
             </button>
           </div>
+
+          {/* 저장하지 않은 회기에는 세 번째 길을 준다. '계속'과 '지우기' 둘만
+              있으면, 저장할 수 있다는 사실을 아는 사람만 저장한다. */}
+          {!s.logSaved ? (
+            <button
+              type="button"
+              onClick={() => {
+                setAsk(null);
+                router.push('/session/log');
+              }}
+              className="mt-2 min-h-[52px] w-full rounded-[14px] border-2 border-brand-300 bg-surface-strong text-[1rem] font-bold text-brand-800"
+            >
+              먼저 기관 기록에 저장하기
+            </button>
+          ) : null}
         </Card>
       ) : null}
 

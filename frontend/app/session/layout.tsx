@@ -7,6 +7,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { stepForScreen } from '@/lib/flow';
 import { useSession } from '@/lib/store';
 import { useActiveElder } from '@/lib/useActiveElder';
+import { useSessionProgress } from '@/lib/useSessionProgress';
 
 /**
  * 회기 폴더 전체의 자물쇠.
@@ -28,6 +29,15 @@ export default function SessionLayout({ children }: { children: ReactNode }) {
   const elder = useActiveElder();
   const { s } = useSession();
   const pathname = usePathname();
+
+  /*
+   * 회기가 어디까지 왔는지를 서버에 따라 붙인다.
+   *
+   * 이 자리인 이유는 위 자물쇠와 같다 — 회기 화면 열여덟 개를 한 번에 덮으므로
+   * 다음에 화면이 추가돼도 빠지지 않는다. 훅은 조건 뒤에 둘 수 없으니 이른
+   * 반환보다 위에서 부른다(서버를 안 쓰는 기기에서는 아무 일도 하지 않는다).
+   */
+  useSessionProgress();
 
   if (elder === 'ok') return <>{children}</>;
 

@@ -242,6 +242,71 @@ export async function writeConsent(
 /* --------------------------------------------------------- 회기 저장 */
 
 /**
+ * 회기가 어디까지 왔는지만 서버에 남긴다.
+ *
+ * ── 왜 필요한가
+ *
+ * 서버에 회기를 쓰는 곳이 saveSession 하나뿐이었고, 그것은 활동일지의
+ * 「저장하고 내보내기」에서만 불린다. 그래서 복지사가 회기를 시작해 인터뷰를
+ * 하고 이야기를 정리하고 노래까지 만들어도, 마지막 버튼을 누르기 전에는
+ * 기관 쪽에 **아무 흔적도 없었다**. 다른 복지사의 태블릿에서도, 센터장
+ * 콘솔에서도 그 회기는 존재하지 않는다.
+ *
+ * 게다가 remoteStep 은 값을 넣는 코드가 아예 없어서 늘 1 이었다. 콘솔의
+ * 진행상태가 모든 회기에 대해 1/9 로 보인다는 뜻이다 — 명세가 센터장에게
+ * 주기로 한 정보가 그것 하나인데 그게 상수였다.
+ *
+ * 그래서 단계를 넘길 때마다 회기 행만 가볍게 맞춘다. 이야기·관찰·일지는
+ * 건드리지 않는다 — 그것들은 사람이 확인하고 저장하는 것이고(원칙 3),
+ * 여기서 함께 올리면 확인 전 초안이 기관 기록이 된다.
+ *
+ * 실패해도 조용히 지나간다. 어르신 앞에서 화면을 멈출 이유가 없고, 다음
+ * 단계에서 다시 시도된다.
+ */
+export async function saveProgress(
+  s: SessionState,
+  step: number,
+): Promise<{ sessionId: string; step: number } | null> {
+  const sb = getSupabase();
+  const t = tenant();
+  if (!sb || !t || !s.remoteParticipantId) return null;
+
+  const account = currentAccount();
+  const facilitator =
+    account.status === 'in' ? await membershipId(account.userId, t) : null;
+
+  const row = {
+    tenant_id: t,
+    participant_id: s.remoteParticipantId,
+    facilitator,
+    topic: s.topic,
+    // 진행 중이라고만 말한다. 끝났다고 말할 수 있는 것은 활동일지를 저장한
+    // saveSession 뿐이다.
+    status: 'running' as const,
+    step,
+  };
+
+  if (s.remoteSessionId) {
+    // ended_at 과 status='done' 은 건드리지 않는다. 이미 마무리한 회기를
+    // 뒤늦게 열어 봤다는 이유로 '진행 중'으로 되돌리면 콘솔이 거짓말을 한다.
+    const { error } = await sb
+      .from('sessions')
+      .update(row)
+      .eq('id', s.remoteSessionId)
+      .neq('status', 'done');
+    return error ? null : { sessionId: s.remoteSessionId, step };
+  }
+
+  const { data, error } = await sb
+    .from('sessions')
+    .insert({ ...row, started_at: s.remoteStartedAt ?? new Date().toISOString() })
+    .select('id')
+    .single();
+  if (error || !data) return null;
+  return { sessionId: data.id, step };
+}
+
+/**
  * 지금 회기를 서버에 반영한다.
  *
  * 같은 회기를 여러 번 저장해도 하나로 남아야 하므로, 로컬이 들고 있는

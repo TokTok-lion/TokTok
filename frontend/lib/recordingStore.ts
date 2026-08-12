@@ -316,6 +316,24 @@ export async function deleteRecordingsOf(ownerId: string): Promise<void> {
  * 사고는 일어나지 않지만, 기기에 다른 어르신의 음성을 들고 다닐 이유도 없다.
  * 지금 보고 있는 어르신 것만 남긴다.
  */
+/**
+ * 이 어르신의 녹음이 기기에 몇 개 있는가. 소리는 열지 않고 표만 센다.
+ *
+ * 어르신을 바꾸기 전에 묻는 자리가 쓴다(app/elder). 거기서 loadRecording 을
+ * 부르면 20MB짜리 소리를 목록 화면에서 통째로 메모리에 올리게 되는데, 알고
+ * 싶은 것은 '있느냐'뿐이다.
+ *
+ * 이 수가 중요한 이유: 어르신을 바꾸면 keepOnlyRecordingsOf 가 다른 분의
+ * 녹음을 지운다. 녹음은 서버로 올라가지 않으므로 되찾을 길이 없다.
+ */
+export async function recordingCountOf(ownerId: string): Promise<number> {
+  const db = await openDb();
+  if (!db) return 0;
+  const metas = await allMetas(db);
+  db.close();
+  return metas.filter(({ meta }) => meta.ownerId === ownerId).length;
+}
+
 export async function deleteRecordingsExcept(ownerId: string): Promise<void> {
   const db = await openDb();
   if (!db) return;
