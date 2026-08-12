@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import { forgetRecording } from './recorder';
+import { forgetRecordingsOf, keepOnlyRecordingsOf } from './recorder';
 import { readParticipantRecord, writeConsent } from './repo';
 import { deleteSong } from './songStore';
 import {
@@ -549,7 +549,9 @@ export function beginSession(next: {
   });
 
   if (live) {
-    void forgetRecording();
+    // 이 어르신 것만 남긴다. 지난 회기 녹음은 그 어르신의 출처가 가리키는
+    // 소리라 지우지 않는다.
+    void keepOnlyRecordingsOf(next.participantId!);
     void deleteSong();
     void hydrateElderRecord(next.participantId!);
   }
@@ -696,7 +698,11 @@ export function useSession() {
 
     // 녹음 동의를 거두면 기기에 저장된 음성도 지운다. 동의를 거뒀는데 소리가
     // 남아 있으면 그 동의는 말뿐이다 — 철회는 화면 표시가 아니라 삭제다.
-    if (kind === 'recording' && !granted) void forgetRecording();
+    if (kind === 'recording' && !granted) {
+      // 이 어르신의 녹음을 전부 지운다. 이번 회기 것만 지우면 지난 회기
+      // 녹음이 남아, 거둔 동의가 말뿐이 된다.
+      void forgetRecordingsOf(state.remoteParticipantId ?? state.elder.id);
+    }
 
     const participantId = state.remoteParticipantId;
     const elderName = state.elder.honorific;

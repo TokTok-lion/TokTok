@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card } from './ui';
 import { forgetRecording, mmss, useRecorder } from '@/lib/recorder';
-import { RETENTION_DAYS, formatBytes, retentionLeftDays } from '@/lib/recordingStore';
+import { RETENTION_DAYS, formatBytes, recordingTotals, retentionLeftDays } from '@/lib/recordingStore';
 
 /**
  * 이 기기에 남은 녹음.
@@ -17,6 +17,17 @@ import { RETENTION_DAYS, formatBytes, retentionLeftDays } from '@/lib/recordingS
 export function StoredAudio() {
   const rec = useRecorder();
   const [asking, setAsking] = useState(false);
+  /*
+   * 기기 전체에 몇 개가 남아 있는지.
+   *
+   * 아래 재생기는 '이 회기' 녹음 하나만 보여 준다. 그런데 이 화면이 약속하는
+   * 것은 "어디에 무엇이 얼마나 남아 있는지"다 — 회기별로 쌓이게 바뀌었으니
+   * 하나만 보여 주면 나머지가 없는 것처럼 읽힌다.
+   */
+  const [totals, setTotals] = useState<{ count: number; bytes: number } | null>(null);
+  useEffect(() => {
+    void recordingTotals().then(setTotals);
+  }, [rec.savedAt, rec.bytes]);
 
   if (!rec.url || !rec.savedAt) return null;
 
@@ -40,6 +51,15 @@ export function StoredAudio() {
         </div>
 
         <audio src={rec.url} controls preload="metadata" className="mt-3 w-full" />
+
+        {totals && totals.count > 1 ? (
+          <p className="mt-2 text-[0.875rem] font-bold leading-relaxed text-ink-700">
+            이 기기에는 지난 회기 것까지 녹음 {totals.count}개 ·{' '}
+            {formatBytes(totals.bytes)}가 남아 있어요. 위 재생기는 이번 회기
+            녹음이고, 아래 버튼도 이번 회기 것만 지웁니다. 전부 지우시려면 아래
+            「이 기기의 기록 지우기」를 써 주세요.
+          </p>
+        ) : null}
 
         <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-500">
           이 녹음은 이 기기에만 있고 서버로 보내지 않았어요.

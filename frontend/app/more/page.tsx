@@ -15,7 +15,7 @@ import { Card, Chevron, IconCircle, NoteBar, OutlineButton } from '@/components/
 import { IconInfo, IconShield } from '@/components/icons';
 import { CONSENT_FALLBACK, CONSENT_LABELS, DEFAULT_CONSENTS } from '@/lib/domain';
 import { useSession } from '@/lib/store';
-import { forgetRecording } from '@/lib/recorder';
+import { forgetAllRecordings } from '@/lib/recorder';
 import { deleteAllSongs } from '@/lib/songStore';
 import { useAccount } from '@/lib/auth';
 import { NotifySettings } from '@/components/NotifySettings';
@@ -56,7 +56,7 @@ export default function MorePage() {
    */
   const wipe = () => {
     reset();
-    void forgetRecording();
+    void forgetAllRecordings();
     /*
      * 기기 전체를 지운다.
      *

@@ -1,7 +1,15 @@
 'use client';
 
 import { useCallback, useSyncExternalStore } from 'react';
-import { appendChunk, deleteRecording, loadRecording } from './recordingStore';
+import {
+  appendChunk,
+  deleteRecording,
+  deleteRecordingsExcept,
+  deleteRecordingsOf,
+  deleteAllRecordings,
+  loadRecording,
+  recordingKey,
+} from './recordingStore';
 
 /**
  * 실제 녹음.
@@ -136,6 +144,8 @@ let recorder: MediaRecorder | null = null;
 let chunks: Blob[] = [];
 let stream: MediaStream | null = null;
 let ticker: number | null = null;
+/** 지금 녹음이 들어가는 칸. 시작할 때 붙잡아 끝까지 쓴다. */
+let slot = '';
 
 function emit(next: Partial<Snap>) {
   snap = { ...snap, ...next };
@@ -298,7 +308,7 @@ export async function startRecording(): Promise<void> {
     if (e.data.size === 0) return;
     const index = chunks.length;
     chunks.push(e.data);
-    void appendChunk(index, e.data, {
+    void appendChunk(slot, index, e.data, {
       // 화면 값이 아니라 시계에서 읽는다. 타이머가 조여 있으면 snap.seconds
       // 는 갱신이 늦고, 기기에 남는 것은 이 값이다.
       seconds: elapsed(),
@@ -321,7 +331,7 @@ export async function startRecording(): Promise<void> {
     // 정상 종료를 표시해 둔다. 이 표시가 없으면 다음에 열 때
     // "중간에 끊긴 녹음"으로 되살린다.
     if (chunks.length) {
-      void appendChunk(chunks.length - 1, chunks[chunks.length - 1], {
+      void appendChunk(slot, chunks.length - 1, chunks[chunks.length - 1], {
         seconds: elapsed(),
         mime: mimeType || 'audio/webm',
         savedAt: Date.now(),
@@ -333,6 +343,12 @@ export async function startRecording(): Promise<void> {
   recorder.start(1000); // 1초마다 조각을 받아 둬야 중간에 죽어도 남는다
   // 시계를 여기서 맞춘다. 길이는 이 시각과의 차이로만 잰다(elapsed).
   startedAt = Date.now();
+  /*
+   * 칸 이름도 여기서 붙잡는다. 녹음 도중에 회기가 바뀌면(어르신을 옮기면)
+   * 조각마다 이름을 다시 물었을 때 한 녹음이 두 칸에 나뉜다 — 어느 쪽도
+   * 온전한 소리가 아니게 된다.
+   */
+  slot = recordingKey();
   pausedTotal = 0;
   pausedAt = 0;
   emit({
@@ -409,16 +425,55 @@ export function isCapturing(): boolean {
   return snap.state === 'recording' || snap.state === 'paused';
 }
 
+/** 화면에 물려 있던 소리를 놓고 상태를 비운다. */
+function clearSnap() {
+  if (snap.url) URL.revokeObjectURL(snap.url);
+  emit({ state: 'idle', seconds: 0, url: null, savedAt: null, bytes: 0, heard: false });
+}
+
 /**
- * 저장된 녹음본을 지운다.
+ * 이 회기의 녹음을 지운다. 화면의 '지금 지우기'가 부른다.
  *
- * 녹음 동의를 거두면 반드시 불려야 한다. 동의를 거뒀는데 음성이 기기에
- * 남아 있으면 그 동의는 말뿐이다.
+ * 지난 회기 녹음은 건드리지 않는다 — 그것들도 각자의 출처가 가리키는 소리다.
  */
 export async function forgetRecording(): Promise<void> {
-  if (snap.url) URL.revokeObjectURL(snap.url);
+  clearSnap();
   await deleteRecording();
-  emit({ state: 'idle', seconds: 0, url: null, savedAt: null, bytes: 0, heard: false });
+}
+
+/**
+ * 이 어르신의 녹음을 전부 지운다.
+ *
+ * 녹음 동의를 거두면 반드시 불려야 한다. 이번 회기 것만 지우고 지난 회기
+ * 녹음을 남겨 두면 그 철회는 말뿐이다 — 철회는 화면 표시가 아니라 삭제다.
+ */
+export async function forgetRecordingsOf(ownerId: string): Promise<void> {
+  clearSnap();
+  await deleteRecordingsOf(ownerId);
+}
+
+/**
+ * 기기에 남은 녹음을 전부 지운다. '이 기기의 기록 지우기'가 부른다.
+ *
+ * 회기별로 쌓이게 바뀌면서 forgetRecording 의 뜻이 '이 회기 것'으로 좁아졌다.
+ * 그런데 그 버튼은 화면에서 "이 기기에 저장된 녹음"을 지운다고 약속한다.
+ * 태블릿을 반납하거나 넘겨줄 때 쓰는 버튼이라 그 차이가 그대로 사고가 된다.
+ */
+export async function forgetAllRecordings(): Promise<void> {
+  clearSnap();
+  await deleteAllRecordings();
+}
+
+/**
+ * 지금 보고 있는 어르신 것이 아닌 녹음을 치운다. 어르신을 바꿀 때 부른다.
+ *
+ * 예전에는 여기서 기기의 녹음을 통째로 지웠다. 칸이 하나뿐이라 남의 녹음이
+ * 이 회기 것으로 읽힐 수 있었기 때문이다. 이제 칸이 갈려 그 사고는 없지만,
+ * 다른 어르신의 음성을 기기에 들고 다닐 이유도 없다.
+ */
+export async function keepOnlyRecordingsOf(ownerId: string): Promise<void> {
+  clearSnap();
+  await deleteRecordingsExcept(ownerId);
 }
 
 export function recordingUrl(): string | null {
