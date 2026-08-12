@@ -37,8 +37,14 @@ export const CONSENT_SCREEN = '/session/checklist';
 /**
  * 여쭙는 순서 — 회기에서 먼저 필요한 것부터.
  *
- * 다섯 가지를 한 번에 받는 '전체 동의' 버튼은 두지 않는다. 목적별 분리
- * 동의가 이 제품의 규칙이다 (원칙 4 · F-SW-CONS-009).
+ * 다섯 가지를 한 번에 받는 '전체 동의' 버튼은 없다. 목적별 분리 동의가 이
+ * 제품의 규칙이다 (원칙 4 · F-SW-CONS-009).
+ *
+ * 회기 준비 화면에는 이 중 앞의 둘(SESSION_CONSENTS)을 함께 누르는 버튼이
+ * 있다. 왜 그것만은 묶어도 되는지는 그 버튼 자리에 적어 두었다
+ * (app/session/checklist/page.tsx). 뒤의 셋(RESULT_CONSENTS)은 어디서도 함께
+ * 눌리지 않는다 — 노래를 들어 보고 하나씩 정하시는 값이고, 그중 홍보 공개는
+ * 필수화 자체가 막혀 있다(lib/center.ts · canRequireConsent).
  */
 export const CONSENT_ORDER: ConsentKind[] = [
   'recording',
