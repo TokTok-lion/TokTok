@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useSyncExternalStore } from 'react';
-import { hasConsent } from './domain';
+import { everyoneConsented, membersMissing } from './groupConsent';
 import { settled } from './longJob';
 import { adoptStoredRecording, useRecorder } from './recorder';
 import { loadRecording } from './recordingStore';
@@ -352,9 +352,18 @@ export function hasRealTranscript(): boolean {
  * 판단한다.
  */
 async function pending(): Promise<{ blob: Blob; seconds: number | null; savedAt: number } | null> {
+  /*
+   * 참여하신 분 **전원**의 동의라야 보낸다.
+   *
+   * 그룹 회기의 녹음에는 그 방에 계신 분들 목소리가 전부 담긴다. 기준 어르신
+   * 한 분만 보고 내보내면 나머지 분들의 음성이 동의 없이 전사 업체로 나간다.
+   * 1:1 회기는 한 명짜리라 지금과 다르지 않게 돈다.
+   */
+  if (!(await everyoneConsented('recording'))) return null;
+  if (!(await everyoneConsented('externalAi'))) return null;
+
+  // 동의를 묻는 사이에 회기가 바뀔 수 있어 여기서 다시 읽는다.
   const s = currentSession();
-  if (!hasConsent(s.elder.consents, 'recording')) return null;
-  if (!hasConsent(s.elder.consents, 'externalAi')) return null;
 
   const rec = await loadSettled();
   noteDevice(rec ? { savedAt: rec.savedAt, seconds: rec.seconds } : null);
@@ -399,12 +408,19 @@ export async function runTranscribe(): Promise<void> {
   if (busy) return;
   busy = true;
   try {
-    const s = currentSession();
-    if (
-      !hasConsent(s.elder.consents, 'recording') ||
-      !hasConsent(s.elder.consents, 'externalAi')
-    ) {
-      emit({ kind: 'error', message: '동의가 없어 옮길 수 없어요.', sent: false });
+    // 여기도 전원이다. 위 pending 을 거치지 않고 사람이 직접 누르는 길이라
+    // 같은 자물쇠를 따로 걸어야 한다.
+    const missing = [
+      ...(await membersMissing('recording')),
+      ...(await membersMissing('externalAi')),
+    ];
+    if (missing.length > 0) {
+      const names = [...new Set(missing.map((m) => m.displayName))].join(' · ');
+      emit({
+        kind: 'error',
+        message: `${names} 어르신의 동의가 없어 옮길 수 없어요.`,
+        sent: false,
+      });
       return;
     }
     const rec = await loadSettled();

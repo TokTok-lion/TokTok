@@ -8,6 +8,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, IconCircle, MicLevel, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconBack, IconInfo, IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
 import { QUESTION_LEVELS, hasConsent, type QuestionLevel } from '@/lib/domain';
+import { useGroupConsents } from '@/lib/useGroupConsents';
 import { mmssOrUnknown, releaseRecording, useMicLevel, useRecorder } from '@/lib/recorder';
 import { PROMPT_KIND_LABEL, interviewFlow } from '@/lib/prompts';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
@@ -128,8 +129,20 @@ export default function InterviewPage() {
   const question = { ...flow[at], level: levels[0].level };
   const nextUp = flow.slice(at + 1, at + 4);
 
-  // 녹음 동의가 없으면 마이크는 시작조차 하지 않는다 (F-SW-INT-001)
-  const canRecord = hasConsent(s.elder.consents, 'recording');
+  /*
+   * 녹음 동의가 없으면 마이크는 시작조차 하지 않는다 (F-SW-INT-001).
+   *
+   * 그룹 회기는 **전원**이라야 한다. 예전에는 여기서 s.elder 한 분만 봤는데,
+   * 방 하나를 녹음하면 그 방에 계신 분들 목소리가 전부 담긴다 — 기준 어르신만
+   * 동의하시면 나머지 분들의 음성이 동의 없이 들어간다. 화면상으로는 정상
+   * 동작과 구분되지 않고, 원음성은 이 서비스에서 가장 민감한 자료다.
+   *
+   * 아직 읽는 중이면 켜지 않는다. 그 사이에 마이크가 열리면 그것이 바로
+   * 막으려던 일이다(useGroupConsents 의 everyone 이 loading 을 false 로 답한다).
+   */
+  const group = useGroupConsents();
+  const canRecord = group.everyone('recording');
+  const notConsented = group.missing('recording');
 
   // 화면을 벗어나면 마이크를 확실히 끈다. 켜진 채로 남으면 어르신 앞에서
   // 무엇이 녹음되는지 아무도 모르게 된다. 끄면서 녹음본은 마무리된다.
@@ -439,9 +452,13 @@ export default function InterviewPage() {
             <IconInfo size={20} className="shrink-0" />
             아직 녹음 동의를 받지 않았어요
           </p>
+          {/* 누구의 동의가 없는지 이름을 댄다. 그룹에서 "동의가 없어요"만
+              떠 있으면 네 분 중 누구를 다시 여쭤야 할지 알 수 없다. */}
           <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
-            {s.elder.honorific}께 여쭙고 동의를 받으시면 마이크가 열려요. 마이크나
-            기기 문제가 아닙니다.
+            {notConsented.length === 0
+              ? '동의를 확인하는 중이에요.'
+              : `${notConsented.map((m) => m.displayName).join(' · ')} 어르신께 여쭙고 동의를 받으시면 마이크가 열려요.`}{' '}
+            마이크나 기기 문제가 아닙니다.
           </p>
           <Link
             href="/session/checklist"

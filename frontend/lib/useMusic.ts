@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { claimSound, releaseSound } from '@/components/SamplePlayer';
 import { hasConsent, type LyricSection } from './domain';
+import { membersMissing } from './groupConsent';
 import { settled } from './longJob';
 import {
   cacheServerSong,
@@ -143,10 +144,18 @@ export function useMusic() {
     // 렌더 시점의 allowed 로 판단하면 동의하지 않으신 어르신의 가사가 실제로
     // 외부 사업자에게 나갈 수 있다. 화면 표시용 allowed 와 실제 게이트를
     // 나눠 두는 이유가 이것이다.
-    if (!hasConsent(now.elder.consents, 'externalAi')) {
+    /*
+     * 참여하신 분 **전원**의 동의라야 보낸다.
+     *
+     * 그룹 회기의 가사는 그 방에서 나온 이야기로 만들어진다. 기준 어르신만
+     * 보고 내보내면 나머지 분들의 말씀이 동의 없이 외부 사업자에게 나간다.
+     */
+    const noConsent = await membersMissing('externalAi');
+    if (noConsent.length > 0) {
+      const names = noConsent.map((m) => m.displayName).join(' · ');
       setState({
         kind: 'error',
-        message: '외부 AI 전송에 동의하지 않으셔서 곡은 만들지 않아요.',
+        message: `${names} 어르신이 외부 AI 전송에 동의하지 않으셔서 곡은 만들지 않아요.`,
       });
       return;
     }

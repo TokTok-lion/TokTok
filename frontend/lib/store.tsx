@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { forgetConsentCache } from './groupConsent';
 import { forgetRecordingsOf, keepOnlyRecordingsOf } from './recorder';
 import { deleteServerRecordingsOf } from './recordingSync';
 import { readParticipantRecord, writeConsent } from './repo';
@@ -828,6 +829,13 @@ export function useSession() {
   const setConsent = useCallback((kind: ConsentKind, granted: boolean) => {
     const before: Consents = { ...DEFAULT_CONSENTS, ...state.elder.consents };
     const decision: ConsentState = granted ? 'granted' : 'withdrawn';
+
+    /*
+     * 그룹 동의 답을 짧게 기억해 두는 곳이 있다(groupConsent). 여기서 비우지
+     * 않으면 최대 30초 동안 옛 답이 나오고, 그 30초 안에 녹음이 시작될 수
+     * 있다 — 방금 거두신 분의 목소리가 담긴다.
+     */
+    forgetConsentCache();
     update({
       ...state,
       elder: { ...state.elder, consents: { ...before, [kind]: decision } },
