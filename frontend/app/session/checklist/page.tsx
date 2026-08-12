@@ -69,6 +69,16 @@ export default function ChecklistPage() {
    * 켜는 일이고, 그 회기는 받아 적기로 간다.
    */
   const onCheck = async (key: PrepCheck) => {
+    /*
+     * 도는 동안에는 두 번째 누름을 받지 않는다.
+     *
+     * 예전에는 aria-busy 만 붙이고 버튼을 잠그지 않았다. 권한 팝업이 떠 있는
+     * 동안 한 번 더 누르면 두 호출이 나란히 s.checklist.mic === false 를 보고
+     * 통과했고, 둘 다 성공해서 toggleChecklist 가 두 번 돌았다 — 마이크는
+     * 확인됐는데 체크는 풀린 채로 남는다. 그러면 복지사는 다시 누르고,
+     * getUserMedia 가 또 열린다.
+     */
+    if (micBusy) return;
     if (key !== 'mic' || s.checklist.mic) {
       toggleChecklist(key);
       return;
@@ -268,6 +278,7 @@ export default function ChecklistPage() {
                 role="switch"
                 aria-checked={done}
                 onClick={() => void onCheck(key)}
+                disabled={micBusy && key === 'mic'}
                 aria-busy={micBusy && key === 'mic' ? true : undefined}
                 className="flex min-h-[80px] w-full items-center gap-4 rounded-[20px] bg-surface px-4 text-left shadow-[0_2px_10px_rgba(122,84,46,0.06)]"
               >

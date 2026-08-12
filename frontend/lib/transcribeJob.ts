@@ -5,6 +5,7 @@ import { hasConsent } from './domain';
 import { settled } from './longJob';
 import { useRecorder } from './recorder';
 import { loadRecording } from './recordingStore';
+import { getSupabase } from './supabase';
 import { currentSession, setSessionField, useSession, type SessionState } from './store';
 
 /**
@@ -542,8 +543,28 @@ const DIRECT_LIMIT = 3.5 * 1024 * 1024;
  * 실패하는 자리가 하나로 모인다 — 여기서 따로 오류 문구를 만들면 화면이
  * 아는 실패 모양이 둘로 늘어난다.
  */
+/**
+ * 지금 로그인한 사람의 토큰. 없으면 빈 머리말.
+ *
+ * 전사 경로는 요금이 나가고 어르신 목소리가 밖으로 나가는 자리라 인증을
+ * 건다(app/api/transcribe). 서버를 안 쓰는 배포에서는 토큰이 없고, 그쪽
+ * 라우트도 확인할 것이 없어 그대로 통과한다.
+ */
+async function authHeader(): Promise<Record<string, string>> {
+  try {
+    const sb = getSupabase();
+    if (!sb) return {};
+    const { data } = await sb.auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 async function send(blob: Blob): Promise<Response> {
   const type = blob.type || 'audio/webm';
+  const auth = await authHeader();
   /*
    * 오늘 주제를 같이 보낸다. 인식에 미리 알려 줄 낱말이 거기서 나온다
    * (lib/speechHints.ts) — '첫 월급'을 '차 벌금'으로 듣던 자리다.
@@ -558,7 +579,7 @@ async function send(blob: Blob): Promise<Response> {
     const f = new FormData();
     f.append('file', blob, 'interview.webm');
     if (topic) f.append('topic', topic);
-    return fetch('/api/transcribe', { method: 'POST', body: f });
+    return fetch('/api/transcribe', { method: 'POST', headers: auth, body: f });
   };
 
   if (blob.size <= DIRECT_LIMIT) return form();
@@ -566,7 +587,7 @@ async function send(blob: Blob): Promise<Response> {
   try {
     const opened = await fetch('/api/transcribe/upload', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...auth },
       body: JSON.stringify({ contentType: type }),
     });
     // 형식을 못 다룬다는 답(415)은 저장소를 거쳐도 같다. 그대로 화면에
@@ -589,7 +610,7 @@ async function send(blob: Blob): Promise<Response> {
 
     return fetch('/api/transcribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...auth },
       body: JSON.stringify({ object, contentType: type, topic }),
     });
   } catch {
@@ -624,9 +645,10 @@ async function resume(
   job: { seconds: number; savedAt: number },
 ): Promise<void> {
   emit({ kind: 'busy', auto: false, resumed: true });
+  const auth = await authHeader();
   let first: Response;
   try {
-    first = await fetch(`/api/transcribe?job=${encodeURIComponent(jobId)}`);
+    first = await fetch(`/api/transcribe?job=${encodeURIComponent(jobId)}`, { headers: auth });
   } catch {
     emit({
       kind: 'error',
@@ -657,8 +679,11 @@ async function finish(
   let res: Response;
   try {
     // 긴 녹음은 한 요청 안에서 안 끝난다. 서버가 작업 번호를 주면 끝날
-    // 때까지 대신 물어봐 준다.
-    res = await settled(first, (id) => `/api/transcribe?job=${encodeURIComponent(id)}`);
+    // 때까지 대신 물어봐 준다. 토큰도 함께 보낸다 — 폴링이 맨몸으로 가면
+    // 작업은 돌고 있는데 401 로 결과를 못 받는다.
+    res = await settled(first, (id) => `/api/transcribe?job=${encodeURIComponent(id)}`, {
+      headers: await authHeader(),
+    });
   } catch {
     // 폴링이 끊겼다. 녹음은 이미 넘어간 뒤이므로 자동 재시도에서 뺀다.
     emit({

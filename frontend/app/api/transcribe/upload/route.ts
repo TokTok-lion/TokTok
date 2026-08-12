@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { UNSUPPORTED_AUDIO } from '@/lib/providers/types';
 import { stt } from '@/lib/providers';
+import { requireUser } from '@/lib/apiAuth';
 import { gcsResumableSession, googleConfigured, GCS_BUCKET } from '@/lib/providers/google';
 
 /**
@@ -22,6 +23,18 @@ import { gcsResumableSession, googleConfigured, GCS_BUCKET } from '@/lib/provide
 export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
+  /*
+   * 누가 부르는지 먼저 확인한다.
+   *
+   * 이 라우트가 내주는 것은 '저장소에 바이트를 쓸 수 있는 주소'다. 크기
+   * 제한도 없다 — 함수를 안 거치는 것이 이 길의 요점이라 걸 자리가 없다.
+   * 그래서 확인이 앞에 있어야 한다. 안 그러면 버킷이 남의 저장소가 되고,
+   * 이어서 전사를 걸면 그 달 한도가 마른다. 한도가 마르면 화면은 복지사에게
+   * '받아 적어 진행해 주세요'라고 말한다.
+   */
+  const who = await requireUser(req);
+  if (!who.ok) return NextResponse.json({ error: who.error }, { status: 401 });
+
   if (!googleConfigured() || !GCS_BUCKET) {
     return NextResponse.json(
       { error: '이 배포에는 전사 기능이 설정되어 있지 않습니다.' },

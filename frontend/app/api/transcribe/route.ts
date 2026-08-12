@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stt } from '@/lib/providers';
+import { requireUser } from '@/lib/apiAuth';
 
 /**
  * 녹음을 글로 옮기기.
@@ -47,12 +48,19 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** 아직이면 표를 돌려주고, 끝났으면 전사 결과를 준다. */
 export async function GET(req: Request) {
+  const who = await requireUser(req);
+  if (!who.ok) return NextResponse.json({ error: who.error }, { status: 401 });
+
   const job = new URL(req.url).searchParams.get('job');
   if (!job) return NextResponse.json({ error: '작업 번호가 없습니다.' }, { status: 400 });
   return settle(() => stt.poll(job), job);
 }
 
 export async function POST(req: Request) {
+  // 어르신 목소리가 외부로 나가는 자리다. 누가 부르는지부터 확인한다.
+  const who = await requireUser(req);
+  if (!who.ok) return NextResponse.json({ error: who.error }, { status: 401 });
+
   /*
    * 입구가 둘이다.
    *

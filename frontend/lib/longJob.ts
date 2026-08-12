@@ -12,7 +12,12 @@
 export async function settled(
   first: Response,
   again: (job: string) => string,
-  opts: { everyMs?: number; timeoutMs?: number } = {},
+  /**
+   * headers 는 다시 물을 때도 같이 보낸다. 전사 경로는 인증이 걸려 있어서,
+   * 처음 요청만 토큰을 달고 폴링이 맨몸으로 가면 401 로 떨어진다 — 작업은
+   * 서버에서 멀쩡히 돌고 있는데 결과를 못 받는다.
+   */
+  opts: { everyMs?: number; timeoutMs?: number; headers?: Record<string, string> } = {},
 ): Promise<Response> {
   const every = opts.everyMs ?? 5_000;
   const until = Date.now() + (opts.timeoutMs ?? 6 * 60_000);
@@ -31,7 +36,7 @@ export async function settled(
       );
     }
     await new Promise((r) => setTimeout(r, every));
-    res = await fetch(again(job));
+    res = await fetch(again(job), { headers: opts.headers });
   }
   return res;
 }
