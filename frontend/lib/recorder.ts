@@ -166,9 +166,39 @@ function subscribe(cb: () => void) {
   return () => listeners.delete(cb);
 }
 
+/**
+ * 녹음 길이는 시계로 잰다. 초를 세지 않는다.
+ *
+ * 예전에는 setInterval 이 1초마다 snap.seconds 에 1을 더했다. 그런데 브라우저는
+ * 탭이 뒤로 가면 타이머를 조인다 — 크롬은 분당 1회까지 떨어뜨리고, 아이패드는
+ * 아예 멈춘다. 회기 중 태블릿 화면이 꺼지는 것은 드문 일이 아니다.
+ *
+ * 실제로 그렇게 나왔다. 기기에 22.0MB 짜리 녹음이 남아 있는데 화면은 1:14 라고
+ * 적고 있었다. 그 크기를 비트레이트로 되짚으면 스물세 시간이 아니라 스물세
+ * 분이다 — 열여덟 배가 어긋난 셈이다.
+ *
+ * 틀린 숫자가 표시로만 끝나지 않는다. 이 값이 meta.seconds 로 저장되고,
+ * 전사 결과와 활동일지가 그것을 받아 쓴다. 무엇보다, 스물세 분을 말씀하신
+ * 뒤에 '1:14'를 본 복지사는 녹음이 실패한 줄 알고 다시 녹음한다. 다시 녹음은
+ * 앞 녹음을 지우고, 그건 되돌릴 수 없다.
+ *
+ * 그래서 시작한 시각을 붙잡아 두고 지금과의 차이를 잰다. 화면 갱신은 여전히
+ * 타이머가 하지만, 그 타이머가 조여도 값 자체는 시계에서 오므로 틀리지 않는다.
+ * 일시정지한 만큼은 빼야 하니 그 시간도 따로 모은다.
+ */
+let startedAt = 0;
+let pausedTotal = 0;
+let pausedAt = 0;
+
+function elapsed(): number {
+  if (!startedAt) return 0;
+  const paused = pausedTotal + (pausedAt ? Date.now() - pausedAt : 0);
+  return Math.max(0, Math.floor((Date.now() - startedAt - paused) / 1000));
+}
+
 function startTicker() {
   stopTicker();
-  ticker = window.setInterval(() => emit({ seconds: snap.seconds + 1 }), 1000);
+  ticker = window.setInterval(() => emit({ seconds: elapsed() }), 1000);
 }
 
 function stopTicker() {
@@ -269,7 +299,9 @@ export async function startRecording(): Promise<void> {
     const index = chunks.length;
     chunks.push(e.data);
     void appendChunk(index, e.data, {
-      seconds: snap.seconds,
+      // 화면 값이 아니라 시계에서 읽는다. 타이머가 조여 있으면 snap.seconds
+      // 는 갱신이 늦고, 기기에 남는 것은 이 값이다.
+      seconds: elapsed(),
       mime: mimeType || 'audio/webm',
       savedAt: Date.now(),
       finished: false,
@@ -290,7 +322,7 @@ export async function startRecording(): Promise<void> {
     // "중간에 끊긴 녹음"으로 되살린다.
     if (chunks.length) {
       void appendChunk(chunks.length - 1, chunks[chunks.length - 1], {
-        seconds: snap.seconds,
+        seconds: elapsed(),
         mime: mimeType || 'audio/webm',
         savedAt: Date.now(),
         finished: true,
@@ -299,6 +331,10 @@ export async function startRecording(): Promise<void> {
   };
 
   recorder.start(1000); // 1초마다 조각을 받아 둬야 중간에 죽어도 남는다
+  // 시계를 여기서 맞춘다. 길이는 이 시각과의 차이로만 잰다(elapsed).
+  startedAt = Date.now();
+  pausedTotal = 0;
+  pausedAt = 0;
   emit({
     state: 'recording',
     seconds: 0,
@@ -317,6 +353,8 @@ export function pauseRecording() {
   if (recorder?.state === 'recording') {
     recorder.pause();
     stopTicker();
+    // 멈춘 시각을 붙잡아 둔다. 이 시간은 녹음 길이에서 빠져야 한다.
+    pausedAt = Date.now();
     // 멈춘 동안 막대가 흔들리면 아직 담고 있는 것처럼 보인다.
     emitLevel(0);
     emit({ state: 'paused' });
@@ -326,6 +364,10 @@ export function pauseRecording() {
 export function resumeRecording() {
   if (recorder?.state === 'paused') {
     recorder.resume();
+    if (pausedAt) {
+      pausedTotal += Date.now() - pausedAt;
+      pausedAt = 0;
+    }
     startTicker();
     emit({ state: 'recording' });
   }
@@ -333,6 +375,9 @@ export function resumeRecording() {
 
 export function stopRecording() {
   stopTicker();
+  // 마지막으로 한 번 시계를 읽는다. 타이머가 조여 있었으면 화면의 값이
+  // 실제보다 짧은 채로 굳는데, 그 값이 그대로 저장돼 회기 기록이 된다.
+  if (startedAt) emit({ seconds: elapsed() });
   stopMeter();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   recorder = null;
