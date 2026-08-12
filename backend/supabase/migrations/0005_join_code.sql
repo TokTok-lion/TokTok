@@ -47,7 +47,8 @@ language plpgsql
 volatile
 as $$
 declare
-  alphabet constant text := 'ABCDEFGHJKLMNPQRTUVWXYZ23467892346789';
+  -- 뺀 글자: 0 O · 1 I · 5 S. 손으로 옮길 때 서로 헷갈리는 짝들이다.
+  alphabet constant text := 'ABCDEFGHJKLMNPQRTUVWXYZ2346789';
   candidate text;
 begin
   loop
