@@ -4,6 +4,7 @@ import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, OutlineButton, PrimaryButton } from '@/components/ui';
 import { IconEdit, IconExport } from '@/components/icons';
+import { StaleLyricsNote } from '@/components/StaleLyricsNote';
 import { printLog } from '@/lib/export';
 import { songTitleForTopic } from '@/lib/scenes';
 import { useSession } from '@/lib/store';
@@ -67,6 +68,10 @@ export default function LyricCardPage() {
         )
       }
     >
+      {/* 이 카드와 인쇄본은 고치신 대로 나가지만 노래는 아직 옛 가사다.
+          어르신께 종이를 드리면서 노래를 함께 트는 자리라 여기서도 말한다. */}
+      <StaleLyricsNote where="card" />
+
       {feature ? (
         <Card className="p-3.5">
           <p className="flex items-center justify-center gap-2 text-[1.0625rem] font-bold text-ink-900">
