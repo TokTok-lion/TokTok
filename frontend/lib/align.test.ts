@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { alignLines } from './align.ts';
+import { alignLines, cueFractions, lineAtFraction } from './align.ts';
 
 const LINES = ['순천서 나고 자랐지', '거기가 내 고향이여', '김장에는 굴을 넣어'];
 
@@ -98,4 +98,27 @@ test('가사가 없으면 빈 결과', () => {
   const out = alignLines([{ text: '아', at: 1 }], [], 10);
   assert.deepEqual(out.starts, []);
   assert.equal(out.anchored, 0);
+});
+
+/* ---- 잰 값이 화면의 '지금 줄'로 이어지는 자리 ---- */
+
+test('잰 시각이 비율로 바뀌고 마지막 칸은 곡의 끝이다', () => {
+  const f = cueFractions([0, 30, 60], 120);
+  assert.deepEqual(f, [0, 0.25, 0.5, 1]);
+});
+
+test('곡 길이보다 뒤에 잡힌 시각은 끝으로 접는다', () => {
+  const f = cueFractions([0, 100, 200], 120);
+  assert.deepEqual(f, [0, 100 / 120, 1, 1]);
+});
+
+test('실제로 잰 곡에서 100초는 아홉 번째 줄이다', () => {
+  // 배포본에서 실제로 잰 값(12줄). 8번 줄이 98.7초에 시작한다.
+  const cues = [0.2, 15, 25.3, 34.8, 41.9, 49.1, 55.8, 62.6, 98.7, 108.1, 117.4, 127.1];
+  const total = 150;
+  const f = cueFractions(cues, total);
+  assert.equal(lineAtFraction(f, 100 / total), 8);
+  // 간주 한가운데(80초)에서는 아직 여덟 번째 줄에 머문다 — 어림이라면
+  // 벌써 다음 줄로 넘어가 있을 자리다.
+  assert.equal(lineAtFraction(f, 80 / total), 7);
 });

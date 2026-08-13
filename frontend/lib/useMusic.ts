@@ -21,6 +21,7 @@ import {
   songQuotaLeft,
   uploadSong,
 } from './songSync';
+import { cueFractions, lineAtFraction } from './align';
 import { currentSession, useSession } from './store';
 import { useDeviceSongState } from './useDeviceSong';
 
@@ -790,37 +791,10 @@ function lineStarts(lines: CueLine[]): number[] {
   return out;
 }
 
-/**
- * 잰 시각을 비율로 바꾼다.
- *
- * 아래 계산은 전부 "곡의 어디쯤"(0~1)으로 되어 있다. 잰 값을 그 자리에 그대로
- * 끼워 넣으면, 손으로 맞추는 길과 '처음부터 듣기'가 예전 그대로 돌아간다.
- *
- * 마지막 칸(길이 = 줄 수 + 1)은 곡의 끝이다. 마지막 줄이 언제 끝나는지는
- * 재지 않았으므로 곡이 끝날 때까지로 둔다.
- */
-function cueStarts(cues: number[], total: number): number[] {
-  const out = cues.map((sec) => clamp(sec / total, 0, 1));
-  out.push(1);
-  // 뒤로만 가게 한다. 정렬이 이미 그렇게 주지만, 곡 길이가 예상과 다르면
-  // 끝쪽이 1 에 몰려 순서가 뒤집힐 수 있다.
-  for (let i = 1; i < out.length; i += 1) {
-    if (out[i] < out[i - 1]) out[i] = out[i - 1];
-  }
-  return out;
-}
-
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
 
-function indexAtFraction(starts: number[], f: number): number {
-  // starts 는 줄 수 + 1 개라, 마지막 줄의 번호는 length - 2 다.
-  const last = starts.length - 2;
-  if (last < 0) return -1;
-  for (let i = last; i > 0; i--) if (f >= starts[i]) return i;
-  return 0;
-}
 
 /**
  * 노래방처럼 지금 줄을 짚어 준다.
@@ -850,7 +824,7 @@ export function useLyricCue(
   const measured =
     Array.isArray(cues) && cues.length === lines.length && lines.length > 0 && total > 0;
   const starts = useMemo(
-    () => (measured ? cueStarts(cues as number[], total) : lineStarts(lines)),
+    () => (measured ? cueFractions(cues as number[], total) : lineStarts(lines)),
     [measured, cues, total, lines],
   );
 
@@ -894,7 +868,7 @@ export function useLyricCue(
     } else {
       f = 1;
     }
-    return indexAtFraction(starts, f);
+    return lineAtFraction(starts, f);
   }, [count, auto, timed, mark, at, total, starts]);
 
   const step = useCallback(
