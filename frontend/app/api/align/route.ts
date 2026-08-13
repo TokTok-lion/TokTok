@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { alignLines } from '@/lib/align';
-import { pollAlign, startAlign } from '@/lib/providers/stt-align';
+import { pollAlign, startAlign, startAlignFile } from '@/lib/providers/stt-align';
 import { requireUser } from '@/lib/apiAuth';
 
 /**
@@ -52,14 +52,42 @@ type Body = {
   duration?: number;
 };
 
+/**
+ * 입구가 둘이다.
+ *
+ *   · 곡 파일 그대로 (multipart) — 곡은 3~4MB 라 함수를 지나갈 수 있다.
+ *   · 저장소에 이미 올라간 곡 { object } (JSON), 그리고 이어서 묻는 { job }.
+ *
+ * 파일을 그대로 받는 쪽이 기본이다. 브라우저가 저장소로 바로 올리는 길은
+ * 저장소 CORS 설정에 달려 있는데, 지금 배포에서는 그 길이 막혀 있다.
+ * 노래는 짧아서 함수를 지나가도 되므로, 되는 길로 간다.
+ */
+async function readBody(req: Request): Promise<{ body: Body; file: Blob | null }> {
+  const type = req.headers.get('content-type') ?? '';
+  if (!type.includes('multipart/form-data')) {
+    return { body: (await req.json()) as Body, file: null };
+  }
+  const form = await req.formData();
+  const file = form.get('file');
+  const raw = form.get('lines');
+  return {
+    body: {
+      lines: typeof raw === 'string' ? (JSON.parse(raw) as string[]) : [],
+      duration: Number(form.get('duration')) || 0,
+    },
+    file: file instanceof Blob ? file : null,
+  };
+}
+
 export async function POST(req: Request) {
   // 우리 저장소에 쓰고 인식 한도를 쓰는 자리다. 누가 부르는지부터 본다.
   const who = await requireUser(req);
   if (!who.ok) return NextResponse.json({ error: who.error }, { status: 401 });
 
   let body: Body;
+  let file: Blob | null;
   try {
-    body = (await req.json()) as Body;
+    ({ body, file } = await readBody(req));
   } catch {
     return NextResponse.json({ error: '요청을 읽지 못했습니다.' }, { status: 400 });
   }
@@ -75,9 +103,11 @@ export async function POST(req: Request) {
 
   const started = body.job
     ? await pollAlign(body.job)
-    : body.object
-      ? await startAlign(body.object)
-      : null;
+    : file
+      ? await startAlignFile(file)
+      : body.object
+        ? await startAlign(body.object)
+        : null;
   if (!started) {
     return NextResponse.json({ error: '곡을 찾지 못했습니다.' }, { status: 400 });
   }

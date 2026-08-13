@@ -71,32 +71,19 @@ type AlignReply = {
   error?: string;
 };
 
-/** 저장소에 올리고 맞추기를 건다. 실패는 null 이다. */
+/**
+ * 곡을 보내고 맞추기를 건다. 실패는 null 이다.
+ *
+ * 곡 파일을 그대로 올린다. 브라우저가 저장소로 바로 올리는 길(녹음이 쓰는
+ * 길)은 저장소 CORS 설정에 달려 있고 지금 배포에서는 막혀 있는데, 노래는
+ * 3~4MB 라 함수를 지나갈 수 있다(Vercel 본문 한도 4.5MB).
+ */
+const MAX_BYTES = 4 * 1024 * 1024;
+
 async function measure(lines: string[], duration: number): Promise<number[] | null> {
   const blob = await loadSong();
-  if (!blob) return null;
-  const type = blob.type || 'audio/mpeg';
+  if (!blob || blob.size > MAX_BYTES) return null;
   const auth = await authHeader();
-
-  const opened = await fetch('/api/transcribe/upload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...auth },
-    body: JSON.stringify({ contentType: type }),
-  }).catch(() => null);
-  if (!opened?.ok) return null;
-
-  const { uploadUrl, object } = (await opened.json().catch(() => ({}))) as {
-    uploadUrl?: string;
-    object?: string;
-  };
-  if (!uploadUrl || !object) return null;
-
-  const put = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': type },
-    body: blob,
-  }).catch(() => null);
-  if (!put?.ok) return null;
 
   const call = async (body: Record<string, unknown>) =>
     fetch('/api/align', {
@@ -105,7 +92,15 @@ async function measure(lines: string[], duration: number): Promise<number[] | nu
       body: JSON.stringify({ ...body, lines, duration }),
     }).catch(() => null);
 
-  let res = await call({ object });
+  const form = new FormData();
+  form.append('file', blob, 'song.mp3');
+  form.append('lines', JSON.stringify(lines));
+  form.append('duration', String(duration));
+  let res = await fetch('/api/align', {
+    method: 'POST',
+    headers: auth,
+    body: form,
+  }).catch(() => null);
   /*
    * 202 는 "아직"이다. 표를 들고 다시 묻는다. 곡은 3분 안쪽이라 오래 걸리지
    * 않지만, 몇 번 물어볼지는 한도를 둔다 — 끝나지 않는 작업에 화면이 매달려

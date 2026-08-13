@@ -3,6 +3,7 @@ import { fail, type Fail, type Job } from './types';
 import {
   GCS_BUCKET,
   gcsDelete,
+  gcsUpload,
   googleConfigured,
   googleProjectId,
   googleToken,
@@ -72,7 +73,35 @@ function notReady(): Fail | null {
   return null;
 }
 
-/** 저장소에 올라간 곡 하나로 맞추기를 건다. */
+/**
+ * 곡 파일을 받아 우리가 저장소에 올리고 맞추기를 건다.
+ *
+ * ── 왜 브라우저가 직접 안 올리나
+ *
+ * 긴 녹음은 브라우저가 저장소로 바로 올린다(api/transcribe/upload). 그런데
+ * 그 길은 저장소 쪽 CORS 설정이 있어야 열리고, 지금 배포에서는 막혀 있다.
+ *
+ * 곡은 3~4MB 라 함수를 지나가도 된다(Vercel 본문 한도 4.5MB 안쪽). 지나가게
+ * 두면 CORS 와 무관해진다 — 되는 길이 하나면 그 길로 간다. 녹음은 20분이
+ * 넘을 수 있어서 그럴 수 없지만, 노래는 길어야 4분이다.
+ */
+export async function startAlignFile(file: Blob): Promise<Job<HeardWord[]>> {
+  const bad = notReady();
+  if (bad) return bad;
+
+  const token = await googleToken();
+  if (!token) return fail('구글 인증에 실패했어요.', 503);
+
+  // 이름에 어르신 정보를 넣지 않는다. 잠깐 있다 사라질 파일이지만 그동안에도
+  // 이름은 로그에 남는다.
+  const object = `${OBJ_PREFIX}${crypto.randomUUID()}`;
+  const uri = await gcsUpload(object, await file.arrayBuffer(), file.type || 'audio/mpeg');
+  if (!uri) return fail('곡을 인식 서버로 보내지 못했어요.', 502);
+
+  return recognize(object, token);
+}
+
+/** 저장소에 이미 올라간 곡 하나로 맞추기를 건다. */
 export async function startAlign(object: string): Promise<Job<HeardWord[]>> {
   const bad = notReady();
   if (bad) return bad;
@@ -84,6 +113,11 @@ export async function startAlign(object: string): Promise<Job<HeardWord[]>> {
 
   const token = await googleToken();
   if (!token) return fail('구글 인증에 실패했어요.', 503);
+
+  return recognize(object, token);
+}
+
+async function recognize(object: string, token: string): Promise<Job<HeardWord[]>> {
 
   const res = await fetch(
     `https://${host()}/v2/projects/${googleProjectId()}/locations/${REGION}/recognizers/_:batchRecognize`,
