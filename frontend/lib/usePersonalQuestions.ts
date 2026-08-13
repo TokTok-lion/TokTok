@@ -47,6 +47,14 @@ export type PersonalQuestions = {
   loading: boolean;
   /** 지난 이야기가 아직 없어서 못 만든 경우 — 첫 회기가 여기다. */
   noHistory: boolean;
+  /**
+   * 피하고 싶은 주제와 겹쳐 아예 보내지 않은 지난 이야기 수.
+   *
+   * 화면이 이걸 말해 줘야 질문이 적게 나온 것이 고장이 아님을 안다. 다만
+   * 어느 이야기였는지는 돌려주지 않는다 — 그걸 화면에 적으면 가리려던 것을
+   * 그대로 보여 주는 셈이다.
+   */
+  withheld: number;
 };
 
 export function usePersonalQuestions(): PersonalQuestions {
@@ -55,6 +63,7 @@ export function usePersonalQuestions(): PersonalQuestions {
     questions: [],
     loading: true,
     noHistory: false,
+    withheld: 0,
   });
 
   const participant = s.remoteParticipantId;
@@ -67,19 +76,19 @@ export function usePersonalQuestions(): PersonalQuestions {
     // 어르신이 없을 때도 콜백을 거쳐 답한다.
     void (async () => {
       if (!participant) {
-        if (alive) setOut({ questions: [], loading: false, noHistory: true });
+        if (alive) setOut({ questions: [], loading: false, noHistory: true, withheld: 0 });
         return;
       }
       const sb = getSupabase();
       const account = await accountReady();
       if (!sb || account.status !== 'in') {
-        if (alive) setOut({ questions: [], loading: false, noHistory: true });
+        if (alive) setOut({ questions: [], loading: false, noHistory: true, withheld: 0 });
         return;
       }
 
       // 전원 동의라야 지난 이야기를 밖으로 보낸다.
       if ((await membersMissing('externalAi')).length > 0) {
-        if (alive) setOut({ questions: [], loading: false, noHistory: false });
+        if (alive) setOut({ questions: [], loading: false, noHistory: false, withheld: 0 });
         return;
       }
 
@@ -101,11 +110,15 @@ export function usePersonalQuestions(): PersonalQuestions {
         .map((r) => r.text);
 
       if (facts.length < 2) {
-        if (alive) setOut({ questions: [], loading: false, noHistory: true });
+        if (alive) setOut({ questions: [], loading: false, noHistory: true, withheld: 0 });
         return;
       }
 
-      // 피하고 싶은 주제는 어르신 기록에 있다. 있으면 그 근처를 묻지 않게 한다.
+      /*
+       * 피하고 싶은 주제는 어르신 기록에 있다(어르신 프로필에서 적는다).
+       * 라우트가 이 목록으로 지난 이야기를 먼저 덜어 낸다 — 프롬프트에 적어
+       * 보내는 것만으로는 지켜지지 않았다.
+       */
       const rec = await readParticipantRecord(participant).catch(() => null);
 
       const res = await fetch('/api/questions', {
@@ -119,7 +132,10 @@ export function usePersonalQuestions(): PersonalQuestions {
       }).catch(() => null);
 
       const json = res?.ok
-        ? ((await res.json().catch(() => null)) as { questions?: PersonalQuestion[] } | null)
+        ? ((await res.json().catch(() => null)) as {
+            questions?: PersonalQuestion[];
+            withheld?: number;
+          } | null)
         : null;
 
       if (alive) {
@@ -127,6 +143,7 @@ export function usePersonalQuestions(): PersonalQuestions {
           questions: json?.questions ?? [],
           loading: false,
           noHistory: false,
+          withheld: typeof json?.withheld === 'number' ? json.withheld : 0,
         });
       }
     })();

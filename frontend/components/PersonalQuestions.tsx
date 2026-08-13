@@ -27,7 +27,7 @@ import { usePersonalQuestions } from '@/lib/usePersonalQuestions';
  * 나타난다는 것을 알면 복지사가 기다릴 수 있다.
  */
 export function PersonalQuestions() {
-  const { questions, loading, noHistory } = usePersonalQuestions();
+  const { questions, loading, noHistory, withheld } = usePersonalQuestions();
 
   if (loading) return null;
 
@@ -45,7 +45,26 @@ export function PersonalQuestions() {
     );
   }
 
-  if (!questions.length) return null;
+  /*
+   * 지난 이야기가 전부 피하고 싶은 주제와 겹쳐 하나도 못 만든 경우.
+   *
+   * 아무것도 안 그리면 복지사는 개인화가 고장 난 줄 안다. 무엇을 뺐는지는
+   * 적지 않는다 — 그걸 적으면 가리려던 것을 그대로 보여 주는 셈이다.
+   */
+  if (!questions.length) {
+    if (withheld <= 0) return null;
+    return (
+      <Card className="mt-4 p-4">
+        <p className="text-[1rem] font-bold text-ink-900">
+          이번에는 이어지는 질문을 준비하지 못했어요
+        </p>
+        <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">
+          지난 이야기가 피하고 싶은 주제와 겹쳐서 빼 두었어요. 정해진 질문지로
+          진행하시면 됩니다.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mt-4 border-2 border-leaf-300 p-4">
@@ -70,6 +89,13 @@ export function PersonalQuestions() {
           </li>
         ))}
       </ul>
+
+      {/* 뺀 것이 있으면 말해 준다. 질문이 적게 나온 것이 고장이 아니다. */}
+      {withheld > 0 ? (
+        <p className="mt-3 text-[0.8125rem] leading-relaxed text-ink-500">
+          피하고 싶은 주제와 겹치는 지난 이야기 {withheld}개는 빼고 만들었어요.
+        </p>
+      ) : null}
 
       <p className="mt-3 text-[0.8125rem] leading-relaxed text-ink-500">
         여쭤보시고 아니라고 하시면 그냥 넘어가 주세요. 지난 이야기를 잘못 옮겼을

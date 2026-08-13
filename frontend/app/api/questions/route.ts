@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { avoidTerms, dropAvoided, mentionsAvoided } from '@/lib/avoidTopics';
 
 /**
  * 지난 이야기에서 오늘 여쭐 질문을 짓는다.
@@ -24,6 +25,14 @@ import { NextResponse } from 'next/server';
  * 그리고 모델이 어느 사실에서 나온 질문인지 번호로 답하게 한다. 그 번호가
  * 실제 목록을 가리키지 않으면 버린다 — 사실 추출(api/facts)에서 줄 번호를
  * 대조하는 것과 같은 이유다. 부탁하는 것과 통과할 수 없게 만드는 것은 다르다.
+ *
+ * ── 피하고 싶은 주제도 부탁이 아니다
+ *
+ * 처음에는 "피하실 주제(묻지 마세요): 사별"이라고 적어 보내는 것이 전부였다.
+ * 실제로 넣어 보니 모델은 "남편과 사별한 뒤 혼자 지내시면서 어떤 일들을
+ * 하셨나요?"를 그대로 만들어 냈다. 그래서 재료에서 뺀다 — 그 주제를 담은
+ * 지난 이야기는 아예 보내지 않는다. 보내지 않은 이야기는 근거로 댈 수 없고,
+ * 근거가 없으면 질문이 남지 않는다. 돌아온 질문도 한 번 더 훑는다.
  */
 
 export const runtime = 'nodejs';
@@ -67,22 +76,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '요청을 읽지 못했습니다.' }, { status: 400 });
   }
 
-  const facts = (body.facts ?? [])
+  const avoid = (body.avoid ?? []).filter(
+    (a): a is string => typeof a === 'string' && a.trim().length > 0,
+  );
+
+  const all = (body.facts ?? [])
     .filter((f): f is string => typeof f === 'string' && f.trim().length > 0)
     .map((f) => f.trim())
     .slice(0, 40);
+
+  // 피하고 싶은 주제와 겹치는 이야기는 여기서 빠진다. 프롬프트에 적어 보내는
+  // 것과 달리, 이건 지켜지지 않을 수가 없다.
+  const { kept: facts, withheld } = dropAvoided(all, avoid);
 
   /*
    * 지난 이야기가 없으면 지어낼 근거도 없다. 오류가 아니라 '아직 없음'이다 —
    * 첫 회기가 여기로 오고, 그때는 고정 질문이 그대로 쓰인다.
    */
   if (facts.length < 2) {
-    return NextResponse.json({ questions: [] });
+    return NextResponse.json({ questions: [], withheld });
   }
 
   const user = [
     body.card ? `오늘 기억 카드: ${body.card}` : '',
-    body.avoid?.length ? `피하실 주제(묻지 마세요): ${body.avoid.join(', ')}` : '',
+    // 재료에서 이미 뺐지만 그래도 적어 둔다. 남은 이야기의 곁을 묻다가
+    // 그쪽으로 흘러가는 것까지는 재료 거르기로 막지 못한다.
+    avoid.length ? `피하실 주제(묻지 마세요): ${avoid.join(', ')}` : '',
     '',
     '지난 이야기:',
     ...facts.map((f, i) => `${i}. ${f}`),
@@ -117,7 +136,7 @@ export async function POST(req: Request) {
     if (!res.ok) {
       console.error('openai questions failed', res.status);
       // 질문을 못 지어도 회기는 굴러가야 한다. 고정 질문이 그대로 쓰인다.
-      return NextResponse.json({ questions: [] });
+      return NextResponse.json({ questions: [], withheld });
     }
 
     const json = (await res.json()) as {
@@ -148,14 +167,20 @@ export async function POST(req: Request) {
        */
       .filter((q) => q.text.length > 0 && Number.isInteger(q.from))
       .filter((q) => q.from >= 0 && q.from < facts.length)
-      .slice(0, 5)
-      .map((q) => ({ text: q.text, basis: facts[q.from] }));
+      .map((q) => ({ text: q.text, basis: facts[q.from] }))
+      /*
+       * 마지막 그물. 남은 이야기의 곁을 묻다가 피하실 주제로 흘러갈 수 있다 —
+       * '순천에서 자랐다'에서 출발해 피난 이야기를 묻는 식이다. 재료 거르기가
+       * 막지 못하는 자리를 여기서 막는다.
+       */
+      .filter((q) => !mentionsAvoided(q.text, avoidTerms(avoid)))
+      .slice(0, 5);
 
-    return NextResponse.json({ questions });
+    return NextResponse.json({ questions, withheld });
   } catch (e) {
     const aborted = e instanceof Error && e.name === 'AbortError';
     if (!aborted) console.error('questions route failed', e);
     // 여기서도 회기를 막지 않는다. 고정 질문으로 진행된다.
-    return NextResponse.json({ questions: [] });
+    return NextResponse.json({ questions: [], withheld });
   }
 }
