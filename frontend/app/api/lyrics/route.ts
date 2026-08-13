@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { avoidTerms, dropAvoided, mentionsAvoided } from '@/lib/avoidTopics';
 import { chatBody, modelFor } from '@/lib/openaiModel';
-import { keptVerbatim } from '@/lib/verbatim';
+import { verbatimKept } from '@/lib/verbatim';
 
 /**
  * 확인된 이야기로 가사 쓰기.
@@ -26,8 +26,11 @@ import { keptVerbatim } from '@/lib/verbatim';
  * 사실 문장은 이미 다듬어진 말이다. "밥이 목구녕으로 안 넘어갔어"가 사실
  * 목록에서는 "식사를 하기 어려우셨다"가 된다. 그래서 그 사실의 근거가 된
  * 어르신 말씀 원문을 함께 보내고, 특징적인 표현은 그대로 살리라고 한다.
- * 살렸다고 적어 낸 표현은 말씀과 가사 양쪽에 실제로 있는지 대조한다
- * (lib/verbatim). 확인할 수 없는 자랑은 하지 않는다.
+ *
+ * 살아남았는지는 **직접 견준다**(lib/verbatim). 처음에는 모델에게 "살린
+ * 표현을 적어 내라"고 시켰는데, 가사에는 '목구녕'도 '지대로여'도 그대로
+ * 들어갔는데 적어 낸 목록은 비어 있었다. 자기 보고를 세는 것은 세는 것이
+ * 아니다. 겹치는 토막을 찾는 일은 계산이지 판단이 아니므로 우리가 한다.
  */
 
 export const runtime = 'nodejs';
@@ -67,8 +70,6 @@ const SYSTEM = `당신은 한국 어르신의 생애 이야기를 노래 가사�
   표현을 **다듬지 말고 그대로** 가사에 넣으십시오. "밥이 목구녕으로 안
   넘어갔어"를 "밥을 먹기 힘들었죠"로 고치면 뜻은 맞아도 그분 것이 아닙니다.
 - 다만 없는 말을 지어내지는 마십시오. 주어진 말씀 안에 있는 표현만 씁니다.
-- 그렇게 그대로 살린 표현을 kept 에 적습니다. 말씀과 가사 양쪽에 똑같이
-  들어 있는 말만 적으십시오. 적어 낸 것은 대조합니다.
 
 부르기 좋게 쓰는 법 — 이 가사는 기계가 노래합니다. 줄마다 길이가 들쭉날쭉
 하면 음을 억지로 늘이고 줄여서 사람 목소리처럼 들리지 않습니다:
@@ -86,8 +87,7 @@ const SYSTEM = `당신은 한국 어르신의 생애 이야기를 노래 가사�
 출력은 아래 JSON 형식만 내보냅니다. 다른 말은 붙이지 마십시오.
 {"sections":[{"label":"1절","tone":"verse","lines":["...","...","...","..."]},
 {"label":"후렴","tone":"chorus","lines":["...","...","...","..."]},
-{"label":"2절","tone":"verse","lines":["...","...","...","..."]}],
-"kept":["그대로 살린 표현","..."]}`;
+{"label":"2절","tone":"verse","lines":["...","...","...","..."]}]}`;
 
 export async function POST(req: Request) {
   const key = process.env.OPENAI_API_KEY;
@@ -210,13 +210,10 @@ export async function POST(req: Request) {
       const raw = json.choices?.[0]?.message?.content;
       if (!raw) return null;
       try {
-        const parsed = JSON.parse(raw) as { sections?: unknown; kept?: unknown };
+        const parsed = JSON.parse(raw) as { sections?: unknown };
         const clean = normalise(parsed.sections);
         if (!clean.length) return null;
-        const claimed = Array.isArray(parsed.kept)
-          ? parsed.kept.filter((x): x is string => typeof x === 'string')
-          : [];
-        return { clean, claimed };
+        return { clean };
       } catch {
         return null;
       }
@@ -263,8 +260,11 @@ export async function POST(req: Request) {
       withheld,
       /** 그래도 가사에 남은 낱말. 있으면 화면이 복지사에게 짚어 준다. */
       avoidHit: hit,
-      /** 어르신 말씀 그대로 살린 표현 — 말씀과 가사 양쪽에서 확인된 것만. */
-      kept: keptVerbatim(out.claimed, quotes, lines),
+      /**
+       * 어르신 말씀이 그대로 남은 대목 — 우리가 직접 견주어 찾은 것만.
+       * 다듬어진 사실 문장에도 있는 말은 말투가 아니므로 뺀다.
+       */
+      kept: verbatimKept(quotes, lines, facts),
       /** 말투를 살릴 재료가 몇 줄 있었는지. 0이면 살릴 것이 없었다는 뜻이다. */
       quotesUsed: quotes.length,
     });

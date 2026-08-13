@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { keptVerbatim, quotesFor } from './verbatim.ts';
+import { quotesFor, verbatimKept } from './verbatim.ts';
 
 const transcript = [
   { speaker: 'worker', at: 10, text: '식사는 어떠셨어요?' },
@@ -33,32 +33,34 @@ test('시각이 없는 출처(수기·카드)는 원문을 찾지 않는다', ()
   assert.deepEqual(quotesFor(items, transcript), []);
 });
 
-test('말씀에도 있고 가사에도 있어야 살린 것으로 센다', () => {
+test('어르신 말씨가 가사에 남으면 찾아낸다', () => {
   const quotes = ['밥이 목구녕으로 안 넘어갔어'];
   const lines = ['목구녕으로 안 넘어가던 날', '그래도 살아냈지요'];
-  assert.deepEqual(keptVerbatim(['목구녕'], quotes, lines), ['목구녕']);
+  const facts = ['식사를 하기 어려우셨다'];
+  // 어르신은 '넘어갔어', 가사는 '넘어가던' — 겹치는 데까지만 집는다.
+  assert.deepEqual(verbatimKept(quotes, lines, facts), ['목구녕으로 안 넘어']);
 });
 
-test('가사에 없으면 살렸다고 적어 내도 버린다', () => {
+test('다듬어진 가사에는 아무것도 남지 않는다', () => {
   const quotes = ['밥이 목구녕으로 안 넘어갔어'];
   const lines = ['밥을 먹기 힘들었죠'];
-  assert.deepEqual(keptVerbatim(['목구녕'], quotes, lines), []);
+  assert.deepEqual(verbatimKept(quotes, lines, ['식사를 하기 어려우셨다']), []);
 });
 
-test('어르신이 안 하신 말은 말투가 아니다', () => {
-  const quotes = ['순천서 나고 자랐지'];
-  const lines = ['부산서 나고 자랐지'];
-  assert.deepEqual(keptVerbatim(['부산서'], quotes, lines), []);
+test('사실 문장에도 있는 말은 말투로 세지 않는다', () => {
+  const quotes = ['김장에는 꼭 굴을 넣어야 지대로여'];
+  const lines = ['김장에 굴을 넣고'];
+  const facts = ['김장에 굴을 넣으셨다'];
+  assert.deepEqual(verbatimKept(quotes, lines, facts), []);
 });
 
-test('띄어쓰기가 달라도 같은 말로 본다', () => {
-  const quotes = ['밥이 목구녕으로 안 넘어갔어'];
-  const lines = ['목구녕으로  안넘어가던 날'];
-  assert.deepEqual(keptVerbatim(['목구녕으로 안 넘어'], quotes, lines), [
-    '목구녕으로 안 넘어',
-  ]);
+test('짧게 겹치는 것은 우연이므로 세지 않는다', () => {
+  assert.deepEqual(verbatimKept(['그때가 좋았지'], ['그때 하늘'], []), []);
 });
 
-test('두 글자짜리는 우연히 겹치므로 세지 않는다', () => {
-  assert.deepEqual(keptVerbatim(['그때'], ['그때가 좋았지'], ['그때가 좋았네']), []);
+test('한 대목이 길고 짧게 두 번 잡히면 긴 것만 남긴다', () => {
+  const quotes = ['순천서 나고 자랐지 거기가 내 고향이여'];
+  const lines = ['순천서 나고 자랐지', '순천서 나고'];
+  const out = verbatimKept(quotes, lines, ['순천에서 나고 자라셨다']);
+  assert.deepEqual(out, ['순천서 나고 자랐지']);
 });
