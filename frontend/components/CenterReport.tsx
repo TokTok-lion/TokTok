@@ -27,14 +27,28 @@ export function CenterReport() {
     void Promise.all([centerStats(), staffLoads(), costEstimate()]).then(
       ([stats, staff, cost]) => {
         if (!alive || !stats) return;
+        /*
+         * 못 읽은 값을 0 으로 적지 않는다.
+         *
+         * 이 표는 기관 밖으로 나간다. 통신이 끊겨 못 읽었을 뿐인데 "이번 달
+         * 만든 노래 0곡 · AI 어림 요금 0원"이 적힌 보고서가 나가면, 그 종이를
+         * 받은 쪽은 그것을 사실로 읽고 우리는 되돌릴 수 없다. 모르면 모른다고
+         * 적는다.
+         */
+        const n = (v: number | null, unit: string) =>
+          v === null ? '못 읽음' : `${v}${unit}`;
         setRows([
           { label: '기관', value: account.status === 'in' ? account.tenantName : '' },
           { label: '기준일', value: todayStamp() },
-          { label: '이용 중 어르신', value: `${stats.elders}명` },
-          { label: '이번 달 회기', value: `${stats.sessionsThisMonth}회` },
-          { label: '진행 중 회기', value: `${stats.sessionsRunning}회` },
-          { label: '완료 회기', value: `${stats.sessionsDone}회` },
-          { label: '동의 만료 임박(30일)', value: `${stats.consentExpiring}건` },
+          { label: '이용 중 어르신', value: n(stats.elders, '명') },
+          { label: '이번 달 회기', value: n(stats.sessionsThisMonth, '회') },
+          { label: '진행 중 회기', value: n(stats.sessionsRunning, '회') },
+          { label: '완료 회기', value: n(stats.sessionsDone, '회') },
+          {
+            // 이미 만료된 건도 이 수에 들어간다. 제목이 그렇게 말해야 한다.
+            label: '동의 만료 임박(30일 이내·이미 만료 포함)',
+            value: n(stats.consentExpiring, '건'),
+          },
           {
             label: '직원',
             value:
@@ -46,10 +60,12 @@ export function CenterReport() {
             label: '미확정 활동일지',
             value: `${staff.reduce((a, s) => a + s.logsPending, 0)}건`,
           },
-          { label: '이번 달 만든 노래', value: `${cost?.songs ?? 0}곡` },
+          { label: '이번 달 만든 노래', value: cost ? `${cost.songs}곡` : '못 읽음' },
           {
             label: 'AI 어림 요금',
-            value: `${(cost?.krw ?? 0).toLocaleString('ko-KR')}원 (청구서 아님)`,
+            value: cost
+              ? `${cost.krw.toLocaleString('ko-KR')}원 (청구서 아님)`
+              : '못 읽음',
           },
         ]);
       },

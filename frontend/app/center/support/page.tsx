@@ -238,6 +238,12 @@ export default function SupportPage() {
                 남의 직원 교육 현황을 자기 기관 것으로 읽었다. */}
             {stats === null ? (
               <p className="text-[0.9375rem] text-ink-500">불러오는 중…</p>
+            ) : stats.staff === null ? (
+              /* 못 읽은 것을 0명이라고 적지 않는다. 교육 이수 여부를 모른다고
+                 말하는 화면에서 인원수마저 틀리면 아래 문장까지 못 믿게 된다. */
+              <p className="text-[0.9375rem] font-bold leading-relaxed text-ink-700">
+                직원 수를 못 읽었어요. 잠시 뒤 새로고침해 주세요.
+              </p>
             ) : (
               <>
                 <p className="text-[0.9375rem] leading-relaxed text-ink-900">

@@ -18,6 +18,24 @@ import { ROLE_LABELS } from '@/lib/center';
  * 여기에서도 이야기 본문·전사·가사는 읽지 않는다. 권한 표상 센터장은
  * 원음성 "기본 미열람", 전사·스토리는 "진행상태"만 볼 수 있다.
  */
+/**
+ * 못 읽은 칸은 숫자를 그리지 않는다.
+ *
+ * 0 과 '모른다'는 다른 값이다. 조회 하나가 막혔을 뿐인데 "이용 중 어르신
+ * 0명"이 뜨면 센터장은 그것을 사실로 읽는다 — 동의 만료 0건 쪽은 특히 나쁘다.
+ */
+function Num({ v }: { v: number | null }) {
+  if (v === null) {
+    return <span className="text-[1.0625rem] font-bold text-ink-500">못 읽었어요</span>;
+  }
+  return <>{v}</>;
+}
+
+/** 숫자가 없으면 단위도 붙이지 않는다. '못 읽었어요 명'이 되지 않게. */
+function unit(v: number | null, u: string): string | undefined {
+  return v === null ? undefined : u;
+}
+
 export function CenterLive() {
   const { account } = useAccount();
   const [stats, setStats] = useState<CenterStats | null>(null);
@@ -80,31 +98,46 @@ export function CenterLive() {
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi label="이용 중 어르신" value={stats.elders} unit="명" />
+            <Kpi label="이용 중 어르신" value={<Num v={stats.elders} />} unit={unit(stats.elders, '명')} />
             <Kpi
               label="이번 달 회기"
-              value={stats.sessionsThisMonth}
-              unit="회"
+              value={<Num v={stats.sessionsThisMonth} />}
+              unit={unit(stats.sessionsThisMonth, '회')}
               tone="brand"
-              note={`진행 중 ${stats.sessionsRunning} · 완료 ${stats.sessionsDone}`}
+              note={
+                stats.sessionsRunning === null || stats.sessionsDone === null
+                  ? '진행 상태는 못 읽었어요'
+                  : `진행 중 ${stats.sessionsRunning} · 완료 ${stats.sessionsDone}`
+              }
             />
+            {/* 이미 만료된 동의도 이 수에 들어간다(조회에 아래쪽 경계가 없다).
+                '30일 이내'라고만 적으면 아직 하나도 지나지 않은 것으로 읽힌다. */}
             <Kpi
               label="동의 만료 임박"
-              value={stats.consentExpiring}
-              unit="건"
+              value={<Num v={stats.consentExpiring} />}
+              unit={unit(stats.consentExpiring, '건')}
               tone="amber"
-              note="30일 이내"
+              note="30일 이내 · 이미 만료된 건도 포함"
             />
             <Kpi
               label="활동 직원"
-              value={stats.staff.reduce((a, b) => a + b.count, 0)}
-              unit="명"
+              value={<Num v={stats.staff ? stats.staff.reduce((a, b) => a + b.count, 0) : null} />}
+              unit={unit(stats.staff ? 1 : null, '명')}
               tone="leaf"
-              note={stats.staff.map((r) => `${ROLE_LABELS[r.role] ?? r.role} ${r.count}`).join(' · ') || '—'}
+              note={
+                stats.staff
+                  ? stats.staff.map((r) => `${ROLE_LABELS[r.role] ?? r.role} ${r.count}`).join(' · ') || '—'
+                  : '권한별 인원을 못 읽었어요'
+              }
             />
           </div>
 
-          {stats.recent.length ? (
+          {stats.recent === null ? (
+            <p className="mt-4 rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.9375rem] font-bold text-ink-700">
+              최근 회기를 못 읽었어요. 잠시 뒤 새로고침해 주세요. 회기가 없다는
+              뜻이 아닙니다.
+            </p>
+          ) : stats.recent.length ? (
             <ul className="mt-4 space-y-2">
               {stats.recent.map((r) => (
                 <li

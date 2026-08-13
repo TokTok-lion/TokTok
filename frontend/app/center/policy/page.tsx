@@ -106,8 +106,10 @@ export default function PolicyPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Kpi
                 label="만료가 다가온 동의"
-                value={stats.consentExpiring}
-                unit="건"
+                /* 못 읽은 것을 0 건이라고 적지 않는다. 동의가 만료된 어르신이
+                   계신데 0 건으로 보이는 것이 이 화면에서 가장 나쁜 실패다. */
+                value={stats.consentExpiring === null ? '못 읽었어요' : stats.consentExpiring}
+                unit={stats.consentExpiring === null ? undefined : '건'}
                 tone="amber"
                 /* 질의는 expires_at <= 30일 뒤라서 이미 지난 것도 함께 세어진다
                    (lib/repo.ts · centerStats). '30일 이내'라고만 적으면 이미
@@ -116,8 +118,8 @@ export default function PolicyPage() {
               />
               <Kpi
                 label="이용 중 어르신"
-                value={stats.elders}
-                unit="명"
+                value={stats.elders === null ? '못 읽었어요' : stats.elders}
+                unit={stats.elders === null ? undefined : '명'}
                 note="동의는 어르신 한 분 한 분에게 따로 붙습니다"
               />
             </div>

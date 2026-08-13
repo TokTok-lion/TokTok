@@ -924,14 +924,28 @@ async function membershipId(userId: string, t: string): Promise<string | null> {
 
 /* --------------------------------------------------------- 센터장 콘솔 */
 
+/**
+ * 센터장 콘솔이 읽는 집계.
+ *
+ * ── 숫자마다 null 이 있는 이유
+ *
+ * 못 읽은 것을 0 으로 돌려주고 있었다. 그러면 화면은 "서버에서 바로 읽은 값"
+ * 이라는 딱지를 달고 "이용 중 어르신 0명 · 동의 만료 임박 0건"을 그린다.
+ * 통신이 끊겼거나 권한이 막혔을 뿐인데, 센터장은 그것을 사실로 읽는다 —
+ * 동의가 만료된 어르신이 있는데 0건으로 보이는 쪽이 특히 나쁘다.
+ *
+ * 그래서 못 읽은 칸은 null 로 돌려준다. 0 과 '모른다'는 다른 값이다.
+ */
 export type CenterStats = {
-  elders: number;
-  sessionsThisMonth: number;
-  sessionsDone: number;
-  sessionsRunning: number;
-  consentExpiring: number;
-  staff: { role: StaffRole; count: number }[];
-  recent: { id: string; topic: string; status: string; at: string }[];
+  elders: number | null;
+  sessionsThisMonth: number | null;
+  sessionsDone: number | null;
+  sessionsRunning: number | null;
+  consentExpiring: number | null;
+  /** 못 읽었으면 null. 빈 배열은 '직원이 없다'는 뜻이다. */
+  staff: { role: StaffRole; count: number }[] | null;
+  /** 못 읽었으면 null. 빈 배열은 '회기가 없다'는 뜻이다. */
+  recent: { id: string; topic: string; status: string; at: string }[] | null;
 };
 
 /** 직원 한 사람이 실제로 무엇을 했는지 — 점수가 아니라 개수만 센다. */
@@ -1015,24 +1029,40 @@ export async function centerStats(): Promise<CenterStats | null> {
       .eq('tenant_id', t).order('created_at', { ascending: false }).limit(5),
   ]);
 
+  /*
+   * 실패한 조회는 null 로 남긴다.
+   *
+   * Supabase 는 조회 하나가 실패해도 count 에 null 을 담아 조용히 돌려준다.
+   * `?? 0` 으로 받으면 그 실패가 "0건"이 되어 화면에 그려진다. 일곱 개 조회
+   * 중 하나만 막혀도 나머지는 멀쩡하니, 화면은 아무 이상도 눈치채지 못한다.
+   */
+  const num = (res: { count: number | null; error: unknown }): number | null =>
+    res.error ? null : res.count;
+
   const byRole = new Map<StaffRole, number>();
   for (const m of staff.data ?? []) {
     byRole.set(m.role, (byRole.get(m.role) ?? 0) + 1);
   }
 
   return {
-    elders: elders.count ?? 0,
-    sessionsThisMonth: month.count ?? 0,
-    sessionsDone: done.count ?? 0,
-    sessionsRunning: running.count ?? 0,
-    consentExpiring: expiring.count ?? 0,
-    staff: [...byRole.entries()].map(([role, count]) => ({ role, count })),
-    recent: (recent.data ?? []).map((r: Pick<SessionRow, 'id' | 'topic' | 'status' | 'created_at'>) => ({
-      id: r.id,
-      topic: r.topic,
-      status: r.status,
-      at: r.created_at,
-    })),
+    elders: num(elders),
+    sessionsThisMonth: num(month),
+    sessionsDone: num(done),
+    sessionsRunning: num(running),
+    consentExpiring: num(expiring),
+    staff: staff.error
+      ? null
+      : [...byRole.entries()].map(([role, count]) => ({ role, count })),
+    recent: recent.error
+      ? null
+      : (recent.data ?? []).map(
+          (r: Pick<SessionRow, 'id' | 'topic' | 'status' | 'created_at'>) => ({
+            id: r.id,
+            topic: r.topic,
+            status: r.status,
+            at: r.created_at,
+          }),
+        ),
   };
 }
 
