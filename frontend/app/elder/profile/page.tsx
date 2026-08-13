@@ -12,6 +12,7 @@ import {
   IconSend,
 } from '@/components/icons';
 import { flowState } from '@/lib/flow';
+import { AvoidTopicsPanel } from '@/components/AvoidTopicsPanel';
 import { ServiceStatusPanel } from '@/components/ServiceStatusPanel';
 import { useSession } from '@/lib/store';
 import { useActiveElder } from '@/lib/useActiveElder';
@@ -160,22 +161,20 @@ export default function ElderPage() {
         />
       </ul>
       {/* 예전 문구는 "피하고 싶은 주제는 질문 추천과 가사 생성에서 자동으로
-          제외돼요"였다. 그 제외는 코드에 없다 — avoidTopics 는 화면에만 있고
-          /api/lyrics 는 받지도 않는다(route.ts 의 Body 는 topic·facts·style).
-          안전장치가 문구로만 있으면 복지사는 걸러진다고 믿고 넘어간다.
-          지금 되는 것과 안 되는 것을 그대로 적는다. */}
+          제외돼요"였다. 그 제외는 어디에도 없었다 — 적는 화면조차 없어서 값이
+          늘 비어 있었다. 이제 아래에서 적을 수 있고, 그 값은 지난 이야기로
+          질문을 지을 때 "묻지 마세요"로 함께 나간다(api/questions).
+          가사 초안(/api/lyrics)은 아직 이 값을 받지 않는다. 되는 데까지만
+          적는다 — 안전장치를 실제보다 넓게 적으면 아무도 안 살핀다. */}
+      <h2 className="mt-6 text-[1.125rem] font-extrabold text-ink-900">
+        피하고 싶은 주제
+      </h2>
+      <AvoidTopicsPanel participantId={s.remoteParticipantId} current={e.avoidTopics} />
+
+      {/* 나머지 프로필 칸은 여전히 고칠 곳이 없다. 있는 그대로 적는다. */}
       <p className="mt-2.5 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
-        피하고 싶은 주제를 자동으로 걸러 주는 기능은 아직 없어요. 질문과 가사
-        초안을 확인하실 때 복지사가 직접 살펴 주세요. 건강·질병 내용은 AI
-        초안에 담기지 않도록 요청하고 있어요.
-      </p>
-      {/* 프로필을 이 화면에서 고칠 방법은 없다. 줄마다 달려 있던 버튼에는
-          onClick 이 없었고, 아래 '프로필 저장' 버튼은 라벨만 "저장했어요"로
-          바꿨을 뿐 아무것도 저장하지 않았다. 둘 다 걷어내고 읽기 전용으로
-          둔다 — 저장되지 않은 것을 저장했다고 하지 않는다. */}
-      <p className="mt-1.5 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
-        프로필은 읽기 전용이에요. 어르신 등록 때 정한 이름 표기와 그림만
-        저장되고, 여기서 고치는 기능은 준비 중입니다.
+        호칭·의사소통 방식·선호 음악은 아직 읽기 전용이에요. 어르신 등록 때 정한
+        이름 표기와 그림만 저장되고, 여기서 고치는 기능은 준비 중입니다.
       </p>
 
       {/* ---- 가족 ---- */}
@@ -274,9 +273,9 @@ function ProfileRow({
 }
 
 /**
- * 값이 비어 있을 수 있다. 의사소통 방식·선호 음악·피하고 싶은 주제를 입력하는
- * 화면이 아직 없어서, 실제로 등록한 어르신은 이 칸들이 비어 있는 것이 맞다.
- * 비었을 때 아무것도 안 그리면 "왜 안 보이지"가 되므로 비었다고 적는다.
+ * 값이 비어 있을 수 있다. 의사소통 방식·선호 음악은 아직 입력하는 화면이 없어
+ * 실제로 등록한 어르신은 비어 있는 것이 맞다(피하고 싶은 주제는 아래 칸에서
+ * 적는다). 비었을 때 아무것도 안 그리면 "왜 안 보이지"가 되므로 비었다고 적는다.
  */
 function Chips({ items, tone }: { items: string[]; tone: 'leaf' | 'brand' }) {
   if (items.length === 0) {

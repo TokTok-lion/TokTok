@@ -800,6 +800,20 @@ async function hydrateElderRecord(participantId: string): Promise<void> {
   });
 }
 
+/**
+ * 방금 저장한 피하고 싶은 주제를 화면 쪽에도 반영한다.
+ *
+ * 서버에 쓰는 것과 별개다. 저장은 됐는데 위쪽 프로필 칩이 옛 값 그대로면
+ * 복지사는 저장이 안 된 줄 알고 다시 누른다.
+ *
+ * 지금 회기의 어르신이 맞을 때만 손댄다 — 어르신을 바꾸는 사이에 늦게 도착한
+ * 응답이 남의 기록을 덮는 사고는 hydrateElderRecord 에서 이미 한 번 겪었다.
+ */
+export function noteAvoidTopics(participantId: string, topics: string[]): void {
+  if (state.remoteParticipantId !== participantId) return;
+  update({ ...state, elder: { ...state.elder, avoidTopics: topics } });
+}
+
 /* ------------------------------------------- 서버에 못 남긴 동의 결정 */
 
 function samePending(a: PendingConsent, participantId: string, kind: ConsentKind) {

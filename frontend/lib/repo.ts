@@ -219,6 +219,54 @@ export async function lastGroupMembers(): Promise<string[]> {
   return [];
 }
 
+/**
+ * 피하고 싶은 주제를 어르신 기록에 남긴다.
+ *
+ * ── 왜 없었나
+ *
+ * 칸은 0001 부터 있었고(participants.avoid_topics) 프로필도 그 값을 보여
+ * 주는데, **적는 화면이 어디에도 없었다.** 그래서 실제 기관 어르신은 전부
+ * 빈칸이었고, 둘러보기 씨앗 어르신에게만 '전쟁 이야기·사별'이 들어 있었다.
+ *
+ * 읽는 곳만 있고 쓰는 곳이 없는 값은 없는 값과 같다. 게다가 그 사이 프로필
+ * 문구는 "자동으로 걸러 줘요"라고 적고 있었다 — 안전장치가 문구로만 있으면
+ * 복지사는 걸러진다고 믿고 넘어간다.
+ *
+ * ── 왜 지금 필요한가
+ *
+ * 개인화 질문이 지난 이야기에서 질문을 짓는다(api/questions). 그 이야기 중에
+ * 전쟁이나 사별이 섞여 있으면, 어르신이 다시 듣고 싶지 않은 대목을 앱이 먼저
+ * 꺼내게 된다. 거를 목록이 있어야 거를 수 있다.
+ */
+export async function writeAvoidTopics(
+  participantId: string,
+  topics: string[],
+): Promise<{ ok: boolean; reason?: string }> {
+  const sb = getSupabase();
+  if (!sb) return { ok: false, reason: '로그인이 필요합니다.' };
+  const account = await accountReady();
+  const t = account.status === 'in' ? account.tenantId : null;
+  if (!t) return { ok: false, reason: '로그인이 필요합니다.' };
+
+  // 빈 값과 겹치는 값을 걸러 낸다. 목록이 지저분하면 모델에 그대로 나간다.
+  const clean = [...new Set(topics.map((x) => x.trim()).filter(Boolean))].slice(0, 12);
+
+  const { error } = await sb
+    .from('participants')
+    .update({ avoid_topics: clean })
+    .eq('tenant_id', t)
+    .eq('id', participantId);
+  if (error) return { ok: false, reason: '저장하지 못했습니다.' };
+
+  /*
+   * 흔적을 남긴다. 어떤 주제를 뺐는지는 적지 않는다 — 그 자체가 어르신의
+   * 아픈 곳을 가리키는 정보이고, 감사로그는 누가 언제 무엇을 했는지만
+   * 남기면 된다.
+   */
+  void audit('participant.avoid_topics', `participant:${participantId}`);
+  return { ok: true };
+}
+
 /** 이 어르신의 지금 이용 상태. 못 읽으면 null — 화면이 '모른다'로 그린다. */
 export async function readParticipantStatus(
   participantId: string,
