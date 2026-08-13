@@ -53,10 +53,14 @@ export default function LibraryPage() {
           않는다 — 다만 지어낸 값도 아니다. 복지사가 회기에서 실제로 마주치는
           카드와 질문이 이만큼이라는 뜻이고, 세는 곳이 코드 한 군데뿐이라
           (lib/seed.ts · app/session/interview) 숫자가 화면과 어긋날 일이 없다. */}
+      {/* 로그인한 기관에서도 이 목록은 앱에 들어 있는 기본값이다. 위 띠가
+          "서버에 있는 값만"이라고 말하는 자리 아래에 있으므로, 한눈에 보이는
+          표를 붙인다 — 설명을 끝까지 읽어야 아는 것은 표시가 아니다. */}
       <Panel
         title="지금 쓸 수 있는 질문 카드"
         code="F-CM-LIB-001"
         desc="복지사 앱에 들어 있습니다 · 기관이 만든 자료가 아닙니다"
+        actions={<Pill tone="amber">앱 기본값</Pill>}
       >
         <div className="flex flex-wrap gap-2">
           {SEED_MEMORY_CARDS.map((c) => (

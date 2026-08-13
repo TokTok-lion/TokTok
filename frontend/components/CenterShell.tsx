@@ -228,8 +228,9 @@ function DataNotice({ data, account }: { data: ConsoleData; account: Account }) 
   if (account.status === 'in') {
     return (
       <NoticeStrip tone="live" label="이 기관의 자료">
-        서버에 있는 값만 보여줍니다. 서버에 없는 항목은 예시로 채우지 않고 비워
-        둡니다.
+        집계 숫자는 서버에 있는 값만 보여줍니다. 서버에 없는 항목은 예시로 채우지
+        않고 비워 둡니다. 앱에 들어 있는 기본 목록(기억 카드·외부 제공자 같은
+        것)에는 「앱 기본값」이라고 붙여 둡니다 — 이 기관의 자료가 아닙니다.
       </NoticeStrip>
     );
   }
