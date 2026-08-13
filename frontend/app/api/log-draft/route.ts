@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { chatBody, modelFor } from '@/lib/openaiModel';
 
 /**
  * 활동일지 초안 생성 (F-SW-LOG-001).
@@ -91,17 +92,19 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${key}`,
       },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-        // 낮게 잡는다. 활동일지에 필요한 것은 문장력이 아니라 정확함이고,
-        // 온도가 높으면 주어지지 않은 내용을 채워 넣는다.
-        temperature: 0.2,
-        max_tokens: 400,
-        messages: [
-          { role: 'system', content: SYSTEM },
-          { role: 'user', content: user },
-        ],
-      }),
+      body: JSON.stringify(
+        chatBody({
+          model: modelFor('log'),
+          // 낮게 잡는다. 활동일지에 필요한 것은 문장력이 아니라 정확함이고,
+          // 온도가 높으면 주어지지 않은 내용을 채워 넣는다.
+          temperature: 0.2,
+          maxTokens: 400,
+          messages: [
+            { role: 'system', content: SYSTEM },
+            { role: 'user', content: user },
+          ],
+        }),
+      ),
       signal: ac.signal,
     });
     clearTimeout(timer);

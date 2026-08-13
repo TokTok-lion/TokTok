@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { ConsentGate, missingConsents } from './ConsentGate';
-import { hasConsent, type LyricSection } from '@/lib/domain';
+import { hasConsent, lyricInputs, type LyricSection } from '@/lib/domain';
 import { findContradictions } from '@/lib/contradiction';
 import { useLifeStory } from '@/lib/useLifeStory';
 import { useSession } from '@/lib/store';
+import { quotesFor } from '@/lib/verbatim';
 
 /**
  * 확인된 이야기로 가사 쓰기.
@@ -15,10 +16,23 @@ import { useSession } from '@/lib/store';
  * 출처가 붙은 것들. 미확인·제외 항목은 나가지 않는다. 이 걸러내기가 이
  * 서비스의 규칙 자체라, 화면에도 몇 개가 근거인지 적어 둔다.
  */
+/** 가사를 만들고 나서 복지사가 알아야 하는 것들. */
+type Note = {
+  /** 피하고 싶은 주제와 겹쳐 아예 안 보낸 이야기 수. */
+  withheld: number;
+  /** 그래도 가사에 남은 낱말. */
+  avoidHit: string[];
+  /** 어르신 말씀 그대로 살린 표현 — 양쪽에서 확인된 것만. */
+  kept: string[];
+  /** 말투를 살릴 원문이 몇 줄 있었는가. */
+  quotesUsed: number;
+};
+
 export function WriteLyrics() {
   const { s, set } = useSession();
   const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<Note | null>(null);
   const life = useLifeStory();
 
   // 생애사는 한 회기에 다 나오지 않는다. 기본을 "지금까지 모은 이야기"로
@@ -52,6 +66,7 @@ export function WriteLyrics() {
   const run = async () => {
     setState('busy');
     setError(null);
+    setNote(null);
     try {
       const res = await fetch('/api/lyrics', {
         method: 'POST',
@@ -60,11 +75,24 @@ export function WriteLyrics() {
           topic: s.topic,
           facts: basis.map((i) => i.text),
           style: s.style ?? 'ballad',
+          // 어르신 기록에 적어 둔 주제. 라우트가 이걸로 재료를 먼저 덜어 낸다.
+          avoid: s.elder.avoidTopics,
+          /*
+           * 그 사실들의 근거가 된 어르신 말씀 원문 — 말투를 살릴 재료다.
+           *
+           * 이번 회기 항목에서만 뽑는다. 지난 회기 사실은 이 기기의 전사에
+           * 없어서 원문을 찾을 수 없다 — 없는 것을 찾은 척하지 않는다.
+           */
+          quotes: quotesFor(lyricInputs(s.story), s.transcript),
         }),
       });
       const json = (await res.json()) as {
         sections?: { label: string; tone: 'verse' | 'chorus'; lines: string[] }[];
         error?: string;
+        withheld?: number;
+        avoidHit?: string[];
+        kept?: string[];
+        quotesUsed?: number;
       };
       if (!res.ok || !json.sections) {
         setError(json.error ?? '가사를 만들지 못했어요.');
@@ -72,6 +100,12 @@ export function WriteLyrics() {
         return;
       }
       set('lyrics', json.sections);
+      setNote({
+        withheld: json.withheld ?? 0,
+        avoidHit: json.avoidHit ?? [],
+        kept: json.kept ?? [],
+        quotesUsed: json.quotesUsed ?? 0,
+      });
       setState('done');
     } catch {
       setError('연결하지 못했어요.');
@@ -186,6 +220,65 @@ export function WriteLyrics() {
         >
           {error}
         </p>
+      ) : null}
+
+      {/*
+        만들고 나서 복지사가 알아야 하는 것.
+
+        여기 적는 것은 셋뿐이다 — 무엇을 뺐는지, 그래도 남은 것이 있는지,
+        어르신 말씀을 그대로 살린 표현이 무엇인지. 셋 다 확인된 사실만 적는다.
+      */}
+      {note ? (
+        <div className="mt-3 rounded-[14px] bg-surface-sunk p-3.5">
+          {note.avoidHit.length ? (
+            <p
+              role="alert"
+              className="text-[0.9375rem] font-bold leading-relaxed text-danger-600"
+            >
+              피하고 싶은 주제로 적어 두신 “{note.avoidHit.join(', ')}”가 가사에
+              남아 있어요. 다시 만들거나, 아래에서 그 줄만 고쳐 주세요.
+            </p>
+          ) : null}
+
+          {note.kept.length ? (
+            <>
+              <p className="text-[0.9375rem] font-bold text-ink-900">
+                어르신 말씀 그대로 살린 표현 {note.kept.length}개
+              </p>
+              <p className="mt-1.5 flex flex-wrap gap-1.5">
+                {note.kept.map((k) => (
+                  <span
+                    key={k}
+                    className="rounded-full bg-leaf-50 px-2.5 py-1 text-[0.875rem] font-bold text-leaf-800"
+                  >
+                    {k}
+                  </span>
+                ))}
+              </p>
+              <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-500">
+                녹음에서 어르신이 실제로 쓰신 말이 가사에 그대로 들어갔는지
+                대조한 결과예요.
+              </p>
+            </>
+          ) : note.quotesUsed > 0 ? (
+            <p className="text-[0.875rem] leading-relaxed text-ink-500">
+              이번 가사에는 어르신 말씀을 그대로 옮긴 표현이 없었어요. 다시
+              만들면 살아나기도 합니다.
+            </p>
+          ) : (
+            <p className="text-[0.875rem] leading-relaxed text-ink-500">
+              말투를 살릴 녹음 원문이 이번 회기에는 없었어요. 지난 회기 이야기로
+              만들면 다듬어진 문장만 재료가 됩니다.
+            </p>
+          )}
+
+          {note.withheld > 0 ? (
+            <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-500">
+              피하고 싶은 주제와 겹치는 이야기 {note.withheld}개는 재료에서 빼고
+              만들었어요.
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </>
   );

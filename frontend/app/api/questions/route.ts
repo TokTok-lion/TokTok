@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { avoidTerms, dropAvoided, mentionsAvoided } from '@/lib/avoidTopics';
+import { chatBody, modelFor } from '@/lib/openaiModel';
 
 /**
  * 지난 이야기에서 오늘 여쭐 질문을 짓는다.
@@ -118,17 +119,19 @@ export async function POST(req: Request) {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-        // 낮게 둔다. 질문은 참신함보다 "지난 이야기에서 나왔는가"가 먼저다.
-        temperature: 0.5,
-        max_tokens: 500,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM },
-          { role: 'user', content: user },
-        ],
-      }),
+      body: JSON.stringify(
+        chatBody({
+          model: modelFor('questions'),
+          // 낮게 둔다. 질문은 참신함보다 "지난 이야기에서 나왔는가"가 먼저다.
+          temperature: 0.5,
+          maxTokens: 500,
+          json: true,
+          messages: [
+            { role: 'system', content: SYSTEM },
+            { role: 'user', content: user },
+          ],
+        }),
+      ),
       signal: ac.signal,
     });
     clearTimeout(timer);

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { chatBody, modelFor } from '@/lib/openaiModel';
 
 /**
  * 전사에서 이야기 항목 뽑기.
@@ -143,23 +144,30 @@ export async function POST(req: Request) {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: RULES + (split ? SPEAKER_RULE : '') + FORMAT },
-          {
-            role: 'user',
-            content: [
-              `오늘 회기 주제: ${body.topic || '(없음)'}`,
-              '',
-              '전사 (줄 번호. 내용):',
-              numbered,
-            ].join('\n'),
-          },
-        ],
-      }),
+      /*
+       * 모델 이름이 여기 박혀 있었다. 배포 환경변수 OPENAI_MODEL 을 올려도
+       * 이 자리만 작은 모델로 남는다 — 가장 정확해야 할 사실 추출이 그대로
+       * 였다는 뜻이다. 이름을 고르는 일은 lib/openaiModel 한 곳에서만 한다.
+       */
+      body: JSON.stringify(
+        chatBody({
+          model: modelFor('facts'),
+          temperature: 0.2,
+          json: true,
+          messages: [
+            { role: 'system', content: RULES + (split ? SPEAKER_RULE : '') + FORMAT },
+            {
+              role: 'user',
+              content: [
+                `오늘 회기 주제: ${body.topic || '(없음)'}`,
+                '',
+                '전사 (줄 번호. 내용):',
+                numbered,
+              ].join('\n'),
+            },
+          ],
+        }),
+      ),
       signal: ac.signal,
     });
     clearTimeout(timer);

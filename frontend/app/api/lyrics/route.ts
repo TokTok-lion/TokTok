@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { avoidTerms, dropAvoided, mentionsAvoided } from '@/lib/avoidTopics';
+import { chatBody, modelFor } from '@/lib/openaiModel';
+import { keptVerbatim } from '@/lib/verbatim';
 
 /**
  * 확인된 이야기로 가사 쓰기.
@@ -9,11 +12,35 @@ import { NextResponse } from 'next/server';
  * 말라고 못박는다. 노래는 어르신의 삶이지 모델의 상상이 아니다.
  *
  * 특정 가수나 실존 곡을 흉내 내지 않는다(원칙 14 · NFR-AI-007).
+ *
+ * ── 피하고 싶은 주제
+ *
+ * 어르신 기록에 적어 둔 주제와 겹치는 이야기는 재료에서 뺀다. 프롬프트에
+ * "쓰지 마세요"라고 적어 보내는 것만으로는 지켜지지 않는다는 것을 개인화
+ * 질문에서 확인했다(api/questions). 다 만든 가사도 한 번 더 훑어서, 그래도
+ * 걸리면 다시 한 번 부탁하고 그래도 남으면 **복지사에게 짚어 준다.** 줄을
+ * 몰래 지우지는 않는다 — 절이 무너진 가사를 사람이 모르고 확정하게 된다.
+ *
+ * ── 어르신 말투
+ *
+ * 사실 문장은 이미 다듬어진 말이다. "밥이 목구녕으로 안 넘어갔어"가 사실
+ * 목록에서는 "식사를 하기 어려우셨다"가 된다. 그래서 그 사실의 근거가 된
+ * 어르신 말씀 원문을 함께 보내고, 특징적인 표현은 그대로 살리라고 한다.
+ * 살렸다고 적어 낸 표현은 말씀과 가사 양쪽에 실제로 있는지 대조한다
+ * (lib/verbatim). 확인할 수 없는 자랑은 하지 않는다.
  */
 
 export const runtime = 'nodejs';
 
-type Body = { topic?: string; facts?: string[]; style?: string };
+type Body = {
+  topic?: string;
+  facts?: string[];
+  style?: string;
+  /** 어르신 기록의 피하고 싶은 주제. */
+  avoid?: string[];
+  /** 그 사실들의 근거가 된 어르신 말씀 원문. */
+  quotes?: string[];
+};
 
 const STYLE_HINT: Record<string, string> = {
   folkTrad: '민요처럼 정겹고 구수한 말맛',
@@ -35,6 +62,14 @@ const SYSTEM = `당신은 한국 어르신의 생애 이야기를 노래 가사�
   담습니다.
 - 이야기가 적으면 그만큼만 씁니다. 분량을 채우려고 없는 내용을 넣지 마십시오.
 
+어르신 말투 살리기 — 이 노래는 그분의 노래입니다:
+- '어르신 말씀 그대로'가 주어지면, 거기 나오는 사투리·옛말·그분 특유의
+  표현을 **다듬지 말고 그대로** 가사에 넣으십시오. "밥이 목구녕으로 안
+  넘어갔어"를 "밥을 먹기 힘들었죠"로 고치면 뜻은 맞아도 그분 것이 아닙니다.
+- 다만 없는 말을 지어내지는 마십시오. 주어진 말씀 안에 있는 표현만 씁니다.
+- 그렇게 그대로 살린 표현을 kept 에 적습니다. 말씀과 가사 양쪽에 똑같이
+  들어 있는 말만 적으십시오. 적어 낸 것은 대조합니다.
+
 부르기 좋게 쓰는 법 — 이 가사는 기계가 노래합니다. 줄마다 길이가 들쭉날쭉
 하면 음을 억지로 늘이고 줄여서 사람 목소리처럼 들리지 않습니다:
 - 한 줄은 띄어쓰기를 뺀 한글 7~10자로 씁니다. 한 덩이(1절·후렴·2절) 안에서는
@@ -51,7 +86,8 @@ const SYSTEM = `당신은 한국 어르신의 생애 이야기를 노래 가사�
 출력은 아래 JSON 형식만 내보냅니다. 다른 말은 붙이지 마십시오.
 {"sections":[{"label":"1절","tone":"verse","lines":["...","...","...","..."]},
 {"label":"후렴","tone":"chorus","lines":["...","...","...","..."]},
-{"label":"2절","tone":"verse","lines":["...","...","...","..."]}]}`;
+{"label":"2절","tone":"verse","lines":["...","...","...","..."]}],
+"kept":["그대로 살린 표현","..."]}`;
 
 export async function POST(req: Request) {
   const key = process.env.OPENAI_API_KEY;
@@ -69,47 +105,90 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '요청을 읽지 못했습니다.' }, { status: 400 });
   }
 
-  const facts = (body.facts ?? []).filter((f) => typeof f === 'string' && f.trim());
+  const all = (body.facts ?? []).filter(
+    (f): f is string => typeof f === 'string' && f.trim().length > 0,
+  );
+  const avoid = (body.avoid ?? []).filter(
+    (a): a is string => typeof a === 'string' && a.trim().length > 0,
+  );
+  const terms = avoidTerms(avoid);
+
+  // 피하고 싶은 주제와 겹치는 이야기는 여기서 빠진다. 재료에 없으면 가사에
+  // 들어갈 수도 없다.
+  const { kept: facts, withheld } = dropAvoided(all, avoid);
+
   if (!facts.length) {
     return NextResponse.json(
       {
-        error:
-          '확인된 이야기가 없어 가사를 만들 수 없어요. ' +
-          '이야기 정리에서 어르신과 함께 확인해 주세요.',
+        error: withheld
+          ? '남은 이야기가 모두 피하고 싶은 주제와 겹쳐 가사를 만들지 못했어요. ' +
+            '다른 이야기를 더 확인하시거나, 어르신 프로필에서 주제를 다시 살펴 주세요.'
+          : '확인된 이야기가 없어 가사를 만들 수 없어요. ' +
+            '이야기 정리에서 어르신과 함께 확인해 주세요.',
       },
       { status: 400 },
     );
   }
 
+  /*
+   * 어르신 말씀 원문. 피하고 싶은 주제가 담긴 말씀은 여기서도 뺀다 —
+   * 사실에서 뺐는데 원문으로 다시 들어가면 뒷문을 열어 두는 셈이다.
+   */
+  const quotes = (body.quotes ?? [])
+    .filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
+    .map((q) => q.trim())
+    .filter((q) => !mentionsAvoided(q, terms))
+    .slice(0, 12);
+
   const user = [
     `노래 주제: ${body.topic ?? '(없음)'}`,
     `분위기: ${STYLE_HINT[body.style ?? 'ballad'] ?? STYLE_HINT.ballad}`,
+    avoid.length ? `쓰지 말 주제: ${avoid.join(', ')}` : null,
     '',
     '확인된 이야기 (이 안에서만 쓸 것):',
     ...facts.map((f, i) => `${i + 1}. ${f}`),
-  ].join('\n');
+    ...(quotes.length
+      ? [
+          '',
+          '어르신 말씀 그대로 (말투를 살릴 것 — 여기 있는 표현만):',
+          ...quotes.map((q) => `- ${q}`),
+        ]
+      : []),
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n');
 
-  try {
+  /** 한 번 부탁하고, 결과를 뜯어서 돌려준다. */
+  const ask = async (extra: string | null) => {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 40_000);
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify(
+          chatBody({
+            model: modelFor('lyrics'),
+            // 낮게. 가사는 문장력보다 "어르신 이야기에서 나왔는가"가 먼저다.
+            temperature: 0.6,
+            maxTokens: 700,
+            json: true,
+            messages: [
+              { role: 'system', content: SYSTEM },
+              { role: 'user', content: extra ? `${user}\n\n${extra}` : user },
+            ],
+          }),
+        ),
+        signal: ac.signal,
+      });
+      return res;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-        // 낮게. 가사는 문장력보다 "어르신 이야기에서 나왔는가"가 먼저다.
-        temperature: 0.6,
-        max_tokens: 700,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM },
-          { role: 'user', content: user },
-        ],
-      }),
-      signal: ac.signal,
-    });
-    clearTimeout(timer);
+  try {
+    const res = await ask(null);
 
     if (!res.ok) {
       console.error('openai lyrics failed', res.status);
@@ -124,27 +203,71 @@ export async function POST(req: Request) {
       );
     }
 
-    const json = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
+    const read = async (r: Response) => {
+      const json = (await r.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      const raw = json.choices?.[0]?.message?.content;
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw) as { sections?: unknown; kept?: unknown };
+        const clean = normalise(parsed.sections);
+        if (!clean.length) return null;
+        const claimed = Array.isArray(parsed.kept)
+          ? parsed.kept.filter((x): x is string => typeof x === 'string')
+          : [];
+        return { clean, claimed };
+      } catch {
+        return null;
+      }
     };
-    const raw = json.choices?.[0]?.message?.content;
-    if (!raw) {
-      return NextResponse.json({ error: '가사가 비어 있어요.' }, { status: 502 });
-    }
 
-    let sections: unknown;
-    try {
-      sections = (JSON.parse(raw) as { sections?: unknown }).sections;
-    } catch {
+    let out = await read(res);
+    if (!out) {
       return NextResponse.json({ error: '가사 형식을 읽지 못했어요.' }, { status: 502 });
     }
 
-    const clean = normalise(sections);
-    if (!clean.length) {
-      return NextResponse.json({ error: '가사 형식이 올바르지 않아요.' }, { status: 502 });
+    /*
+     * 피하고 싶은 주제가 그래도 가사에 들어갔으면 한 번 더 부탁한다.
+     *
+     * 재료에서 빼도 남은 이야기의 곁을 쓰다가 그쪽으로 흘러갈 수 있다. 다만
+     * 두 번째도 걸리면 줄을 지우지 않고 그대로 돌려준다 — 4줄짜리 절에서 한
+     * 줄이 사라지면 노래가 무너지고, 사람이 모르는 채 확정하게 된다. 가사는
+     * 어차피 사람이 확정하는 초안이므로(원칙 3), 짚어 주는 편이 맞다.
+     */
+    let hit = hits(out.clean, terms);
+    if (hit.length) {
+      const retry = await ask(
+        `방금 만든 가사에 "${hit.join(', ')}"가 들어갔습니다. ` +
+          '이 대목은 어르신이 다시 듣고 싶지 않다고 하신 주제입니다. ' +
+          '해당 줄을 다른 이야기로 바꿔 다시 써 주세요.',
+      );
+      if (retry.ok) {
+        const second = await read(retry);
+        if (second) {
+          const stillHit = hits(second.clean, terms);
+          // 두 번째가 더 낫거나 같으면 그것을 쓴다.
+          if (stillHit.length <= hit.length) {
+            out = second;
+            hit = stillHit;
+          }
+        }
+      }
     }
 
-    return NextResponse.json({ sections: clean });
+    const lines = out.clean.flatMap((sec) => sec.lines);
+
+    return NextResponse.json({
+      sections: out.clean,
+      /** 피하고 싶은 주제와 겹쳐 아예 안 보낸 이야기 수. */
+      withheld,
+      /** 그래도 가사에 남은 낱말. 있으면 화면이 복지사에게 짚어 준다. */
+      avoidHit: hit,
+      /** 어르신 말씀 그대로 살린 표현 — 말씀과 가사 양쪽에서 확인된 것만. */
+      kept: keptVerbatim(out.claimed, quotes, lines),
+      /** 말투를 살릴 재료가 몇 줄 있었는지. 0이면 살릴 것이 없었다는 뜻이다. */
+      quotesUsed: quotes.length,
+    });
   } catch (e) {
     const aborted = e instanceof Error && e.name === 'AbortError';
     return NextResponse.json(
@@ -156,6 +279,15 @@ export async function POST(req: Request) {
       { status: 504 },
     );
   }
+}
+
+/** 가사 줄 가운데 피하고 싶은 낱말을 담은 것이 있는가 — 걸린 낱말을 돌려준다. */
+function hits(
+  sections: { lines: string[] }[],
+  terms: string[],
+): string[] {
+  const text = sections.flatMap((s) => s.lines).join('\n');
+  return terms.filter((t) => text.includes(t));
 }
 
 /**
