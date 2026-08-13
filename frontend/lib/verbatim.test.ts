@@ -64,3 +64,11 @@ test('한 대목이 길고 짧게 두 번 잡히면 긴 것만 남긴다', () =>
   const out = verbatimKept(quotes, lines, ['순천에서 나고 자라셨다']);
   assert.deepEqual(out, ['순천서 나고 자랐지']);
 });
+
+test('두 줄에 걸친 한 말씀은 하나로 센다', () => {
+  const quotes = ['밥이 목구녕으로 안 넘어갔어'];
+  const lines = ['밥이 목구녕으로 안', '넘어갔어 그 시절'];
+  assert.deepEqual(verbatimKept(quotes, lines, ['식사를 하기 어려우셨다']), [
+    '밥이 목구녕으로 안 넘어갔어',
+  ]);
+});

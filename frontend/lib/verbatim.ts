@@ -124,9 +124,18 @@ export function verbatimKept(
   const flat = facts.map((f) => strip(f).bare).join('|');
   const found: string[] = [];
 
+  /*
+   * 줄을 이어 붙인 것도 함께 견준다.
+   *
+   * 한 말씀이 두 줄에 걸치는 일이 흔하다 — "밥이 목구녕으로 안 / 넘어갔어".
+   * 줄 단위로만 보면 이걸 두 대목으로 세어, 살린 표현이 둘인 것처럼 보인다.
+   * 이어 붙인 쪽에서 통째로 잡히면 짧은 조각들은 아래 정리에서 빠진다.
+   */
+  const targets = [...lyricLines, lyricLines.join('')];
+
   for (const quote of quotes) {
     const q = strip(quote);
-    for (const line of lyricLines) {
+    for (const line of targets) {
       const l = strip(line).bare;
       const hit = longestCommon(q.bare, l);
       if (hit.len < MIN) continue;
