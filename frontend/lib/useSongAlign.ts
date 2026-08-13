@@ -156,8 +156,18 @@ export function useSongAlign(lines: string[], duration: number): SongAlign {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      // 곡 길이를 아직 모르면 기다린다. 못 걸린 뒷줄을 채울 근거가 없다.
-      if (lines.length < 2 || duration <= 0) {
+      /*
+       * 곡 길이를 기다리지 않는다.
+       *
+       * 처음에는 total > 0 이 될 때까지 기다렸다. 그런데 브라우저가 metadata 를
+       * 언제 읽는지는 우리가 못 정한다 — 탭이 뒤에 있거나 정책에 걸리면
+       * readyState 가 0 인 채로 남고, 그러면 맞추기가 영영 시작되지 않는다.
+       * 실제로 그 상태를 봤다.
+       *
+       * 길이는 못 걸린 **뒷줄**을 채울 때만 쓴다. 없으면 마지막으로 걸린 자리를
+       * 끝으로 본다(lib/align). 그 정도 손해로 시작을 미룰 이유가 없다.
+       */
+      if (lines.length < 2) {
         if (alive) setState('checking');
         return;
       }
