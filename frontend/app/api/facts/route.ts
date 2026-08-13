@@ -253,6 +253,37 @@ export async function POST(req: Request) {
       }));
 
     const dropped = (parsed.facts ?? []).length - facts.length;
+
+    /*
+     * 전부 버려졌으면 왜 그랬는지 남긴다.
+     *
+     * 화면은 "말씀 N개를 뽑았는데 버렸어요"까지 말할 수 있지만, **왜** 근거가
+     * 안 맞았는지는 여기서만 보인다 — 모델이 복지사 줄을 근거로 댔는지,
+     * 있지도 않은 줄 번호를 지어냈는지.
+     *
+     * 짧은 인터뷰에서 자주 나는 일이다. 어르신 줄이 몇 개 없으면 모델이 근거로
+     * 댈 것이 없어서 복지사 질문 줄을 가리키기 쉽고, 그 줄은 출처가 될 수 없어
+     * (원칙 1) 통째로 버려진다.
+     */
+    if (dropped > 0 && facts.length === 0) {
+      const cited = (parsed.facts ?? []).flatMap((f) =>
+        Array.isArray((f as { from?: unknown }).from) ? (f as { from: unknown[] }).from : [],
+      );
+      const bad = cited.filter((v) => {
+        const n = typeof v === 'number' ? v : Number(v);
+        return !Number.isInteger(n) || n < 0 || n >= segments.length;
+      }).length;
+      const workerCited = cited.filter((v) => {
+        const n = typeof v === 'number' ? v : Number(v);
+        return Number.isInteger(n) && n >= 0 && n < segments.length && segments[n].speaker === 'worker';
+      }).length;
+      console.warn(
+        `[똑똑] 사실 ${dropped}개를 전부 버렸습니다 — 전사 ${segments.length}줄 ` +
+          `(어르신 ${usable.length}줄), 근거로 댄 줄 ${cited.length}개 중 ` +
+          `없는 번호 ${bad}개 · 복지사 줄 ${workerCited}개`,
+      );
+    }
+
     return NextResponse.json({ facts, dropped });
   } catch (e) {
     const aborted = e instanceof Error && e.name === 'AbortError';
