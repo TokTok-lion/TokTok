@@ -193,6 +193,7 @@ export function useMusic() {
     // 2가 없으면 태블릿을 바꿀 때마다 같은 곡에 요금이 또 나간다.
     if (!remake && now.songKey === key && (await loadSong())) {
       set('songStatus', 'ready');
+      set('lyricsStale', false);
       // 만든 것이 아니라 있던 것을 찾은 것이다. 화면이 이 둘을 구분해서
       // 말해야 한다 — 안 만들었는데 만들었다고 하면 그것도 거짓말이다.
       setState({ kind: 'reused', where: 'device' });
@@ -217,6 +218,9 @@ export function useMusic() {
           return;
         }
         set('songKey', key);
+        // 새 열쇠를 적었으니 '가사가 노래보다 새것' 표시는 뜻을 잃는다.
+        // 안 지우면 방금 만든 노래에도 "옛 가사로 부르고 있어요"가 남는다.
+        set('lyricsStale', false);
         set('songStatus', 'ready');
         setState({ kind: 'reused', where: 'server' });
         return;
@@ -338,6 +342,7 @@ export function useMusic() {
       const at = songTag();
       if (at.ownerId === tag.ownerId && at.sessionId === tag.sessionId) {
         set('songKey', key);
+        set('lyricsStale', false);
         set('songStatus', 'ready');
         setState({ kind: 'done' });
       } else {

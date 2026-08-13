@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, PrimaryButton, SectionLabel } from '@/components/ui';
 import { IconInfo } from '@/components/icons';
+import { LyricEditor } from '@/components/LyricEditor';
 import { hasConsent, lyricInputs } from '@/lib/domain';
 import { WriteLyrics } from '@/components/WriteLyrics';
 import { useSession } from '@/lib/store';
@@ -87,6 +88,11 @@ export default function LyricsPage() {
       {/* 확인된 이야기만 가사가 된다. 그 걸러내기가 이 서비스의 규칙이다. */}
       <WriteLyrics />
 
+      {/* 만들어진 가사를 한 줄씩 다듬는 자리. 어르신이 들으시고 "그건 아니고
+          이렇게" 하시는 순간이 이 제품이 바라던 장면이고, 그걸 하려고 이야기
+          정리로 되돌아가면 마음에 들었던 나머지 줄까지 전부 바뀐다. */}
+      {canAutoWrite ? <LyricEditor /> : null}
+
       {/* 이 문단은 "손으로 고치는 기능은 아직 없어요" 한 줄로 고정돼 있었다.
           그런데 외부 AI 미동의일 때 WriteLyrics 는 바로 위에 손으로 쓰는
           글상자를 펼친다 — 입력칸과 "그런 기능은 없다"가 세로로 나란히 붙어
@@ -94,7 +100,7 @@ export default function LyricsPage() {
       <p className="mt-3 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
         {canAutoWrite ? (
           <>
-            가사를 손으로 직접 고치는 기능은 아직 없어요. 문장을 바꾸시려면{' '}
+            절을 더하거나 빼시려면{' '}
             <Link href="/session/story" className="font-bold text-brand-700 underline">
               이야기 정리
             </Link>

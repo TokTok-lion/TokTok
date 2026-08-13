@@ -219,6 +219,17 @@ export type SessionState = {
    * 업체가 하나만 내주면 songTakes 가 1 이고, 고르는 자리는 화면에서 저절로
    * 사라진다.
    */
+  /**
+   * 지금 가사가 노래를 만든 뒤에 고쳐졌는가.
+   *
+   * 가사를 한 줄 고치면 이미 만든 노래는 옛 가사로 부르고 있다. 함께 부르기
+   * 화면은 노래를 틀면서 가사를 보여 주므로 그 순간 둘이 어긋난다 — 어르신
+   * 앞에서 화면의 글자와 들리는 소리가 다른 것은 그 자체로 사고다.
+   *
+   * 그래서 어긋난 사실을 여기 적어 두고, 노래가 걸린 화면들이 그걸 말한다.
+   */
+  lyricsStale: boolean;
+
   songTakes: number;
   songTake: number;
   songJob: string | null;
@@ -336,6 +347,7 @@ function seedState(): SessionState {
     storyConfirmed: false,
     lyrics: SEED_LYRICS,
     songKey: null,
+    lyricsStale: false,
     songTakes: 1,
     songTake: 1,
     songJob: null,
@@ -721,6 +733,7 @@ export function beginSession(next: {
           familyStories: [],
           familyReplies: [],
           songKey: null,
+          lyricsStale: false,
           songTakes: 1,
           songTake: 1,
           songJob: null,

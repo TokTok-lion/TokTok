@@ -12,6 +12,7 @@ import {
   IconRefresh,
 } from '@/components/icons';
 import { MUSIC_STYLES, formatDuration } from '@/lib/domain';
+import { StaleLyricsNote } from '@/components/StaleLyricsNote';
 import { useSession } from '@/lib/store';
 import { useLyricCue, useSongPlayer } from '@/lib/useMusic';
 
@@ -177,6 +178,8 @@ export default function SingPage() {
           ) : null}
         </div>
       </Card>
+
+      <StaleLyricsNote where="sing" />
 
       <Card className="relative mt-4 overflow-hidden px-4 py-6">
         <Art

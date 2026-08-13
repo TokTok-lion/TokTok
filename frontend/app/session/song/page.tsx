@@ -7,6 +7,7 @@ import { Card, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconBook, IconDoc, IconPause, IconPlay, IconRefresh, IconShield } from '@/components/icons';
 import { MUSIC_STYLES, formatDuration, lyricInputs } from '@/lib/domain';
 import { sceneFor, songTitleForTopic } from '@/lib/scenes';
+import { StaleLyricsNote } from '@/components/StaleLyricsNote';
 import { useSession } from '@/lib/store';
 import { useSongPlayer } from '@/lib/useMusic';
 
@@ -155,6 +156,8 @@ export default function SongPage() {
           <span className="text-[0.9375rem] font-bold text-ink-900">보관함에서 듣기</span>
         </Link>
       </div>
+
+      <StaleLyricsNote where="song" />
 
       {/* 만든 곡이 실제로 있고, 그 곡에 들어갈 확인된 이야기가 있을 때만
           '확인된 이야기만 담았다'고 말할 수 있다. 아무것도 확인하지 않은
