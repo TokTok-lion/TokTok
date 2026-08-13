@@ -134,6 +134,17 @@ export type SongMeta = {
    * 있다 — 보기 싫은 정도이고, 잘못 접어서 다른 곡을 감추는 쪽이 훨씬 나쁘다.
    */
   hash?: string | null;
+  /**
+   * 가사 줄이 곡의 몇 초에서 시작하는지 — 줄마다 하나(lib/align).
+   *
+   * 곡마다 한 번만 재고 여기 붙여 둔다. 함께 부르기 화면이 이 값을 쓰면
+   * "지금 이 줄"이 어림이 아니라 잰 값이 된다. 없으면 예전 어림으로 돌아간다.
+   *
+   * 어느 가사에 맞춘 것인지 함께 둔다(cueHash). 가사를 고치면 이 시각은
+   * 남의 가사의 시각이 되므로, 맞지 않으면 안 쓴다.
+   */
+  cues?: number[] | null;
+  cueHash?: string | null;
 };
 
 export type SongShelf = {
@@ -434,6 +445,49 @@ export async function loadSong(): Promise<Blob | null> {
   // 달아 두므로 여기서 따로 찾지 않는다.
   db.close();
   return null;
+}
+
+/**
+ * 이 회기의 곡에 붙은 표. 곡이 없으면 null.
+ *
+ * loadSong 은 소리만 돌려주는데, 맞춘 시각은 표 쪽에 붙어 있다. 둘을 같은
+ * 규칙으로 찾아야 "지금 듣고 있는 곡"과 "지금 쓰는 시각"이 어긋나지 않는다.
+ */
+export async function currentSongMeta(): Promise<SongMeta | null> {
+  const db = await openDb();
+  if (!db) return null;
+  await ensureMigrated(db);
+  const tag = songTag();
+  const mine = (await allMetas(db))
+    .filter((m) => m.ownerId === tag.ownerId && m.sessionId === tag.sessionId)
+    .sort(newestFirst);
+  db.close();
+  return mine[0] ?? null;
+}
+
+/**
+ * 맞춘 시각을 곡에 붙인다.
+ *
+ * 실패해도 아무것도 막지 않는다 — 다음에 또 맞추면 될 뿐이다. 기기가 꽉
+ * 찼다고 노래를 못 부르게 할 이유가 없다.
+ */
+export async function saveCues(
+  key: string,
+  cues: number[],
+  cueHash: string | null,
+): Promise<boolean> {
+  const db = await openDb();
+  if (!db) return false;
+  const meta = await idb<SongMeta>(db, METAS, 'readonly', (s) => s.get(key));
+  if (!meta) {
+    db.close();
+    return false;
+  }
+  const out = await idb(db, METAS, 'readwrite', (s) =>
+    s.put({ ...meta, cues, cueHash }) as unknown as IDBRequest<undefined>,
+  );
+  db.close();
+  return out !== null;
 }
 
 /** 목록에서 고른 곡 하나. */

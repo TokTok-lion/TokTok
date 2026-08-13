@@ -727,6 +727,14 @@ export type LyricCue = {
    * 아직 읽는 중인지는 player.measuring 으로 가른다.
    */
   timed: boolean;
+  /**
+   * 지금 줄이 잰 값인가, 어림인가.
+   *
+   * 화면이 이 둘을 다르게 말해야 한다. 어림일 때 "정확히 맞춰져 있어요"라고
+   * 하면 어긋난 자막을 복지사가 믿게 되고, 잰 값일 때까지 "어림이에요"라고
+   * 적어 두면 애써 맞춘 것이 쓰이지 않는다.
+   */
+  measured: boolean;
   auto: boolean;
   setAuto: (on: boolean) => void;
   toPrev: () => void;
@@ -734,6 +742,16 @@ export type LyricCue = {
   canPrev: boolean;
   canNext: boolean;
 };
+
+/**
+ * 화면에 뜨는 순서 그대로의 줄 글자만.
+ *
+ * 맞추기(useSongAlign)가 이 목록으로 곡과 견준다. 화면이 짚는 줄과 맞춘 줄이
+ * 같은 목록에서 나와야, 셋째 줄을 맞춰 놓고 넷째 줄을 짚는 일이 없다.
+ */
+export function lyricLineTexts(sections: LyricSection[]): string[] {
+  return flattenLyrics(sections).map((l) => l.text);
+}
 
 /** 절 배열을 줄 하나짜리 목록으로 펼친다. */
 export function flattenLyrics(sections: LyricSection[]): CueLine[] {
@@ -772,6 +790,26 @@ function lineStarts(lines: CueLine[]): number[] {
   return out;
 }
 
+/**
+ * 잰 시각을 비율로 바꾼다.
+ *
+ * 아래 계산은 전부 "곡의 어디쯤"(0~1)으로 되어 있다. 잰 값을 그 자리에 그대로
+ * 끼워 넣으면, 손으로 맞추는 길과 '처음부터 듣기'가 예전 그대로 돌아간다.
+ *
+ * 마지막 칸(길이 = 줄 수 + 1)은 곡의 끝이다. 마지막 줄이 언제 끝나는지는
+ * 재지 않았으므로 곡이 끝날 때까지로 둔다.
+ */
+function cueStarts(cues: number[], total: number): number[] {
+  const out = cues.map((sec) => clamp(sec / total, 0, 1));
+  out.push(1);
+  // 뒤로만 가게 한다. 정렬이 이미 그렇게 주지만, 곡 길이가 예상과 다르면
+  // 끝쪽이 1 에 몰려 순서가 뒤집힐 수 있다.
+  for (let i = 1; i < out.length; i += 1) {
+    if (out[i] < out[i - 1]) out[i] = out[i - 1];
+  }
+  return out;
+}
+
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
@@ -795,9 +833,26 @@ function indexAtFraction(starts: number[], f: number): number {
  * 그렇게 하지 않으면 눌러서 맞춰 놔도 몇 초 뒤 어림이 제자리로 끌고 가고,
  * 손으로 맞춘 것이 없던 일이 된다. 두 번 겪으면 아무도 안 누른다.
  */
-export function useLyricCue(sections: LyricSection[], player: SongPlayer): LyricCue {
+export function useLyricCue(
+  sections: LyricSection[],
+  player: SongPlayer,
+  /**
+   * 실제 노래에서 잰 줄별 시작 시각(초). 없으면 예전처럼 글자 수로 어림한다.
+   *
+   * 여기서 비율로 바꿔 쓰는 이유는 아래 손맞춤 계산이 전부 비율로 되어
+   * 있어서다 — 잰 값이 들어와도 복지사가 손으로 맞추는 길은 그대로 남는다.
+   * 잰 값도 틀릴 수 있고, 그 자리에서 고칠 방법이 없으면 화면을 못 쓴다.
+   */
+  cues?: number[] | null,
+): LyricCue {
   const lines = useMemo(() => flattenLyrics(sections), [sections]);
-  const starts = useMemo(() => lineStarts(lines), [lines]);
+  const total = player.total;
+  const measured =
+    Array.isArray(cues) && cues.length === lines.length && lines.length > 0 && total > 0;
+  const starts = useMemo(
+    () => (measured ? cueStarts(cues as number[], total) : lineStarts(lines)),
+    [measured, cues, total, lines],
+  );
 
   const [auto, setAutoState] = useState(true);
   /**
@@ -815,7 +870,7 @@ export function useLyricCue(sections: LyricSection[], player: SongPlayer): Lyric
   } | null>(null);
   const mark = marked && marked.lines === lines ? marked : null;
 
-  const { at, total } = player;
+  const at = player.at;
   const timed = total > 0;
   const count = lines.length;
 
@@ -866,6 +921,7 @@ export function useLyricCue(sections: LyricSection[], player: SongPlayer): Lyric
     lines,
     index,
     timed,
+    measured,
     auto,
     setAuto,
     toPrev,

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
@@ -14,7 +15,8 @@ import {
 import { MUSIC_STYLES, formatDuration } from '@/lib/domain';
 import { StaleLyricsNote } from '@/components/StaleLyricsNote';
 import { useSession } from '@/lib/store';
-import { useLyricCue, useSongPlayer } from '@/lib/useMusic';
+import { lyricLineTexts, useLyricCue, useSongPlayer } from '@/lib/useMusic';
+import { useSongAlign } from '@/lib/useSongAlign';
 
 /**
  * 함께 부르기 활동 (deck p.23)
@@ -80,7 +82,17 @@ export default function SingPage() {
   // 보였다. 없으면 줄 자체를 그리지 않는다 (preview·song 과 같은 규칙).
   const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
   const player = useSongPlayer();
-  const cue = useLyricCue(s.lyrics, player);
+  /*
+   * 줄별 시각을 실제 노래에서 잰다(lib/align · api/align).
+   *
+   * 곡마다 한 번만 재고 곡에 붙여 둔다. 못 재면 조용히 예전 어림으로 남는다 —
+   * 화면이 그 둘을 다르게 말한다.
+   */
+  const align = useSongAlign(
+    useMemo(() => lyricLineTexts(s.lyrics), [s.lyrics]),
+    player.total,
+  );
+  const cue = useLyricCue(s.lyrics, player, align.cues);
 
   /*
    * 지금 줄을 짚는 것은 곡이 있을 때의 이야기다.
@@ -322,11 +334,36 @@ export default function SingPage() {
         <Card className="mt-4 p-3.5">
           {/* 어림이라는 말을 화면이 먼저 한다. 이 문장이 없으면 이 표시는
               우리가 재지 않은 것을 잰 것처럼 내놓는 것이 된다. */}
-          <p className="rounded-[12px] bg-amber-100/70 px-3.5 py-2.5 text-[0.875rem] font-semibold leading-relaxed text-amber-700">
-            지금 줄은 글자 수로 어림잡은 자리예요. 실제 노래와 어긋날 수 있어요.
-            어긋나면 아래 버튼으로 맞춰 주세요 — 한 번 맞추면 그 자리를 기준으로
-            다음 줄들이 다시 잡혀요.
-          </p>
+          {/*
+            잰 값인지 어림인지를 화면이 먼저 말한다.
+
+            이 문장이 없으면 이 표시는 우리가 재지 않은 것을 잰 것처럼 내놓는
+            것이 된다. 반대로 실제로 맞춘 곡에까지 "어림"이라고 적어 두면,
+            애써 맞춘 것을 복지사가 안 믿고 손으로 다시 맞춘다.
+
+            어느 쪽이든 손으로 맞추는 길은 남는다. 잰 값도 틀릴 수 있고,
+            그 자리에서 고칠 방법이 없으면 이 화면을 못 쓴다.
+          */}
+          {cue.measured ? (
+            <p className="rounded-[12px] bg-leaf-50 px-3.5 py-2.5 text-[0.875rem] font-semibold leading-relaxed text-leaf-800">
+              이 곡의 실제 노래에 맞춰 둔 자리예요. 그래도 어긋나면 아래 버튼으로
+              맞춰 주세요.
+            </p>
+          ) : align.state === 'running' ? (
+            <p
+              role="status"
+              className="rounded-[12px] bg-surface-sunk px-3.5 py-2.5 text-[0.875rem] font-semibold leading-relaxed text-ink-700"
+            >
+              노래를 들으며 줄을 맞추는 중이에요. 지금은 글자 수로 어림잡은
+              자리이고, 다 되면 저절로 바뀝니다.
+            </p>
+          ) : (
+            <p className="rounded-[12px] bg-amber-100/70 px-3.5 py-2.5 text-[0.875rem] font-semibold leading-relaxed text-amber-700">
+              지금 줄은 글자 수로 어림잡은 자리예요. 실제 노래와 어긋날 수 있어요.
+              어긋나면 아래 버튼으로 맞춰 주세요 — 한 번 맞추면 그 자리를 기준으로
+              다음 줄들이 다시 잡혀요.
+            </p>
+          )}
 
           {/*
             disabled 가 아니라 aria-disabled 다.
