@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
-import { Card, NoteBar, PrimaryButton } from '@/components/ui';
-import { IconBook, IconDoc, IconPause, IconPlay, IconRefresh, IconShield } from '@/components/icons';
-import { MUSIC_STYLES, formatDuration, lyricInputs } from '@/lib/domain';
+import { Card, PrimaryButton } from '@/components/ui';
+import { IconBook, IconDoc, IconPause, IconPlay, IconRefresh } from '@/components/icons';
+import { MUSIC_STYLES, formatDuration } from '@/lib/domain';
 import { sceneFor, songTitleForTopic } from '@/lib/scenes';
+import { SongProvenance } from '@/components/SongProvenance';
 import { StaleLyricsNote } from '@/components/StaleLyricsNote';
 import { useSession } from '@/lib/store';
 import { useSongPlayer } from '@/lib/useMusic';
@@ -33,16 +34,6 @@ export default function SongPage() {
   const scene = sceneFor(s.topic, s.cover);
   const title = songTitleForTopic(s.topic);
   const player = useSongPlayer();
-
-  /*
-   * 확인된 이야기가 실제로 있는가.
-   *
-   * 아래 '확인된 이야기만 담아…' 배지가 근거로 삼는 값이다. 가사로 넘어갈 수
-   * 있는 항목을 세는 그 함수(lyricInputs)로 세야, 배지가 말하는 것과 실제로
-   * 곡에 들어간 것이 같아진다. 이야기가 한 줄도 없는 회기에서 '확인된
-   * 이야기만 담았다'는 말은 담을 것이 없었다는 뜻일 뿐이다.
-   */
-  const verifiedCount = lyricInputs(s.story).length;
 
   /*
    * 제목과 부제도 곡의 유무를 따라간다.
@@ -159,17 +150,19 @@ export default function SongPage() {
 
       <StaleLyricsNote where="song" />
 
-      {/* 만든 곡이 실제로 있고, 그 곡에 들어갈 확인된 이야기가 있을 때만
-          '확인된 이야기만 담았다'고 말할 수 있다. 아무것도 확인하지 않은
-          회기에서 이 배지를 띄우면, 검수를 거쳤다는 표시가 검수 없이 나온다 —
-          이 배지 하나가 원칙 3(사람 검수)의 유일한 표시라 더 그렇다. */}
-      {player.ready && verifiedCount > 0 ? (
-        <div className="mt-4">
-          <NoteBar tone="leaf" icon={<IconShield size={20} />}>
-            확인된 이야기 {verifiedCount}가지만 담아 안전하게 만들었어요
-          </NoteBar>
-        </div>
-      ) : null}
+      {/*
+        이 노래가 무엇으로 만들어졌는지.
+
+        예전에는 여기 '확인된 이야기 N가지만 담아 안전하게 만들었어요' 한 줄이
+        있었다. 맞는 말이지만 세어 둔 것의 일부만 쓰고 있었다 — 출처가 몇 곳
+        인지, 근거를 못 찾아 몇 개를 버렸는지, 어느 대목의 음성이었는지가 전부
+        남아 있는데 아무도 못 봤다. 버린 수까지 함께 적는 것이 핵심이다.
+        걸러 냈다는 사실이야말로 이 서비스가 하는 일이다.
+
+        곡이 있을 때만 띄운다. 곡이 없는 화면에서 '이 노래는'으로 시작하면
+        바로 위 카드와 정반대로 말하게 된다.
+      */}
+      {player.ready ? <SongProvenance /> : null}
 
       {/* 저장됐다는 안내도 곡이 있을 때의 이야기다. 곡이 없는 화면에서
           '이미 저장됐어요'는 바로 위 카드와 정반대로 말한다. */}

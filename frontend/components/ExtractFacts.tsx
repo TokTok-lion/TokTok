@@ -100,6 +100,7 @@ export function ExtractFacts() {
                 '전사가 어르신 말씀과 다르면 전사 교정에서 고친 뒤 다시 뽑아 주세요. ' +
                 '아래 「손으로 이야기 적기」에 복지사가 직접 적으셔도 됩니다.',
         );
+        set('factsDropped', json.dropped ?? 0);
         setOpenNote(true);
         setState('idle');
         return;
@@ -131,6 +132,9 @@ export function ExtractFacts() {
 
       set('story', items);
       set('storyConfirmed', false);
+      // 버린 수를 남긴다. 노래가 완성된 뒤 "근거 없어 버린 문장 N개"를
+      // 말하려면 이 값이 화면 밖에서도 살아 있어야 한다.
+      set('factsDropped', json.dropped ?? 0);
       setInfo(
         `${items.length}개를 뽑았어요.` +
           (json.dropped ? ` 근거를 못 찾은 ${json.dropped}개는 버렸습니다.` : ''),

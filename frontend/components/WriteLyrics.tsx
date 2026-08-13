@@ -100,6 +100,8 @@ export function WriteLyrics() {
         return;
       }
       set('lyrics', json.sections);
+      // 살아남은 말씨는 노래 완성 화면까지 들고 간다.
+      set('lyricsKept', json.kept ?? []);
       setNote({
         withheld: json.withheld ?? 0,
         avoidHit: json.avoidHit ?? [],

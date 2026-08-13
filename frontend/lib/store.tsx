@@ -158,6 +158,15 @@ export type SessionState = {
    */
   interviewStartedAt: string | null;
   story: StoryItem[];
+  /**
+   * 뽑기는 했는데 어느 대목에서 나왔는지 못 맞춰 버린 문장 수(api/facts).
+   *
+   * 버렸다는 사실 자체가 이 서비스의 자랑이다 — 출처 없는 문장은 남기지
+   * 않는다. 그런데 그 수는 사실 정리 화면에서 한 번 스치고 사라졌다.
+   * 노래가 완성된 뒤에 "근거 없어 버린 문장 2개"라고 말하려면 남아 있어야
+   * 한다.
+   */
+  factsDropped: number;
   /** 복지사가 사실 확인을 끝내고 가사로 넘긴 시점 (원칙 3 · 사람 검수) */
   storyConfirmed: boolean;
   lyricsApproved: boolean;
@@ -229,6 +238,13 @@ export type SessionState = {
    * 그래서 어긋난 사실을 여기 적어 두고, 노래가 걸린 화면들이 그걸 말한다.
    */
   lyricsStale: boolean;
+  /**
+   * 가사에 그대로 살아남은 어르신 말씨(api/lyrics 가 견줘서 돌려준 것).
+   *
+   * 가사 만들기 화면에서만 보이고 사라지던 값이다. 이 노래가 왜 그분의
+   * 것인지를 말해 주는 대목이라 노래 완성 화면까지 들고 간다.
+   */
+  lyricsKept: string[];
 
   songTakes: number;
   songTake: number;
@@ -344,10 +360,12 @@ function seedState(): SessionState {
     transcribedFrom: null,
     interviewStartedAt: null,
     story: SEED_STORY,
+    factsDropped: 0,
     storyConfirmed: false,
     lyrics: SEED_LYRICS,
     songKey: null,
     lyricsStale: false,
+    lyricsKept: [],
     songTakes: 1,
     songTake: 1,
     songJob: null,
@@ -432,6 +450,8 @@ function load(): SessionState {
         saved.voiceOwners && typeof saved.voiceOwners === 'object'
           ? (saved.voiceOwners as Record<string, string>)
           : {},
+      // 이 칸도 나중에 생겼다. 모양이 다르면 빈 목록으로 — 아래와 같은 이유.
+      lyricsKept: Array.isArray(saved.lyricsKept) ? saved.lyricsKept : [],
       // 이 칸은 나중에 생겼다. 예전 저장본에는 아예 없고, 저장이 중간에 깨진
       // 기기에는 배열이 아닌 것이 들어 있을 수 있다. 그대로 두면 목록을
       // 그리는 화면이 매번 터지므로 모양이 다르면 빈 목록으로 시작한다.
@@ -713,6 +733,7 @@ export function beginSession(next: {
           transcribedFrom: null,
           interviewStartedAt: null,
           story: [],
+          factsDropped: 0,
           storyConfirmed: false,
           lyrics: [],
           lyricsApproved: false,
@@ -734,6 +755,7 @@ export function beginSession(next: {
           familyReplies: [],
           songKey: null,
           lyricsStale: false,
+          lyricsKept: [],
           songTakes: 1,
           songTake: 1,
           songJob: null,
