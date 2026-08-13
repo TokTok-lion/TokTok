@@ -8,6 +8,7 @@ import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chip, IconCircle, MicLevel, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconBack, IconInfo, IconMic, IconSave, IconShield, IconSkip } from '@/components/icons';
 import { QUESTION_LEVELS, hasConsent, type QuestionLevel } from '@/lib/domain';
+import { PersonalQuestions } from '@/components/PersonalQuestions';
 import { useGroupConsents } from '@/lib/useGroupConsents';
 import { mmssOrUnknown, releaseRecording, useMicLevel, useRecorder } from '@/lib/recorder';
 import { PROMPT_KIND_LABEL, interviewFlow } from '@/lib/prompts';
@@ -287,6 +288,11 @@ export default function InterviewPage() {
             </li>
           ))}
         </ul>
+
+        {/* 지난 이야기에서 이어지는 질문. 고정 질문지를 대신하지 않고 그 옆에
+            선다 — 고정 질문은 어느 어르신께나 통하는 밑바탕이고, 이건 이분께만
+            나오는 질문이다. 첫 회기에는 안 나온다(쌓인 것이 없으므로). */}
+        <PersonalQuestions />
 
         {!s.memoryCard ? (
           <p className="mt-3 text-center text-[0.875rem] leading-relaxed text-ink-500">
