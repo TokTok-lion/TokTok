@@ -45,6 +45,25 @@ export function LyricEditor() {
 
   if (!s.lyrics.length) return null;
 
+  /**
+   * 고친 가사가 지금 노래와 다른가.
+   *
+   * songKey 가 곡을 만들 때 쓴 `분위기::가사` 다. 지금 가사로 같은 열쇠를
+   * 다시 만들어 견주면, 노래가 옛 가사로 되어 있는지 알 수 있다.
+   *
+   * 방금 만든 배열을 인자로 받는다. 처음에는 훅이 준 s.lyrics 를 읽었는데,
+   * 글자를 고치고 곧바로 부르면 그 값이 아직 옛 가사다 — 다시 그려지기 전에
+   * 재기 때문이다. 그래서 "안 바뀌었다"가 나오고, 노래 화면들이 어긋남을
+   * 영영 모르게 된다. 실제로 그렇게 한 번 놓쳤다.
+   */
+  const markChanged = (lyrics: typeof s.lyrics) => {
+    if (!s.songKey) return;
+    const now = `${s.style ?? 'ballad'}::${lyrics
+      .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
+      .join('\n\n')}`;
+    set('lyricsStale', now !== s.songKey);
+  };
+
   const editLine = (secIndex: number, lineIndex: number, text: string) => {
     const next = s.lyrics.map((sec, i) =>
       i !== secIndex
@@ -53,20 +72,8 @@ export function LyricEditor() {
     );
     set('lyrics', next);
     setDirty(true);
-  };
-
-  /**
-   * 고친 가사가 지금 노래와 다른가.
-   *
-   * songKey 가 곡을 만들 때 쓴 `분위기::가사` 다. 지금 가사로 같은 열쇠를
-   * 다시 만들어 견주면, 노래가 옛 가사로 되어 있는지 알 수 있다.
-   */
-  const markChanged = async () => {
-    if (!s.songKey) return;
-    const now = `${s.style ?? 'ballad'}::${s.lyrics
-      .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
-      .join('\n\n')}`;
-    set('lyricsStale', now !== s.songKey);
+    // 방금 만든 값으로 그 자리에서 잰다.
+    markChanged(next);
   };
 
   return (
@@ -106,7 +113,6 @@ export function LyricEditor() {
                         id={`lyric-${i}-${j}`}
                         value={line}
                         onChange={(e) => editLine(i, j, e.target.value)}
-                        onBlur={() => void markChanged()}
                         className="min-h-[52px] w-full rounded-[12px] border border-hairline bg-surface px-3 text-[1.0625rem] font-bold text-ink-900"
                       />
                     </li>
@@ -135,10 +141,7 @@ export function LyricEditor() {
 
           <button
             type="button"
-            onClick={() => {
-              void markChanged();
-              setOpen(false);
-            }}
+            onClick={() => setOpen(false)}
             className="mt-3 min-h-[52px] w-full rounded-[14px] bg-brand-700 text-[1rem] font-bold text-white"
           >
             다 고쳤어요
