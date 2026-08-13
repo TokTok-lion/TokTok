@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { UNSUPPORTED_AUDIO } from '@/lib/providers/types';
 import { stt } from '@/lib/providers';
 import { requireUser } from '@/lib/apiAuth';
-import { gcsResumableSession, googleConfigured, GCS_BUCKET } from '@/lib/providers/google';
+import { gcsSignedPutUrl, googleConfigured, GCS_BUCKET } from '@/lib/providers/google';
 
 /**
  * 긴 녹음을 저장소로 바로 올릴 주소를 연다.
@@ -62,7 +62,15 @@ export async function POST(req: Request) {
   // 이름은 로그에 남는다. 접두어는 전사 쪽이 "우리가 연 세션인지" 가리는
   // 근거이기도 하다(stt-google · startUploaded).
   const object = `stt/${crypto.randomUUID()}`;
-  const uploadUrl = await gcsResumableSession(object, contentType);
+  /*
+   * 서명된 PUT 주소를 준다.
+   *
+   * 예전에는 서버가 재개형 업로드 세션을 열어 그 주소를 넘겼다. 브라우저가
+   * 그 주소로 PUT 하면 응답을 아예 못 받는다 — 버킷 CORS 를 열어 준 뒤에도
+   * 그랬다. 세션을 연 쪽과 쓰는 쪽이 다르면 그 세션은 브라우저 것이 아니다.
+   * 같은 시각에 잰 값: 서명 없는 PUT 은 403(서버까지 닿음), 세션 주소는 못 닿음.
+   */
+  const uploadUrl = await gcsSignedPutUrl(object);
   if (!uploadUrl) {
     return NextResponse.json({ error: '업로드 주소를 열지 못했어요.' }, { status: 502 });
   }

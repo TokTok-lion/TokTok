@@ -1,3 +1,4 @@
+import { createHash, createSign } from 'node:crypto';
 import { GoogleAuth } from 'google-auth-library';
 
 /**
@@ -97,52 +98,98 @@ export async function gcsUpload(
   return `gs://${GCS_BUCKET}/${objectName}`;
 }
 
+/** 서명 문자열은 줄바꿈으로 잇는다. 소스에 직접 쓰면 편집기가 건드린다. */
+const NL = String.fromCharCode(10);
+
 /**
- * 브라우저가 저장소로 직접 올릴 수 있는 한 번짜리 주소를 연다.
+ * 브라우저가 곧바로 올릴 수 있는 서명된 주소 (V4 · PUT 한 번).
  *
- * 왜 필요한가. 지금까지는 녹음이 우리 함수를 거쳐 갔는데, Vercel 함수의 요청
- * 본문 한도가 4.5MB 이고 그건 설정으로 못 올린다(인프라 수준 제약). 그래서
- * 4MB 에서 잘랐고, 그 위는 어르신이 한 시간을 이야기하셨든 413 이었다.
+ * ── 왜 재개형 세션을 버렸나
  *
- * 파일이 함수를 안 거치면 그 한도가 적용되지 않는다. 그래서 서버는 주소만
- * 열어 주고 바이트는 브라우저에서 GCS 로 바로 간다. 구글이 안내하는 방식
- * 그대로다(resumable upload session).
+ * 예전에는 서버가 재개형(resumable) 업로드 세션을 열어 그 주소를 브라우저에
+ * 넘겼다. 그 주소로 PUT 하면 브라우저가 **아무 응답도 못 받는다** — 콘솔에
+ * 오류 한 줄 없이 fetch 가 실패한다. 배포본에서 재서 확인한 것:
  *
- * 이 주소는 우리가 정한 이름의 객체 하나에만 쓸 수 있고, 며칠이면 만료된다.
- * 이름에 어르신 정보를 넣지 않는 규칙은 여기서도 같다 — 잠깐 있다 사라질
- * 파일이라도 그 이름은 로그에 남는다.
+ *     PUT storage.googleapis.com/<버킷>/<파일>      → 403 (서버까지 닿음)
+ *     PUT <서버가 연 재개형 세션 주소>               → 아예 못 닿음
  *
- * 서명 URL 대신 이 방식을 쓰는 이유: 서명은 서비스 계정 개인키로 직접
- * 계산해야 하는데, 세션 주소는 이미 있는 토큰 한 번으로 열린다. 부품이
- * 적을수록 어르신 목소리가 지나가는 길이 짧다.
+ * 버킷 CORS 를 열어 준 뒤에도 뒤쪽만 막혀 있었다. 세션을 연 쪽(서버)과 쓰는
+ * 쪽(브라우저)이 다르면 그 세션은 브라우저 것이 아니다.
+ *
+ * 그래서 서명만 서버가 하고 올리는 일은 브라우저가 한다. 서명된 주소는
+ * "이 파일 이름으로, 이 시각까지만 쓸 수 있다"는 뜻이라 그 자체로 좁다.
+ *
+ * ── 왜 중요한가
+ *
+ * 이 길이 막혀 있으면 5분 넘는 인터뷰 녹음이 전사되지 않는다. 함수를 거치는
+ * 길은 Vercel 본문 한도(4.5MB)에 걸리고, 그 한도는 설정으로 못 올린다.
+ * 20분짜리 회기 녹음이 구글에 닿지도 못하는 셈이다.
  */
-export async function gcsResumableSession(
+export async function gcsSignedPutUrl(
   objectName: string,
-  contentType: string,
+  expiresSeconds = 3600,
 ): Promise<string | null> {
-  const token = await googleToken();
-  if (!token || !GCS_BUCKET) return null;
-  const url =
-    `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(GCS_BUCKET)}/o` +
-    `?uploadType=resumable&name=${encodeURIComponent(objectName)}`;
+  const raw = process.env.GOOGLE_CREDENTIALS;
+  if (!raw || !GCS_BUCKET) return null;
+
+  let email = '';
+  let key = '';
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json; charset=UTF-8',
-        'X-Upload-Content-Type': contentType,
-      },
-      body: JSON.stringify({ name: objectName }),
-    });
-    if (!res.ok) {
-      console.error('gcs resumable session failed', res.status);
-      return null;
-    }
-    // 세션 주소는 본문이 아니라 Location 헤더로 온다.
-    return res.headers.get('location');
+    const c = JSON.parse(raw) as { client_email?: string; private_key?: string };
+    email = c.client_email ?? '';
+    // 환경변수에 줄바꿈이 역슬래시 n 두 글자로 들어가 있는 배포가 흔하다.
+    key = (c.private_key ?? '').replace(/\\n/g, '\n');
+  } catch {
+    return null;
+  }
+  if (!email || !key) return null;
+
+  const now = new Date();
+  const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const day = stamp.slice(0, 8);
+  const scope = `${day}/auto/storage/goog4_request`;
+
+  /*
+   * 서명하는 헤더는 host 하나뿐이다.
+   *
+   * 브라우저가 Content-Type 을 붙여 보내는데, 그걸 서명에 넣으면 브라우저가
+   * 보내는 값과 한 글자라도 다를 때 403 이 된다(형식 문자열은 기기마다
+   * 미묘하게 다르다). 서명하지 않은 헤더는 구글이 그냥 무시한다 — 우리는
+   * 어차피 형식을 선언하지 않고 넘긴다(v2 는 머리말을 보고 스스로 푼다).
+   */
+  const query = new URLSearchParams({
+    'X-Goog-Algorithm': 'GOOG4-RSA-SHA256',
+    'X-Goog-Credential': `${email}/${scope}`,
+    'X-Goog-Date': stamp,
+    'X-Goog-Expires': String(expiresSeconds),
+    'X-Goog-SignedHeaders': 'host',
+  });
+  // URLSearchParams 는 공백을 + 로 쓴다. 서명 규칙은 %20 이다.
+  const canonicalQuery = query.toString().replace(/\+/g, '%20');
+
+  const path = `/${GCS_BUCKET}/${objectName.split('/').map(encodeURIComponent).join('/')}`;
+  const canonicalRequest = [
+    'PUT',
+    path,
+    canonicalQuery,
+    'host:storage.googleapis.com',
+    '',
+    'host',
+    'UNSIGNED-PAYLOAD',
+  ].join(NL);
+
+  const toSign = [
+    'GOOG4-RSA-SHA256',
+    stamp,
+    scope,
+    createHash('sha256').update(canonicalRequest).digest('hex'),
+  ].join(NL);
+
+  try {
+    const signature = createSign('RSA-SHA256').update(toSign).sign(key, 'hex');
+    return `https://storage.googleapis.com${path}?${canonicalQuery}&X-Goog-Signature=${signature}`;
   } catch (e) {
-    console.error('gcs resumable session error', e);
+    console.error('gcs signed url failed', e);
     return null;
   }
 }
