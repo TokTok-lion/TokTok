@@ -142,6 +142,22 @@ export default function RecordsPage() {
           현재 어르신 이름 아래 남의 주제가 붙었다.
           어르신별 회기를 서버에서 읽는 함수가 repo.ts 에 아직 없다. 그러니
           목록도 아직 없다고 적는다. */}
+      {/* 그림 보관함 — 곡 보관함 옆자리. 그림도 어르신 단위로 쌓인다. */}
+      <Link
+        href="/scenes"
+        className="mt-4 flex min-h-[76px] items-center gap-3.5 rounded-[18px] bg-leaf-50 px-4"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-[1.0625rem] font-extrabold text-ink-900">
+            그림 보관함
+          </span>
+          <span className="block text-[0.875rem] leading-snug text-ink-500">
+            지난 회기에 그린 사연 그림을 모아 봐요
+          </span>
+        </span>
+        <Chevron />
+      </Link>
+
       <h2 className="mt-6 flex items-center gap-2 text-[1.125rem] font-extrabold text-ink-900">
         <IconCalendar size={21} className="text-leaf-600" />
         지난 회기

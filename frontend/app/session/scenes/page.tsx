@@ -14,6 +14,7 @@ import {
   type Scene,
 } from '@/lib/sceneStore';
 import { getSupabase } from '@/lib/supabase';
+import { uploadScene } from '@/lib/sceneSync';
 import { useSession } from '@/lib/store';
 
 /**
@@ -215,7 +216,22 @@ export default function ScenesPage() {
                     <button
                       type="button"
                       aria-pressed={sc.approved}
-                      onClick={() => void approveScene(sc.key, !sc.approved).then(reload)}
+                      onClick={() =>
+                        void approveScene(sc.key, !sc.approved).then(() => {
+                          /*
+                           * 확정한 것만 기관 저장소로 올린다.
+                           *
+                           * 초안은 기기에만 둔다 — 확정하지 않은 그림이 서버에
+                           * 쌓이면 그것도 기록이 되고, 어느 것이 사람 손을 거친
+                           * 것인지 알 수 없어진다(원칙 3).
+                           *
+                           * 실패해도 막지 않는다. 센터 와이파이는 자주 끊기고,
+                           * 다시 누르면 그때 올라간다.
+                           */
+                          if (!sc.approved) void uploadScene({ ...sc, approved: true });
+                          reload();
+                        })
+                      }
                       className={`min-h-[52px] rounded-[12px] text-[0.9375rem] font-bold ${
                         sc.approved
                           ? 'bg-leaf-100 text-leaf-800'

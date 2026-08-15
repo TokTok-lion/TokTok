@@ -151,6 +151,27 @@ export type TranscriptRow = {
   updated_at: string;
 };
 
+/**
+ * 사연 그림 (0010_scenes).
+ *
+ * 그림마다 그 그림이 나온 사실 문장을 함께 둔다. 출처 없는 그림은 이
+ * 서비스에서 남기지 않는다 — 화면과 인쇄물이 늘 이 문장을 함께 보여 준다.
+ */
+export type SceneRow = {
+  id: string;
+  tenant_id: string;
+  participant_id: string;
+  /** 기기 쪽 회기 식별자(시각 문자열). 회기 행과 못 잇는 경우가 있어 문자열이다. */
+  session_key: string | null;
+  fact_id: string;
+  text: string;
+  image_path: string;
+  /** 복지사가 쓰기로 한 그림만 서버에 올라온다. */
+  approved: boolean;
+  created_at: string;
+  expires_at: string;
+};
+
 export type SongRow = {
   id: string;
   tenant_id: string;
@@ -266,6 +287,17 @@ export type Database = {
       >;
       recordings: Tbl<RecordingRow, Partial<RecordingRow> & { tenant_id: string; session_id: string; participant_id: string; storage_path: string }, Partial<RecordingRow>>;
       songs: Tbl<SongRow, Partial<SongRow> & { tenant_id: string; title: string }, Partial<SongRow>>;
+      scenes: Tbl<
+        SceneRow,
+        Partial<SceneRow> & {
+          tenant_id: string;
+          participant_id: string;
+          fact_id: string;
+          text: string;
+          image_path: string;
+        },
+        Partial<SceneRow>
+      >;
       observations: Tbl<ObservationRow, Partial<ObservationRow> & { tenant_id: string; session_id: string }, Partial<ObservationRow>>;
       activity_logs: Tbl<ActivityLogRow, Partial<ActivityLogRow> & { tenant_id: string; session_id: string; draft: string }, Partial<ActivityLogRow>>;
       // Update 를 막는 것은 타입이 아니라 RLS 다. 감사로그에는 UPDATE 정책이

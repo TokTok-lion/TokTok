@@ -77,6 +77,38 @@ function run<T>(
 const keyOf = (ownerId: string, sessionId: string, factId: string) =>
   `${ownerId}::${sessionId}::${factId}`;
 
+/**
+ * 이 어르신의 그림 전부 — 지난 회기까지.
+ *
+ * 예전에는 이번 회기 것만 읽는 함수 하나뿐이었다. 그래서 회기가 끝나고 새
+ * 회기를 시작하면 지난 그림이 기기 안에 그대로 있는데도 볼 화면이 없었다.
+ * 곡은 어르신 단위로 보관함에 남는데(songStore.readSongShelf) 그림만 그렇지
+ * 않았다.
+ */
+export async function readElderScenes(): Promise<Scene[]> {
+  const db = await openDb();
+  if (!db) return [];
+  const all = (await run<Scene[]>(db, 'readonly', (s) => s.getAll())) ?? [];
+  db.close();
+  const tag = songTag();
+  return all
+    .filter((x) => x.ownerId === tag.ownerId)
+    .sort((a, b) => b.madeAt - a.madeAt);
+}
+
+/**
+ * 기관 저장소에서 내려받은 그림을 이 기기에도 둔다.
+ *
+ * 다음에 열 때 통신을 기다리지 않게 하려는 것이다. 실패해도 막지 않는다 —
+ * 기기가 꽉 찼다고 서버에 있는 그림을 못 보게 할 이유가 없다.
+ */
+export async function cacheServerScene(scene: Scene): Promise<void> {
+  const db = await openDb();
+  if (!db) return;
+  await run(db, 'readwrite', (s) => s.put(scene));
+  db.close();
+}
+
 /** 이번 회기의 그림들. 만든 순서대로. */
 export async function readScenes(): Promise<Scene[]> {
   const db = await openDb();
