@@ -83,7 +83,12 @@ export function WriteLyrics() {
            * 이번 회기 항목에서만 뽑는다. 지난 회기 사실은 이 기기의 전사에
            * 없어서 원문을 찾을 수 없다 — 없는 것을 찾은 척하지 않는다.
            */
-          quotes: quotesFor(lyricInputs(s.story), s.transcript),
+          quotes: quotesFor(
+            lyricInputs(s.story),
+            s.transcript,
+            // 확인 안 된 항목이 가리키는 대목은 말씨 재료에서도 뺀다.
+            s.story.filter((i) => i.status !== 'verified'),
+          ),
         }),
       });
       const json = (await res.json()) as {

@@ -72,3 +72,25 @@ test('두 줄에 걸친 한 말씀은 하나로 센다', () => {
     '밥이 목구녕으로 안 넘어갔어',
   ]);
 });
+
+test('확인 안 된 대목의 말씀은 말씨 재료에서 뺀다', () => {
+  /*
+   * 강점 갈래 회기에서 실제로 샜던 자리다. 어르신이 "내가 아직 쓸모가
+   * 있구나 싶어서 좋았어"라고 하셨는데 사실 추출이 그 문장을 뺐고(자기 평가),
+   * 그 말이 말씨 재료를 타고 후렴 첫 줄로 들어갔다.
+   */
+  const lines = [
+    { speaker: 'elder', at: 12, text: '지금도 단추 다는 건 눈 감고도 해' },
+    { speaker: 'elder', at: 40, text: '내가 아직 쓸모가 있구나 싶어서 좋았어' },
+  ];
+  const used = [{ text: '지금도 단추를 답니다', sources: [{ kind: 'voice', at: 12 }] }];
+  const notVerified = [{ text: '쓸모가 있다고 느끼신다', sources: [{ kind: 'voice', at: 40 }] }];
+
+  assert.deepEqual(quotesFor(used, lines), ['지금도 단추 다는 건 눈 감고도 해']);
+  // 확인된 항목만 넣어도 40초 줄은 애초에 안 잡히지만, 확인 안 된 항목이
+  // 같은 대목을 가리키면 그 줄은 확실히 빠져야 한다.
+  const both = [...used, { text: 'x', sources: [{ kind: 'voice', at: 40 }] }];
+  assert.deepEqual(quotesFor(both, lines, notVerified), [
+    '지금도 단추 다는 건 눈 감고도 해',
+  ]);
+});

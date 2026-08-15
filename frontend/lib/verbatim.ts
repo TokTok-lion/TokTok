@@ -37,14 +37,39 @@ const NEAR = 2.5;
  *
  * 지난 회기 사실은 이번 회기 전사에 없다. 못 찾으면 그냥 빠진다 — 없는 말을
  * 만들어 채우면 그 순간 이 기능의 뜻이 사라진다.
+ *
+ * ── 확인 안 된 말씀은 빼야 한다
+ *
+ * 강점 갈래로 회기를 돌려 보다 찾았다. 어르신이 "내가 아직 쓸모가 있구나
+ * 싶어서 좋았어"라고 하셨고, 사실 추출은 그 문장을 **일부러 뺐다**(자기
+ * 평가라서). 그런데 그 말이 말씨 재료를 타고 후렴 첫 줄로 들어갔다.
+ *
+ * 「확인된 것만 가사로」(원칙 2)에 이 기능이 뒷문을 낸 셈이다. 어르신이
+ * 하신 말씀인 것은 맞지만, 복지사가 확인하지 않은 말이고 빼 달라고 하신
+ * 말일 수도 있다.
+ *
+ * 그래서 확인되지 않은 항목(미확인·제외)이 가리키는 대목의 말씀은 재료에서
+ * 뺀다. 한 줄에 두 마디가 섞여 있으면 통째로 뺀다 — 반만 빼는 방법이 없고,
+ * 덜 쓰는 쪽이 잘못 쓰는 쪽보다 낫다.
  */
 export function quotesFor(
   items: ItemLike[],
   transcript: LineLike[],
+  /** 확인되지 않은 항목들 — 이들이 가리키는 대목은 말씨 재료에서 뺀다. */
+  unverified: ItemLike[] = [],
   limit = 12,
 ): string[] {
   const elder = transcript.filter((l) => l.speaker === 'elder' && !l.example);
   if (!elder.length) return [];
+
+  /*
+   * 빼야 할 대목의 시각. 미확인·제외 항목의 출처가 가리키는 자리다.
+   */
+  const blocked = unverified
+    .flatMap((i) => i.sources.map((src) => src.at))
+    .filter((at): at is number => typeof at === 'number');
+  const isBlocked = (line: LineLike) =>
+    blocked.some((at) => Math.abs(line.at - at) <= NEAR);
 
   const out: string[] = [];
   const seen = new Set<string>();
@@ -53,6 +78,7 @@ export function quotesFor(
       if (typeof src.at !== 'number') continue;
       for (const line of elder) {
         if (Math.abs(line.at - src.at) > NEAR) continue;
+        if (isBlocked(line)) continue;
         const t = line.text.trim();
         // 너무 짧은 줄("네", "그럼")에는 말투가 담기지 않는다.
         if (t.length < 6 || seen.has(t)) continue;
