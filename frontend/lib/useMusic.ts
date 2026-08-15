@@ -182,6 +182,24 @@ export function useMusic() {
       .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
       .join('\n\n');
 
+    /*
+     * 보낼 때는 절 이름을 영어로 바꾼다.
+     *
+     * 우리는 [1절]·[후렴]으로 적어 보내고 있었는데, Suno 가 알아듣는 구조
+     * 표시는 [Verse]·[Chorus] 다. 모르는 표시를 받으면 편곡을 자기 마음대로
+     * 짠다 — 팀원분이 사이트에서 뽑은 60초짜리와 우리 곡을 재 보니 우리 쪽만
+     * 앞 13초가 전주고 한가운데 36초가 반주뿐이었다. 반주는 크게 나오니
+     * 조용한 게 아니라 **부를 것이 없는** 36초다.
+     *
+     * 화면과 인쇄물은 그대로 한국어를 쓴다. 이 변환은 업체에 보내는 자리에서만
+     * 일어난다. 곡을 찾는 열쇠(songKey·lyricsHash)도 한국어 쪽을 그대로 쓴다 —
+     * 여기서 바꾸면 이미 만들어 둔 곡을 못 찾고 "가사가 바뀌었다"고 잘못
+     * 말하게 된다.
+     */
+    const forSuno = now.lyrics
+      .map((sec) => `[${sunoTag(sec.label)}]\n${sec.lines.join('\n')}`)
+      .join('\n\n');
+
     const style = now.style ?? 'ballad';
     const key = `${style}::${lyrics}`;
 
@@ -251,7 +269,7 @@ export function useMusic() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             style: now.style ?? 'ballad',
-            lyrics,
+            lyrics: forSuno,
             title: now.topic,
           }),
         }),
@@ -752,6 +770,18 @@ export type LyricCue = {
  */
 export function lyricLineTexts(sections: LyricSection[]): string[] {
   return flattenLyrics(sections).map((l) => l.text);
+}
+
+/**
+ * 우리 절 이름을 Suno 가 아는 구조 표시로.
+ *
+ * 모르는 이름이면 절로 본다. 지어내지 않는다 — [Bridge] 같은 것을 임의로
+ * 붙이면 우리가 쓰지도 않은 구조를 업체에 지시하는 셈이다.
+ */
+export function sunoTag(label: string): string {
+  if (/후렴|코러스/.test(label)) return 'Chorus';
+  if (/다리|브리지/.test(label)) return 'Bridge';
+  return 'Verse';
 }
 
 /** 절 배열을 줄 하나짜리 목록으로 펼친다. */
