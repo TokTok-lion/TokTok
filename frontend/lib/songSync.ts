@@ -44,13 +44,15 @@ export async function lyricsHash(lyrics: string, style: string): Promise<string>
  * accountReady 는 그 확인이 끝날 때까지만 기다리고, 통신이 끊긴 곳에서는
  * 시간이 지나면 그때 상태로 답한다 — 회기가 서버 때문에 멈추지는 않는다.
  */
-async function ctx() {
+async function ctx(participantId?: string) {
   const sb = getSupabase();
   if (!sb) return null;
   const a = await accountReady();
   const s = currentSession();
-  if (a.status !== 'in' || !s.remoteParticipantId) return null;
-  return { sb, tenantId: a.tenantId, participantId: s.remoteParticipantId };
+  // 보는 어르신을 따로 준 경우가 있다(기록의 「보는 어르신」). 없으면 회기.
+  const who = participantId ?? s.remoteParticipantId;
+  if (a.status !== 'in' || !who) return null;
+  return { sb, tenantId: a.tenantId, participantId: who };
 }
 
 /**
@@ -126,8 +128,11 @@ function cleanTopic(v: string | null): string | null {
  * 전, 통신 실패가 여기 들어온다. 화면이 둘을 같게 그리면 있는 곡을 없다고
  * 말하게 되고, 그러면 복지사가 한 번 더 만든다. 그게 요금이다.
  */
-export async function listServerSongs(): Promise<ServerSong[] | null> {
-  const c = await ctx();
+export async function listServerSongs(
+  /** 누구의 곡을 볼 것인가. 없으면 지금 회기의 어르신. */
+  participantId?: string,
+): Promise<ServerSong[] | null> {
+  const c = await ctx(participantId);
   if (!c) return null;
 
   /*

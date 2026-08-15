@@ -7,6 +7,8 @@ import { Card } from '@/components/ui';
 import { readElderScenes, type Scene } from '@/lib/sceneStore';
 import { listServerScenes, syncPending } from '@/lib/sceneSync';
 import { useSession } from '@/lib/store';
+import { ViewElderPicker } from '@/components/ViewElderPicker';
+import { useViewElder } from '@/lib/viewElder';
 
 /**
  * 그림 보관함 — 이 어르신의 지난 회기 그림까지.
@@ -26,6 +28,8 @@ import { useSession } from '@/lib/store';
  */
 export default function SceneShelfPage() {
   const { s } = useSession();
+  const view = useViewElder();
+  const owner = view.id ?? undefined;
   const [scenes, setScenes] = useState<Scene[] | null>(null);
   const [fromServer, setFromServer] = useState(false);
 
@@ -41,7 +45,7 @@ export default function SceneShelfPage() {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const mine = await readElderScenes();
+      const mine = await readElderScenes(owner);
       if (!alive) return;
       setScenes(mine);
 
@@ -49,10 +53,12 @@ export default function SceneShelfPage() {
        * 확정해 놓고 못 올라간 그림을 먼저 마저 올린다. 그러고 나서 서버를
        * 읽어야, 방금 올린 것이 목록에 두 번 뜨지 않는다.
        */
-      await syncPending(mine);
+      // 보는 어르신이 회기와 다르면 올리지 않는다 — 남의 기록을 대신 올리는
+      // 셈이 되고, 지금 회기에서 확정한 것도 아니다.
+      if (!owner) await syncPending(mine);
       if (!alive) return;
 
-      const remote = await listServerScenes();
+      const remote = await listServerScenes(owner);
       if (!alive || !remote.length) return;
       const seen = new Set(mine.map((x) => x.factId));
       const add = remote.filter((r) => !seen.has(r.factId));
@@ -63,7 +69,7 @@ export default function SceneShelfPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [owner]);
 
   const bySession = new Map<string, Scene[]>();
   for (const sc of scenes ?? []) {
@@ -76,9 +82,11 @@ export default function SceneShelfPage() {
     <Screen
       back
       title="그림 보관함"
-      subtitle={`${s.elder.honorific}의 사연 그림`}
+      subtitle={`${view.id ? `${view.name} 어르신` : s.elder.honorific}의 사연 그림`}
       decoration={<Ornaments variant="leafRight" />}
     >
+      <ViewElderPicker />
+
       {scenes === null ? (
         <p className="text-center text-[0.9375rem] text-ink-500">불러오는 중…</p>
       ) : scenes.length === 0 ? (

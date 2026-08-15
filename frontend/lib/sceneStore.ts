@@ -85,14 +85,17 @@ const keyOf = (ownerId: string, sessionId: string, factId: string) =>
  * 곡은 어르신 단위로 보관함에 남는데(songStore.readSongShelf) 그림만 그렇지
  * 않았다.
  */
-export async function readElderScenes(): Promise<Scene[]> {
+export async function readElderScenes(
+  /** 누구의 그림인가. 없으면 지금 회기의 어르신(lib/viewElder 참고). */
+  ownerId?: string,
+): Promise<Scene[]> {
   const db = await openDb();
   if (!db) return [];
   const all = (await run<Scene[]>(db, 'readonly', (s) => s.getAll())) ?? [];
   db.close();
-  const tag = songTag();
+  const owner = ownerId ?? songTag().ownerId;
   return all
-    .filter((x) => x.ownerId === tag.ownerId)
+    .filter((x) => x.ownerId === owner)
     .sort((a, b) => b.madeAt - a.madeAt);
 }
 

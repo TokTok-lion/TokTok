@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { ViewElderPicker } from '@/components/ViewElderPicker';
+import { useViewElder } from '@/lib/viewElder';
 
 import { useState } from 'react';
 import { ArtBox } from '@/components/Art';
@@ -53,7 +55,8 @@ import type { ArtKey } from '@/lib/art';
  */
 export default function LibraryPage() {
   const { s, set } = useSession();
-  const shelf = useSongShelf();
+  const view = useViewElder();
+  const shelf = useSongShelf(view.id ?? undefined);
   const player = useSongShelfPlayer();
   const elder = useActiveElder();
 
@@ -125,7 +128,9 @@ export default function LibraryPage() {
         )
       }
     >
-      <h2 className="text-[1.1875rem] font-extrabold text-ink-900">
+      <ViewElderPicker />
+
+      <h2 className="mt-4 text-[1.1875rem] font-extrabold text-ink-900">
         만든 노래
         {shelf.available && !shelf.loading ? (
           <span className="ml-2 text-[0.9375rem] font-semibold text-ink-500">
@@ -137,7 +142,10 @@ export default function LibraryPage() {
           상태의 안내문("어르신을 고르지 않았어요")과 이어 붙어 말이 되지
           않으므로, 호칭은 문장 끝에 그대로 둔다. */}
       <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-500">
-        지금 보시는 것은 <strong className="text-ink-900">{s.elder.honorific}</strong>
+        지금 보시는 것은{' '}
+        <strong className="text-ink-900">
+          {view.id ? `${view.name} 어르신` : s.elder.honorific}
+        </strong>
         의 노래예요. 회기마다 한 줄씩 쌓이고, 같은 기관 안에서는 다른 태블릿에서
         만든 노래도 함께 보입니다.
       </p>

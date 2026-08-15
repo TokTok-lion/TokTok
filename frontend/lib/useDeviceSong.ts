@@ -248,7 +248,15 @@ function shelfOrder(sessionId: string) {
  * 끼워 넣는다. 통신을 기다렸다가 한꺼번에 그리면, 내 기기에 있는 곡을 보는
  * 데도 센터 와이파이를 기다려야 한다.
  */
-export function useSongShelf(): SongShelfState {
+export function useSongShelf(
+  /**
+   * 누구의 보관함인가. 없으면 지금 회기의 어르신 — 예전 동작 그대로다.
+   *
+   * 기록에서 「보는 어르신」을 바꾸면 이 값이 들어온다. 회기는 그대로 두고
+   * 읽는 대상만 갈린다(lib/viewElder).
+   */
+  ownerId?: string,
+): SongShelfState {
   const [nonce, setNonce] = useState(0);
   const [shelf, setShelf] = useState<Omit<SongShelfState, 'reload'>>({
     songs: [],
@@ -264,7 +272,7 @@ export function useSongShelf(): SongShelfState {
   useEffect(() => {
     let alive = true;
 
-    void readSongShelf()
+    void readSongShelf(ownerId)
       .then(async (s) => {
         if (!alive) return;
         const mine: ShelfItem[] = s.songs.map((m) => ({ ...m, where: 'device' }));
@@ -279,7 +287,7 @@ export function useSongShelf(): SongShelfState {
           shared: 'loading',
         });
 
-        const server = await listServerSongs().catch(() => null);
+        const server = await listServerSongs(ownerId).catch(() => null);
         if (!alive) return;
         if (!server) {
           setShelf((p) => ({ ...p, shared: 'off' }));
@@ -298,7 +306,7 @@ export function useSongShelf(): SongShelfState {
         const here = new Set(
           mine.map((m) => m.hash).filter((h): h is string => typeof h === 'string' && h.length > 0),
         );
-        const owner = songTag().ownerId;
+        const owner = ownerId ?? songTag().ownerId;
         const extra: ShelfItem[] = server
           .filter((r) => !r.hash || !here.has(r.hash))
           .map((r) => ({
@@ -335,7 +343,7 @@ export function useSongShelf(): SongShelfState {
     return () => {
       alive = false;
     };
-  }, [nonce]);
+  }, [nonce, ownerId]);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 

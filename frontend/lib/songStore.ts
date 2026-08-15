@@ -537,8 +537,16 @@ function newestFirst(a: SongMeta, b: SongMeta): number {
  * 준다 — 다른 어르신의 곡을 이 화면에서 열지 않기 위해서다. 그래도 얼마나
  * 쌓였는지는 알아야 지울 수 있다.
  */
-export async function readSongShelf(): Promise<SongShelf> {
-  const tag = songTag();
+export async function readSongShelf(
+  /**
+   * 누구의 보관함인가. 없으면 지금 회기의 어르신 — 예전 동작 그대로다.
+   *
+   * 기록에서 「보는 어르신」을 바꾸면 이 값이 들어온다(lib/viewElder).
+   * 회기 상태는 건드리지 않고 읽는 대상만 갈린다.
+   */
+  ownerId?: string,
+): Promise<SongShelf> {
+  const tag = ownerId ? { ...songTag(), ownerId } : songTag();
   const db = await openDb();
   if (!db) {
     return { available: false, songs: [], total: 0, totalBytes: 0, sessionId: tag.sessionId };

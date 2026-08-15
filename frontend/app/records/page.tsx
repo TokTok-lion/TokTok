@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, Chip, IconCircle } from '@/components/ui';
+import { ViewElderPicker } from '@/components/ViewElderPicker';
 import { IconCalendar, IconDoc, IconMusicNote, IconTextSize } from '@/components/icons';
 import { MUSIC_STYLES } from '@/lib/domain';
 import { sceneFor } from '@/lib/scenes';
@@ -47,7 +48,9 @@ export default function RecordsPage() {
           서로 다른 말을 했다. 지금은 이 기기의 곡과 기관 저장소의 곡을 함께
           센다 — 보관함과 같은 목록(useSongShelf)을 쓰므로 두 화면은 언제나
           같은 수를 말한다. */}
-      <h2 className="flex items-center gap-2 text-[1.125rem] font-extrabold text-ink-900">
+      <ViewElderPicker />
+
+      <h2 className="mt-4 flex items-center gap-2 text-[1.125rem] font-extrabold text-ink-900">
         <IconMusicNote size={21} className="text-brand-500" />
         완성된 노래
         {!shelf.loading ? (

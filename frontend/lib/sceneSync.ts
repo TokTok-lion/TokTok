@@ -32,13 +32,14 @@ function warn(what: string, why: string) {
   console.warn(`[똑똑] 그림 ${what} 실패: ${why}`);
 }
 
-async function ctx() {
+async function ctx(participantId?: string) {
   const sb = getSupabase();
   if (!sb) return null;
   const a = await accountReady();
   const s = currentSession();
-  if (a.status !== 'in' || !s.remoteParticipantId) return null;
-  return { sb, tenantId: a.tenantId, participantId: s.remoteParticipantId };
+  const who = participantId ?? s.remoteParticipantId;
+  if (a.status !== 'in' || !who) return null;
+  return { sb, tenantId: a.tenantId, participantId: who };
 }
 
 /** data: URI 를 올릴 수 있는 덩어리로. */
@@ -122,8 +123,8 @@ export async function syncPending(local: Scene[]): Promise<number> {
 }
 
 /** 서버에 있는 이 어르신의 그림들. 못 읽으면 빈 목록. */
-export async function listServerScenes(): Promise<Scene[]> {
-  const c = await ctx();
+export async function listServerScenes(participantId?: string): Promise<Scene[]> {
+  const c = await ctx(participantId);
   if (!c) return [];
 
   const { data, error } = await c.sb
