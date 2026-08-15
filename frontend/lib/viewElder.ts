@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { currentSession } from './store';
 
 /**
@@ -81,15 +81,24 @@ export function viewOwnerId(): string {
   return s.remoteParticipantId ?? s.elder.id;
 }
 
+/**
+ * 서버에서 그린 글자와 브라우저에서 그린 글자가 달라, 리액트가 그 자리를
+ * 통째로 다시 그리고 있었다(hydration 오류 #418).
+ *
+ * 원인은 이 값이 sessionStorage 에 있다는 것이다. 서버는 고른 어르신을 알 수
+ * 없으니 회기의 어르신으로 그리고, 브라우저는 첫 렌더부터 고른 어르신으로
+ * 그렸다. useSyncExternalStore 는 서버용 답을 따로 받으므로, 서버는 「고른 적
+ * 없음」으로 그리고 브라우저가 뜬 뒤에 바뀐다 — 두 글자가 어긋나지 않는다.
+ */
+function subscribe(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
 export function useViewElder(): ViewElder & { sameAsSession: boolean } {
-  const [v, setV] = useState<ViewElder>(load);
-  useEffect(() => {
-    const fn = () => setV(value);
-    listeners.add(fn);
-    return () => {
-      listeners.delete(fn);
-    };
-  }, []);
+  const v = useSyncExternalStore(subscribe, load, () => NONE);
 
   const s = currentSession();
   const sessionId = s.remoteParticipantId ?? s.elder.id;
