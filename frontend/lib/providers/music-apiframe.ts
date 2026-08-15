@@ -214,10 +214,29 @@ export const apiframeMusic: MusicProvider = {
         sunoParams: {
           custom_mode: true,
           instrumental: false,
-          model_version: process.env.APIFRAME_MODEL || 'V4_5PLUS',
+          model_version: process.env.APIFRAME_MODEL || 'V5',
           title: (req.title || '이름 없는 노래').slice(0, 80),
           style: styleText(req.style),
           negative_tags: AVOID,
+          /*
+           * 스타일을 얼마나 지킬 것인가 (0~1).
+           *
+           * 우리 style 문자열은 900자가 넘는다 — 느리게, 전주 짧게, 반주는
+           * 성기게, 목소리를 앞에. 그런데 실제로 나온 곡은 앞 13초가 전주고
+           * 한가운데 36초가 반주뿐이었다. 적어 보내는 것과 지켜지는 것은
+           * 다르고, 얼마나 지킬지는 여태 기본값에 맡겨 두고 있었다.
+           *
+           * 0.8 은 짐작이 아니다. 팀원분이 Suno 사이트에서 직접 뽑은 파일의
+           * 태그에 sga=0.8 이 박혀 있었다. 사람이 손으로 만들 때 쓰는 값이다.
+           */
+          style_weight: Number(process.env.APIFRAME_STYLE_WEIGHT) || 0.8,
+          /*
+           * 엉뚱함 (0~1). 낮게 둔다.
+           *
+           * 어르신이 따라 부르실 노래다. 참신한 편곡보다 예상대로 흘러가는
+           * 편이 낫다 — 한 번 놓치면 다시 들어오기 어렵다.
+           */
+          weirdness_constraint: Number(process.env.APIFRAME_WEIRDNESS) || 0.2,
           // 어르신 이야기를 담은 노래라 목소리는 차분한 쪽으로 둔다.
           vocal_gender: process.env.APIFRAME_VOCAL || 'f',
         },
