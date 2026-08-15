@@ -1,0 +1,9 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+# 노래에서 목소리만 떼어 낸다. 반주가 섞인 채로는 인식이 크게 떨어진다.
+demucs==4.0.1
+# 단어 단위 시각을 주는 인식기. 한국어 정렬 모델이 있다.
+whisperx==3.3.1
+torch==2.5.1
+torchaudio==2.5.1

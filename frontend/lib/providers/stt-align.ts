@@ -74,6 +74,54 @@ function notReady(): Fail | null {
 }
 
 /**
+ * 더 정확한 일꾼이 있으면 그쪽에 묻는다 (worker/).
+ *
+ * ── 왜 따로 두나
+ *
+ * 노래하는 목소리는 말하는 목소리보다 알아듣기 어렵고, 반주까지 섞여 있으면
+ * 더 그렇다. 일꾼은 반주에서 목소리를 떼어 낸 뒤(Demucs) 소리와 글자를 직접
+ * 맞추는 방식으로 낱말 시각을 낸다(WhisperX). 파이썬이고 모델이 무거워서
+ * 서버리스 함수 자리가 아니라, 기관 서버 한 대에 올려 두고 부른다.
+ *
+ * ── 없으면 지금까지 쓰던 길로 간다
+ *
+ * 환경변수가 없거나 일꾼이 죽어 있으면 구글 STT 로 맞춘다. 맞추기 하나
+ * 때문에 회기가 멈추지는 않는다 — 그것도 실패하면 화면은 어림으로 남는다.
+ */
+const WORKER = process.env.ALIGN_WORKER_URL || '';
+const WORKER_TOKEN = process.env.ALIGN_WORKER_TOKEN || '';
+
+async function askWorker(file: Blob): Promise<HeardWord[] | null> {
+  if (!WORKER) return null;
+  try {
+    const form = new FormData();
+    form.append('file', file, 'song.mp3');
+    if (WORKER_TOKEN) form.append('token', WORKER_TOKEN);
+
+    const ac = new AbortController();
+    // 목소리 분리까지 하면 몇 분이 걸린다. 그 사이 화면은 표를 들고 기다린다.
+    const timer = setTimeout(() => ac.abort(), 240_000);
+    const res = await fetch(WORKER, { method: 'POST', body: form, signal: ac.signal });
+    clearTimeout(timer);
+    if (!res.ok) {
+      console.error('align worker failed', res.status);
+      return null;
+    }
+    const json = (await res.json()) as { words?: { text?: string; at?: number }[] };
+    const words = (json.words ?? [])
+      .filter((w) => typeof w.text === 'string' && typeof w.at === 'number')
+      .map((w) => ({ text: String(w.text), at: Number(w.at) }));
+    // 한 낱말도 못 들었으면 없는 것으로 본다. 빈 목록으로 정렬하면 화면이
+    // "맞췄다"고 하면서 아무것도 안 맞은 값을 쓰게 된다.
+    return words.length ? words : null;
+  } catch (e) {
+    const aborted = e instanceof Error && e.name === 'AbortError';
+    if (!aborted) console.error('align worker error', e);
+    return null;
+  }
+}
+
+/**
  * 곡 파일을 받아 우리가 저장소에 올리고 맞추기를 건다.
  *
  * ── 왜 브라우저가 직접 안 올리나
@@ -86,6 +134,14 @@ function notReady(): Fail | null {
  * 넘을 수 있어서 그럴 수 없지만, 노래는 길어야 4분이다.
  */
 export async function startAlignFile(file: Blob): Promise<Job<HeardWord[]>> {
+  /*
+   * 더 정확한 일꾼이 있으면 먼저 묻는다. 답이 오면 그 자리에서 끝난다 —
+   * 저장소를 거치지 않으므로 어르신 이야기가 담긴 노래가 남의 저장소에
+   * 잠시라도 놓이지 않는다.
+   */
+  const better = await askWorker(file);
+  if (better) return { ok: true, done: true, value: better };
+
   const bad = notReady();
   if (bad) return bad;
 
