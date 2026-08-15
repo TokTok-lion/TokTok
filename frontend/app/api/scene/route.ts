@@ -55,6 +55,10 @@ const RULES = [
   // 얼굴을 안 그리는 이유는 파일 머리말 참고.
   'Do not show any recognizable human face. If people appear, show them from',
   'behind, at a distance, or only their hands. No portraits, no close-up faces.',
+  // 처음 돌려 보니 멀리 있는 사람들의 얼굴이 그려졌다. 멀어서 누구인지 알 수는
+  // 없지만, 규칙을 그렇게 적어 두고 지켜지지 않으면 다음 그림도 못 믿는다.
+  'Any distant figures must have soft, indistinct faces with no facial features drawn.',
+  'The main person is always seen from behind.',
   'No text, letters, numbers, captions, or signage anywhere in the image.',
   'Do not add objects, people, animals, or events that are not in the sentence.',
   'No modern items (smartphones, cars after the 1990s), no logos or brands.',

@@ -57,33 +57,56 @@ export default function ScenesPage() {
     try {
       const sb = getSupabase();
       const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
-      const res = await fetch('/api/scene', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          // 그릴 것은 확인된 이야기뿐이다. 미확인·제외 항목은 나가지 않는다.
-          facts: basis.slice(0, 4).map((f) => ({ id: f.id, text: f.text })),
-          avoid: s.elder.avoidTopics,
-        }),
-      });
-      const json = (await res.json()) as {
-        scenes?: { id: string; text: string; image: string }[];
-        failed?: number;
-        error?: string;
-      };
-      if (!res.ok || !json.scenes) {
-        setError(json.error ?? '그림을 만들지 못했어요.');
+      /*
+       * 한 장씩 따로 부른다.
+       *
+       * 한 번에 넉 장을 부르면 함수가 한 요청 안에서 그 시간을 다 써야 한다 —
+       * 실제로 한 장에 45초가 걸렸다. 배포 환경의 함수 시간 제한에 걸리면 넉
+       * 장이 통째로 날아가고, 요금은 이미 나간 뒤다.
+       *
+       * 한 장씩 부르면 그린 것부터 화면에 쌓인다. 중간에 한 장이 실패해도
+       * 앞의 것은 남는다.
+       */
+      const targets = basis.slice(0, 4);
+      let made = 0;
+      let failed = 0;
+      for (const f of targets) {
+        setNote(`${made + failed + 1}번째 그림을 그리는 중이에요… (전체 ${targets.length}장)`);
+        const res = await fetch('/api/scene', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            // 그릴 것은 확인된 이야기뿐이다. 미확인·제외 항목은 나가지 않는다.
+            facts: [{ id: f.id, text: f.text }],
+            avoid: s.elder.avoidTopics,
+          }),
+        });
+        const json = (await res.json().catch(() => null)) as {
+          scenes?: { id: string; text: string; image: string }[];
+          error?: string;
+        } | null;
+        const one = json?.scenes?.[0];
+        if (!res.ok || !one) {
+          failed += 1;
+          continue;
+        }
+        await saveScene(one.id, one.text, one.image);
+        made += 1;
+        reload();
+      }
+
+      if (!made) {
+        setError('그림을 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+        setNote(null);
         return;
       }
-      for (const sc of json.scenes) await saveScene(sc.id, sc.text, sc.image);
-      reload();
       setNote(
-        json.failed
-          ? `${json.scenes.length}장을 그렸어요. ${json.failed}장은 만들지 못했어요 — 다시 눌러 보셔도 됩니다.`
-          : `${json.scenes.length}장을 그렸어요. 한 장씩 보시고 쓸 것만 골라 주세요.`,
+        failed
+          ? `${made}장을 그렸어요. ${failed}장은 만들지 못했어요 — 다시 눌러 보셔도 됩니다.`
+          : `${made}장을 그렸어요. 한 장씩 보시고 쓸 것만 골라 주세요.`,
       );
     } catch {
       setError('연결하지 못했어요.');
