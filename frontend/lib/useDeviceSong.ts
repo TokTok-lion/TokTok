@@ -6,6 +6,7 @@ import {
   SERVER_SESSION,
   cacheServerSong,
   loadSong,
+  loadSongAt,
   readSongShelf,
   songTag,
   type SongMeta,
@@ -40,7 +41,16 @@ export type DeviceSongState = DeviceSong & { reload: () => void };
  * 곡을 한 번 더 만드는 자리이니 요금이 걸린 사고다. 모르는 동안에는 모른다고
  * 말하게 한다.
  */
-export function useDeviceSongState(): DeviceSongState {
+export function useDeviceSongState(
+  /**
+   * 특정 곡을 걸 때 그 칸 이름.
+   *
+   * 없으면 예전 그대로 이번 회기의 곡을 찾는다. 보관함에서 지난 곡을 골라
+   * 「함께 부르기」로 열 때만 이 값이 들어온다 — 회기 상태를 건드리지 않고
+   * 그 곡만 재생하기 위해서다. 회기 상태를 덮으면 진행 중인 회기가 망가진다.
+   */
+  key?: string | null,
+): DeviceSongState {
   const [song, setSong] = useState<DeviceSong>({ url: null, loading: true });
   /*
    * 곡이 화면 밖에서 바뀌면 다시 읽어야 한다. 지금은 「다른 연주로 바꾸기」가
@@ -58,7 +68,7 @@ export function useDeviceSongState(): DeviceSongState {
     // 놓지 않는 이유: 이 훅의 시작 상태가 이미 '읽는 중'이고, 이펙트가 다시
     // 도는 경우(개발 모드 이중 마운트)에도 정리가 곧바로 이어지므로 그 사이에
     // IndexedDB 가 답할 틈이 없다 — made 가 null 이라 되돌릴 주소도 없다.
-    void loadSong()
+    void (key ? loadSongAt(key) : loadSong())
       .then(async (blob) => {
         if (!alive) return;
         if (!blob) {
@@ -86,7 +96,7 @@ export function useDeviceSongState(): DeviceSongState {
       alive = false;
       if (made) URL.revokeObjectURL(made);
     };
-  }, [nonce]);
+  }, [nonce, key]);
 
   return { ...song, reload };
 }
@@ -147,6 +157,7 @@ async function sessionSongFromServer(): Promise<Blob | null> {
       cover: row.cover,
       style: row.style,
       hash: row.hash,
+      lyrics: row.lyrics,
     });
     return blob;
   }
@@ -293,6 +304,9 @@ export function useSongShelf(): SongShelfState {
           .map((r) => ({
             key: `srv:${r.id}`,
             ownerId: owner,
+            // 서버 목록에서 온 곡도 가사를 들고 온다. 없으면 보관함의
+            // 「함께 부르기」가 안 뜬다(가사 없는 곡은 노래방을 못 연다).
+            lyrics: r.lyrics,
             sessionId: SERVER_SESSION,
             madeAt: r.madeAt,
             topic: r.topic,

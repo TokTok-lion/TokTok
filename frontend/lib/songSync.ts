@@ -3,7 +3,7 @@
 import { getSupabase } from './supabase';
 import { accountReady } from './auth';
 import { currentSession } from './store';
-import type { MusicStyleId } from './domain';
+import type { LyricSection, MusicStyleId } from './domain';
 import { MUSIC_STYLES } from './domain';
 
 /**
@@ -104,6 +104,8 @@ export type ServerSong = {
   style: MusicStyleId | null;
   madeAt: number | null;
   hash: string | null;
+  /** 이 곡의 가사. 예전 곡은 비어 있다(0011 이전에 만든 곡). */
+  lyrics: LyricSection[] | null;
 };
 
 /** 아는 분위기 이름일 때만 돌려준다. 모르는 값은 없는 것으로 둔다. */
@@ -149,7 +151,7 @@ export async function listServerSongs(): Promise<ServerSong[] | null> {
 
   const { data, error } = await c.sb
     .from('songs')
-    .select('id, title, style, art_key, audio_path, lyrics_hash, created_at')
+    .select('id, title, style, art_key, audio_path, lyrics_hash, lyrics, created_at')
     .or(`${mine}${shared}`)
     .not('audio_path', 'is', null)
     .order('created_at', { ascending: false })
@@ -169,6 +171,7 @@ export async function listServerSongs(): Promise<ServerSong[] | null> {
         // 못 읽은 시각을 지어내지 않는다. 목록이 날짜를 말하면 잰 값이어야 한다.
         madeAt: Number.isNaN(at) ? null : at,
         hash: r.lyrics_hash,
+        lyrics: Array.isArray(r.lyrics) ? (r.lyrics as LyricSection[]) : null,
       },
     ];
   });
@@ -225,6 +228,8 @@ export async function uploadSong(
      * 같다(songStore 의 SongTag.cover).
      */
     cover: string | null;
+    /** 이 곡의 가사. 보관함에서 다시 부르려면 곡을 따라다녀야 한다. */
+    lyrics?: LyricSection[] | null;
   },
 ): Promise<boolean> {
   const c = await ctx();
@@ -250,6 +255,9 @@ export async function uploadSong(
     audio_path: path,
     art_key: meta.cover,
     lyrics_hash: hash,
+    // 가사를 곡에 붙여 둔다. 보관함에서 다시 「함께 부르기」로 열려면
+    // 가사가 곡을 따라다녀야 한다(0011_song_lyrics).
+    lyrics: meta.lyrics ?? null,
     length_ms: meta.lengthMs,
     // 어느 업체가 만든 곡인지 남긴다. 업체를 갈아 끼우면 옛 곡과 새 곡이
     // 섞이는데, 어디서 온 것인지 모르면 나중에 골라낼 수가 없다.

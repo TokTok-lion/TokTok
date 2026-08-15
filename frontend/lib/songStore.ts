@@ -53,7 +53,7 @@
  * 말없이 지우는 것만은 하지 않는다. 어르신 노래다.
  */
 
-import type { MusicStyleId } from './domain';
+import type { LyricSection, MusicStyleId } from './domain';
 import { currentSession } from './store';
 
 const DB_NAME = 'toktok-song';
@@ -145,6 +145,17 @@ export type SongMeta = {
    */
   cues?: number[] | null;
   cueHash?: string | null;
+  /**
+   * 이 곡의 가사.
+   *
+   * 보관함에서 지난 곡을 다시 「함께 부르기」로 열려면 가사가 곡을 따라
+   * 다녀야 한다. 예전에는 회기 상태에만 있어서 회기가 끝나면 사라졌고,
+   * 그래서 지난 곡은 재생만 되고 노래방으로는 못 열었다.
+   *
+   * 이 칸이 생기기 전에 만든 곡은 비어 있다. 화면은 가사가 있는 곡에만
+   * 「함께 부르기」를 띄운다.
+   */
+  lyrics?: LyricSection[] | null;
 };
 
 export type SongShelf = {
@@ -366,6 +377,8 @@ export async function saveSong(
   // 가사 지문. 이게 붙어 있어야 나중에 서버 목록과 합칠 때 같은 곡을 한 줄로
   // 접을 수 있다(SongMeta.hash).
   hash: string | null = null,
+  /** 이 곡의 가사. 보관함에서 다시 부르려면 곡을 따라다녀야 한다. */
+  lyrics: LyricSection[] | null = null,
 ): Promise<SaveOutcome> {
   const db = await openDb();
   if (!db) return 'unavailable';
@@ -382,6 +395,7 @@ export async function saveSong(
       style: tag.style,
       bytes: blob.size,
       hash,
+      lyrics,
     },
     blob,
   );
@@ -488,6 +502,15 @@ export async function saveCues(
   );
   db.close();
   return out !== null;
+}
+
+/** 곡 하나에 붙은 표. 보관함에서 고른 곡의 가사를 꺼낼 때 쓴다. */
+export async function songMetaAt(key: string): Promise<SongMeta | null> {
+  const db = await openDb();
+  if (!db) return null;
+  const meta = await idb<SongMeta>(db, METAS, 'readonly', (s) => s.get(key));
+  db.close();
+  return meta ?? null;
 }
 
 /** 목록에서 고른 곡 하나. */

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
@@ -12,7 +12,8 @@ import {
   IconPlay,
   IconRefresh,
 } from '@/components/icons';
-import { MUSIC_STYLES, formatDuration } from '@/lib/domain';
+import { MUSIC_STYLES, formatDuration, type LyricSection } from '@/lib/domain';
+import { songMetaAt } from '@/lib/songStore';
 import { StaleLyricsNote } from '@/components/StaleLyricsNote';
 import { useSession } from '@/lib/store';
 import { lyricLineTexts, useLyricCue, useSongPlayer } from '@/lib/useMusic';
@@ -75,13 +76,48 @@ const LINE_SKIN = {
   flat: 'px-3 text-[1.375rem] font-bold leading-relaxed text-ink-900',
 } as const;
 
+/**
+ * 보관함에서 고른 지난 곡을 여기서 열 수 있다.
+ *
+ * 주소에 ?song=<칸이름> 이 붙어 오면 그 곡을 걸고, 가사도 그 곡에 붙어 있는
+ * 것을 쓴다(songStore.SongMeta.lyrics). 회기 상태는 건드리지 않는다 —
+ * 진행 중인 회기가 있는데 지난 곡을 열었다고 그 회기가 바뀌면 안 된다.
+ */
+function pastSongKey(): string | null {
+  if (typeof window === 'undefined') return null;
+  const v = new URLSearchParams(window.location.search).get('song');
+  return v && v.startsWith('s2:') ? v : null;
+}
+
 export default function SingPage() {
   const { s, set } = useSession();
+
+  /*
+   * 보관함에서 온 지난 곡인가.
+   *
+   * 주소를 한 번만 읽고 붙잡아 둔다. 매 렌더마다 읽으면 값이 새 문자열이 되어
+   * 곡을 다시 읽어 오는 이펙트가 계속 돈다.
+   */
+  const [pastKey] = useState(pastSongKey);
+  const [pastLyrics, setPastLyrics] = useState<LyricSection[] | null>(null);
+  useEffect(() => {
+    if (!pastKey) return;
+    let alive = true;
+    void songMetaAt(pastKey).then((m) => {
+      if (alive && m?.lyrics?.length) setPastLyrics(m.lyrics);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [pastKey]);
+
+  // 지난 곡을 열었으면 그 곡의 가사로 부른다. 회기 가사는 건드리지 않는다.
+  const lyrics = pastLyrics ?? s.lyrics;
   // 고른 적 없는 분위기를 이름 대어 말하지 않는다. 예전에는 폴백이 '따뜻한
   // 발라드'라, 스타일 화면에 들어가 본 적도 없는 회기가 발라드를 고른 것처럼
   // 보였다. 없으면 줄 자체를 그리지 않는다 (preview·song 과 같은 규칙).
   const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
-  const player = useSongPlayer();
+  const player = useSongPlayer(pastKey);
   /*
    * 줄별 시각을 실제 노래에서 잰다(lib/align · api/align).
    *
@@ -89,10 +125,10 @@ export default function SingPage() {
    * 화면이 그 둘을 다르게 말한다.
    */
   const align = useSongAlign(
-    useMemo(() => lyricLineTexts(s.lyrics), [s.lyrics]),
+    useMemo(() => lyricLineTexts(lyrics), [lyrics]),
     player.total,
   );
-  const cue = useLyricCue(s.lyrics, player, align.cues);
+  const cue = useLyricCue(lyrics, player, align.cues);
 
   /*
    * 지금 줄을 짚는 것은 곡이 있을 때의 이야기다.

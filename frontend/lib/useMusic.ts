@@ -226,7 +226,7 @@ export function useMusic() {
     if (!remake) {
       const fromServer = await findServerSong(hash);
       if (fromServer) {
-        const stored = await saveSong(fromServer, tag, hash);
+        const stored = await saveSong(fromServer, tag, hash, now.lyrics);
         if (stored !== 'ok') {
           // 서버에는 그대로 있으므로 잃은 것은 없다. 요금도 나가지 않았다.
           setState({
@@ -333,6 +333,9 @@ export function useMusic() {
         // 고른 그림도 함께 올린다. 안 올리면 다른 태블릿의 보관함이 주제에서
         // 그림을 다시 계산해, 복지사가 바꾼 적 없는 그림을 보여 준다.
         cover: tag.cover,
+        // 가사도 곡을 따라간다. 보관함에서 지난 곡을 다시 「함께 부르기」로
+        // 열려면 이 값이 있어야 한다 — 회기 상태는 회기가 끝나면 사라진다.
+        lyrics: now.lyrics,
       };
 
       /*
@@ -342,7 +345,7 @@ export function useMusic() {
        * IndexedDB 가 막힌 브라우저). 그러면 화면은 '노래가 완성됐어요'라고
        * 하고 다음 화면에는 곡이 없다 — 요금은 이미 나간 뒤다.
        */
-      const stored = await saveSong(blob, tag, hash);
+      const stored = await saveSong(blob, tag, hash, now.lyrics);
       if (stored !== 'ok') {
         // 여기서만은 업로드 결과를 기다린다. 서버에 사본이 남았는지에 따라
         // 복지사가 할 일이 다르고(자리를 비우고 다시 받기 vs 다시 만들기),
@@ -443,8 +446,11 @@ export type SongPlayer = {
  * 무엇보다 소리는 한 번에 하나만 나야 한다 — 어르신 앞에서 두 곡이 겹치면
  * 회기가 흐트러진다(components/SamplePlayer.tsx 와 같은 이유).
  */
-export function useSongPlayer(): SongPlayer {
-  const { url, loading, reload } = useDeviceSongState();
+export function useSongPlayer(
+  /** 보관함에서 고른 지난 곡을 걸 때만 준다. 없으면 이번 회기의 곡. */
+  key?: string | null,
+): SongPlayer {
+  const { url, loading, reload } = useDeviceSongState(key);
   const ref = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);

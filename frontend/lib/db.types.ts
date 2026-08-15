@@ -188,6 +188,13 @@ export type SongRow = {
   idem_key: string | null;
   /** 같은 어르신·같은 가사면 다시 만들지 않기 위한 지문 */
   lyrics_hash: string | null;
+  /**
+   * 이 곡의 가사 (0011_song_lyrics).
+   *
+   * 보관함에서 지난 곡을 다시 「함께 부르기」로 열려면 가사가 곡을 따라
+   * 다녀야 한다. 그 칸이 생기기 전에 만든 곡은 null 이다.
+   */
+  lyrics: unknown | null;
   length_ms: number | null;
   created_at: string;
 };

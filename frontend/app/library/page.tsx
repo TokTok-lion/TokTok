@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useState } from 'react';
 import { ArtBox } from '@/components/Art';
 import { SampleShelf } from '@/components/SamplePlayer';
@@ -244,6 +246,18 @@ export default function LibraryPage() {
                       </p>
                     ) : null}
                   </div>
+
+                  {/* 가사가 붙어 있는 곡만 노래방으로 열 수 있다. 이 칸이
+                      생기기 전에 만든 곡은 없는 것을 있는 척하지 않는다. */}
+                  {m.lyrics?.length ? (
+                    <Link
+                      href={`/session/sing?song=${encodeURIComponent(m.key)}`}
+                      aria-label={`${title} 함께 부르기`}
+                      className="flex h-[58px] shrink-0 items-center rounded-full bg-leaf-100 px-4 text-[0.9375rem] font-bold text-leaf-800"
+                    >
+                      함께 부르기
+                    </Link>
+                  ) : null}
 
                   <button
                     type="button"
