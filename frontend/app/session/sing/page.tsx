@@ -12,7 +12,12 @@ import {
   IconPlay,
   IconRefresh,
 } from '@/components/icons';
-import { MUSIC_STYLES, formatDuration, type LyricSection } from '@/lib/domain';
+import {
+  MUSIC_STYLES,
+  formatDuration,
+  type LyricSection,
+  type MusicStyleId,
+} from '@/lib/domain';
 import { songMetaAt } from '@/lib/songStore';
 import { matchesHash } from '@/lib/songSync';
 import { StaleLyricsNote } from '@/components/StaleLyricsNote';
@@ -100,7 +105,18 @@ export default function SingPage() {
    * 곡을 다시 읽어 오는 이펙트가 계속 돈다.
    */
   const [pastKey] = useState(pastSongKey);
-  const [pastLyrics, setPastLyrics] = useState<LyricSection[] | null>(null);
+  /*
+   * 지난 곡의 주제·분위기·가사. 회기 값과 섞지 않는다.
+   *
+   * 처음에는 가사만 가져왔다. 그랬더니 화면 위쪽에는 여전히 오늘 회기의 주제와
+   * 분위기가 적혀 있었다 — 2026년 8월의 곡을 틀어 놓고 「지금도 잘하시는 일 ·
+   * 밝은 포크풍」이라고 말한 것이다. 지난 곡을 열었으면 그 곡의 것만 적는다.
+   */
+  const [past, setPast] = useState<{
+    topic: string | null;
+    style: MusicStyleId | null;
+    lyrics: LyricSection[] | null;
+  } | null>(null);
   useEffect(() => {
     if (!pastKey) return;
     let alive = true;
@@ -114,7 +130,12 @@ export default function SingPage() {
          * 어르신 앞에서 남의 노래 글자가 흐르는 것보다 낫다.
          */
         const ok = await matchesHash(m?.lyrics, m?.style, m?.hash).catch(() => false);
-        if (alive && ok && m?.lyrics) setPastLyrics(m.lyrics);
+        if (!alive) return;
+        setPast({
+          topic: m?.topic ?? null,
+          style: m?.style ?? null,
+          lyrics: ok && m?.lyrics ? m.lyrics : null,
+        });
       })
       .catch(() => undefined);
     return () => {
@@ -130,13 +151,15 @@ export default function SingPage() {
    * 김장했죠」인데 글자는 다른 회기의 것이었다. 없으면 없다고 말한다.
    */
   const lyrics = useMemo(
-    () => (pastKey ? (pastLyrics ?? []) : s.lyrics),
-    [pastKey, pastLyrics, s.lyrics],
+    () => (pastKey ? (past?.lyrics ?? []) : s.lyrics),
+    [pastKey, past, s.lyrics],
   );
+  const topic = pastKey ? past?.topic ?? null : s.topic;
   // 고른 적 없는 분위기를 이름 대어 말하지 않는다. 예전에는 폴백이 '따뜻한
   // 발라드'라, 스타일 화면에 들어가 본 적도 없는 회기가 발라드를 고른 것처럼
   // 보였다. 없으면 줄 자체를 그리지 않는다 (preview·song 과 같은 규칙).
-  const style = MUSIC_STYLES.find((m) => m.id === s.style)?.name ?? null;
+  const style =
+    MUSIC_STYLES.find((m) => m.id === (pastKey ? past?.style : s.style))?.name ?? null;
   const player = useSongPlayer(pastKey);
   /*
    * 줄별 시각을 실제 노래에서 잰다(lib/align · api/align).
@@ -213,7 +236,11 @@ export default function SingPage() {
       title="함께 부르기 활동"
       subtitle={
         cue.lines.length === 0
-          ? '가사를 먼저 만들어 주세요'
+          ? // 지난 곡에 「가사를 먼저 만들어 주세요」는 틀린 말이다. 그 곡의
+            // 가사는 예전에 만들어졌고, 여기서 새로 만들 것이 아니다.
+            pastKey
+            ? '보관함에서 고른 지난 노래예요'
+            : '가사를 먼저 만들어 주세요'
           : player.ready
             ? '지금 부르는 줄이 크게 보여요'
             : '완성된 가사를 모두 함께 따라 불러요'
@@ -237,8 +264,10 @@ export default function SingPage() {
           {/* 기관 어르신 기록에는 주제 칸이 없어 대개 비어 있다. 라벨만 남고
               값이 빈 줄은 화면이 무엇을 못 채운 것처럼 보이므로 그렇게 적는다. */}
           <p className="text-[1.25rem] font-extrabold leading-tight text-ink-900">
-            {s.topic || (
-              <span className="font-bold text-ink-500">주제 없이 진행한 회기예요</span>
+            {topic || (
+              <span className="font-bold text-ink-500">
+                {pastKey ? '주제가 남지 않은 노래예요' : '주제 없이 진행한 회기예요'}
+              </span>
             )}
           </p>
           {style ? (
