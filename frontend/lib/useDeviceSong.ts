@@ -16,9 +16,9 @@ import {
   backfillSongLyrics,
   downloadServerSong,
   listServerSongs,
-  lyricsHash,
+  matchesHash,
+  pushSongLyrics,
 } from './songSync';
-import type { LyricSection } from './domain';
 import { currentSession } from './store';
 
 export type DeviceSong = {
@@ -136,18 +136,10 @@ async function sessionSongFromServer(): Promise<Blob | null> {
   const rows = await listServerSongs();
   if (!rows?.length) return null;
 
-  // 곡을 만들 때와 글자 하나까지 같은 방법으로 잇는다(useMusic). 한 글자라도
-  // 다르면 지문이 달라지고, 그러면 제 회기의 곡을 못 알아본다.
-  const text = s.lyrics
-    .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
-    .join('\n\n');
-
   for (const row of rows) {
-    if (!row.hash || !row.style) continue;
     // 지문은 분위기까지 넣어 만든다(songSync.lyricsHash). 서버 행이 들고 있는
     // 분위기로 계산해야 같은 자리에서 만든 값과 견줄 수 있다.
-    const mine = await lyricsHash(text, row.style);
-    if (mine !== row.hash) continue;
+    if (!(await matchesHash(s.lyrics, row.style, row.hash))) continue;
 
     const blob = await downloadServerSong(row.path);
     if (!blob) return null;
@@ -317,42 +309,58 @@ export function useSongShelf(
          * 두 번 보이는 쪽보다 훨씬 나쁘다.
          */
         /*
-         * 기기 사본에 가사가 없으면 서버 것에서 채운다.
+         * ── 계정이 원본, 기기는 사본
          *
-         * 화면이 그리는 것은 기기 사본이다. 서버 행에 가사를 뒤늦게 붙여도
-         * (backfillSongLyrics) 기기 쪽이 비어 있으면 「함께 부르기」가 안 뜬다 —
-         * 실제로 그랬다. 같은 곡인지는 가사 지문으로만 가른다.
+         * 예전에는 화면이 기기 사본을 그리고 서버는 없는 것만 채웠다. 그래서
+         * 기기 사본이 낡으면 서버를 고쳐도 화면이 안 고쳐졌다 — 다른 회기의
+         * 가사가 붙은 곡이 정확히 그랬다. 서버에서 떼어 냈는데도 이 태블릿에는
+         * 그대로 떠 있었다.
          *
-         * 기기 표에도 적어 둔다. 다음에 열 때 서버를 안 읽어도 버튼이 뜬다.
+         * 순서를 뒤집는다. 서버를 읽을 수 있었다면 **서버 말이 이긴다.** 기기
+         * 사본은 오프라인일 때와 파일 재생을 위해 남는다.
+         *
+         * 다만 기기가 더 아는 경우가 있다 — 통신이 끊긴 채로 만든 곡, 가사 칸이
+         * 생기기 전에 올라간 곡이다. 그때는 덮지 않고 **빈자리를 채워 올린다.**
+         *
+         * 가사는 어느 쪽에서 왔든 지문을 확인하고 받는다. 서버 값이라고 그냥
+         * 믿지 않는다 — 잘못 붙은 가사가 서버에 있었던 적이 이미 있다.
          */
-        /*
-         * 기기 사본의 가사도 지문으로 확인한다.
-         *
-         * 앞선 판이 회기 번호만 보고 붙인 가사가 서버에 있었고, 그것이 여기로
-         * 복사됐다. 실제로 어르신 앞에서 다른 노래의 글자가 흘렀다. 지문이
-         * 다르면 떼어 낸다 — 안 뜨는 것이 틀린 가사가 뜨는 것보다 낫다.
-         */
-        for (const m of mine) {
-          if (!m.lyrics?.length || !m.hash || !m.style) continue;
-          const text = m.lyrics
-            .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
-            .join('\n\n');
-          if ((await lyricsHash(text, m.style)) === m.hash) continue;
-          m.lyrics = null;
-          void saveSongLyrics(m.key, null);
-        }
-
-        const byHash = new Map(
-          server
-            .filter((r) => r.hash && r.lyrics?.length)
-            .map((r) => [r.hash as string, r.lyrics as LyricSection[]]),
+        const srv = new Map(
+          server.filter((r) => r.hash).map((r) => [r.hash as string, r]),
         );
+
         for (const m of mine) {
-          if (m.lyrics?.length || !m.hash) continue;
-          const found = byHash.get(m.hash);
-          if (!found) continue;
-          m.lyrics = found;
-          void saveSongLyrics(m.key, found);
+          const row = m.hash ? srv.get(m.hash) : undefined;
+
+          // 곁들이 값은 서버가 아는 것만 따른다. 서버가 모르는 자리를 null 로
+          // 덮으면, 기기가 들고 있던 주제·표지가 사라진다.
+          if (row) {
+            if (row.topic !== null) m.topic = row.topic;
+            if (row.cover !== null) m.cover = row.cover;
+            if (row.style !== null) m.style = row.style;
+            if (row.madeAt !== null) m.madeAt = row.madeAt;
+          }
+
+          const ok = await matchesHash(row?.lyrics, row?.style ?? m.style, m.hash);
+          if (ok && row?.lyrics) {
+            // 서버 가사가 원본이다. 기기 것과 다르면 덮고, 기기 표에도 남긴다 —
+            // 다음에 열 때 통신을 기다리지 않고 「함께 부르기」가 뜬다.
+            if (JSON.stringify(m.lyrics ?? null) !== JSON.stringify(row.lyrics)) {
+              m.lyrics = row.lyrics;
+              void saveSongLyrics(m.key, row.lyrics);
+            }
+            continue;
+          }
+
+          // 여기부터는 서버에 쓸 만한 가사가 없다. 기기 것을 확인한다.
+          if (!m.lyrics?.length) continue;
+          if (!(await matchesHash(m.lyrics, m.style, m.hash))) {
+            m.lyrics = null;
+            void saveSongLyrics(m.key, null);
+            continue;
+          }
+          // 지문이 맞는 가사를 기기만 들고 있다. 계정에 올려 둔다.
+          if (row && m.hash) void pushSongLyrics(m.hash, m.lyrics, ownerId);
         }
 
         const here = new Set(

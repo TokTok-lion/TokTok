@@ -14,6 +14,7 @@ import {
 } from '@/components/icons';
 import { MUSIC_STYLES, formatDuration, type LyricSection } from '@/lib/domain';
 import { songMetaAt } from '@/lib/songStore';
+import { matchesHash } from '@/lib/songSync';
 import { StaleLyricsNote } from '@/components/StaleLyricsNote';
 import { useSession } from '@/lib/store';
 import { lyricLineTexts, useLyricCue, useSongPlayer } from '@/lib/useMusic';
@@ -103,16 +104,35 @@ export default function SingPage() {
   useEffect(() => {
     if (!pastKey) return;
     let alive = true;
-    void songMetaAt(pastKey).then((m) => {
-      if (alive && m?.lyrics?.length) setPastLyrics(m.lyrics);
-    });
+    void songMetaAt(pastKey)
+      .then(async (m) => {
+        /*
+         * 이 곡을 만든 가사가 맞는지 지문으로 확인하고 건다.
+         *
+         * 기기 사본은 낡을 수 있고, 실제로 다른 회기의 가사가 붙어 있던 적이
+         * 있다. 지문이 안 맞으면 아무것도 걸지 않는다 — 가사가 안 뜨는 것이
+         * 어르신 앞에서 남의 노래 글자가 흐르는 것보다 낫다.
+         */
+        const ok = await matchesHash(m?.lyrics, m?.style, m?.hash).catch(() => false);
+        if (alive && ok && m?.lyrics) setPastLyrics(m.lyrics);
+      })
+      .catch(() => undefined);
     return () => {
       alive = false;
     };
   }, [pastKey]);
 
-  // 지난 곡을 열었으면 그 곡의 가사로 부른다. 회기 가사는 건드리지 않는다.
-  const lyrics = pastLyrics ?? s.lyrics;
+  /*
+   * 지난 곡을 열었으면 그 곡의 가사로만 부른다.
+   *
+   * 예전에는 그 곡에 가사가 없으면 **회기 가사로 넘어갔다**. 그래서 보관함에서
+   * 지난 곡을 열면 오늘 만든 가사가 화면에 흘렀다 — 노래는 「우리집에서
+   * 김장했죠」인데 글자는 다른 회기의 것이었다. 없으면 없다고 말한다.
+   */
+  const lyrics = useMemo(
+    () => (pastKey ? (pastLyrics ?? []) : s.lyrics),
+    [pastKey, pastLyrics, s.lyrics],
+  );
   // 고른 적 없는 분위기를 이름 대어 말하지 않는다. 예전에는 폴백이 '따뜻한
   // 발라드'라, 스타일 화면에 들어가 본 적도 없는 회기가 발라드를 고른 것처럼
   // 보였다. 없으면 줄 자체를 그리지 않는다 (preview·song 과 같은 규칙).
@@ -229,7 +249,9 @@ export default function SingPage() {
         </div>
       </Card>
 
-      <StaleLyricsNote where="sing" />
+      {/* 지난 곡을 열었을 때는 안 띄운다 — 이 알림은 '지금 회기의 가사와 곡이
+          어긋났다'는 말이라, 다른 회기의 곡 위에 뜨면 엉뚱한 경고가 된다. */}
+      {pastKey ? null : <StaleLyricsNote where="sing" />}
 
       <Card className="relative mt-4 overflow-hidden px-4 py-6">
         <Art
@@ -286,14 +308,25 @@ export default function SingPage() {
           /* 막다른 길을 두지 않는다 — 가사를 만드는 화면으로 바로 보낸다. */
           <div className="text-center">
             <p className="text-[1.125rem] font-bold leading-relaxed text-ink-900">
-              아직 이 회기의 가사가 없어요.
+              {pastKey
+                ? '이 곡에 남아 있는 가사가 없어요.'
+                : '아직 이 회기의 가사가 없어요.'}
             </p>
-            <Link
-              href="/session/lyrics"
-              className="mt-3 inline-flex min-h-[48px] items-center border-b-2 border-brand-300 px-1 text-[1.0625rem] font-bold text-brand-700"
-            >
-              가사 검수 화면으로 가기
-            </Link>
+            {pastKey ? (
+              // 지난 곡을 회기 가사로 부르게 만들지 않는다. 노래는 그대로
+              // 들으실 수 있고, 글자만 안 뜬다.
+              <p className="mt-2 text-[0.9375rem] leading-relaxed text-ink-500">
+                노래는 그대로 들으실 수 있어요. 글자는 이 곡을 만든 가사가 확인될
+                때만 보여 드려요.
+              </p>
+            ) : (
+              <Link
+                href="/session/lyrics"
+                className="mt-3 inline-flex min-h-[48px] items-center border-b-2 border-brand-300 px-1 text-[1.0625rem] font-bold text-brand-700"
+              >
+                가사 검수 화면으로 가기
+              </Link>
+            )}
           </div>
         )}
 

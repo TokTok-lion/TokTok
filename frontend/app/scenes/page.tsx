@@ -32,6 +32,8 @@ export default function SceneShelfPage() {
   const owner = view.id ?? undefined;
   const [scenes, setScenes] = useState<Scene[] | null>(null);
   const [fromServer, setFromServer] = useState(false);
+  /** 계정 저장소를 읽었는가. 'off' 는 서버를 안 쓰거나 못 읽었다는 뜻이다. */
+  const [shared, setShared] = useState<'loading' | 'ok' | 'off'>('loading');
 
   /*
    * 기기 먼저, 서버는 뒤이어.
@@ -59,11 +61,35 @@ export default function SceneShelfPage() {
       if (!alive) return;
 
       const remote = await listServerScenes(owner);
-      if (!alive || !remote.length) return;
+      if (!alive) return;
+      if (!remote) {
+        // 못 읽었다. 화면이 그 사실을 말한다 — 없는 것으로 그리지 않는다.
+        setShared('off');
+        return;
+      }
+      setShared('ok');
+      if (!remote.length) return;
+
+      /*
+       * 계정이 원본이다.
+       *
+       * 같은 그림이 양쪽에 있으면 서버 쪽 글과 확정 여부를 따른다. 예전에는
+       * 기기 것을 그대로 두고 없는 것만 보탰는데, 그러면 다른 태블릿에서
+       * 확정한 그림이 이 태블릿에서는 계속 초안으로 보인다 — 두 화면이 같은
+       * 그림을 두고 다른 말을 하는 셈이다.
+       *
+       * 그림 파일은 기기 것을 그대로 쓴다. 같은 그림이고, 바꿔 끼우면 화면이
+       * 한 번 더 깜빡인다.
+       */
+      const byFact = new Map(remote.map((r) => [r.factId, r]));
+      const merged = mine.map((m) => {
+        const r = byFact.get(m.factId);
+        return r ? { ...m, text: r.text, approved: r.approved, madeAt: r.madeAt } : m;
+      });
+
       const seen = new Set(mine.map((x) => x.factId));
       const add = remote.filter((r) => !seen.has(r.factId));
-      if (!add.length) return;
-      setScenes([...mine, ...add].sort((a, b) => b.madeAt - a.madeAt));
+      setScenes([...merged, ...add].sort((a, b) => b.madeAt - a.madeAt));
       setFromServer(true);
     })();
     return () => {
@@ -91,9 +117,17 @@ export default function SceneShelfPage() {
         <p className="text-center text-[0.9375rem] text-ink-500">불러오는 중…</p>
       ) : scenes.length === 0 ? (
         <Card className="p-4">
-          <p className="text-[1rem] font-bold text-ink-900">아직 그린 그림이 없어요</p>
+          <p className="text-[1rem] font-bold text-ink-900">
+            {shared === 'off' ? '이 기기에는 그림이 없어요' : '아직 그린 그림이 없어요'}
+          </p>
           <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-500">
-            회기에서 노래를 만든 뒤 「사연 그림 만들기」로 그리실 수 있어요.
+            {shared === 'off'
+              ? /*
+                 * 계정을 못 읽은 채로 "없어요"라고만 적으면, 계정에 있는 그림을
+                 * 없다고 말하는 것이 된다. 그러면 같은 그림을 한 번 더 그린다.
+                 */
+                '기관 저장소를 못 읽었어요. 계정에 그림이 있을 수 있으니, 통신이 되는 곳에서 다시 열어 봐 주세요.'
+              : '회기에서 노래를 만든 뒤 「사연 그림 만들기」로 그리실 수 있어요.'}
           </p>
           <Link
             href="/session/scenes"
@@ -107,6 +141,7 @@ export default function SceneShelfPage() {
           <p className="text-[0.9375rem] text-ink-700">
             그림 {scenes.length}장 · 회기 {bySession.size}회
             {fromServer ? ' · 기관 저장소에 있는 그림도 함께 보여요' : ''}
+            {shared === 'off' ? ' · 이 기기에 있는 그림만 보여 드려요' : ''}
           </p>
 
           {[...bySession.entries()].map(([sessionId, list]) => (

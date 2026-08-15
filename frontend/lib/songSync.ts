@@ -129,6 +129,49 @@ function cleanTopic(v: string | null): string | null {
  * 말하게 되고, 그러면 복지사가 한 번 더 만든다. 그게 요금이다.
  */
 /**
+ * 이 가사가 **그 곡을 만든 가사**인가.
+ *
+ * 곡 행에는 만들 때 쓴 가사의 지문이 있다(lyrics_hash). 가사로 같은 지문을
+ * 다시 만들어 견주면, 한 글자만 달라도 다른 가사임이 드러난다.
+ *
+ * 이 규칙은 여기 한 곳에만 둔다. 서버에서 붙일 때, 기기 사본을 확인할 때,
+ * 회기의 곡을 알아볼 때가 모두 같은 답을 해야 한다 — 규칙이 두 곳에 있으면
+ * 언젠가 어긋나고, 어긋난 쪽이 어르신 앞에서 남의 가사를 띄운다.
+ */
+export async function matchesHash(
+  lyrics: LyricSection[] | null | undefined,
+  style: string | null | undefined,
+  hash: string | null | undefined,
+): Promise<boolean> {
+  if (!lyrics?.length || !style || !hash) return false;
+  const text = lyrics.map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`).join('\n\n');
+  return (await lyricsHash(text, style)) === hash;
+}
+
+/**
+ * 기기만 알고 있는 가사를 계정에 올린다.
+ *
+ * 계정이 원본이지만, 기기가 더 아는 경우가 있다 — 통신이 끊긴 채로 만든
+ * 곡이거나, 가사 칸이 생기기 전에 다른 태블릿에서 올린 곡이다. 그때는
+ * 빈자리를 채운다. 덮어쓰지는 않는다 — 서버에 값이 있으면 그쪽이 원본이다.
+ */
+export async function pushSongLyrics(
+  hash: string,
+  lyrics: LyricSection[],
+  participantId?: string,
+): Promise<void> {
+  const c = await ctx(participantId);
+  if (!c) return;
+  const { error } = await c.sb
+    .from('songs')
+    .update({ lyrics })
+    .eq('participant_id', c.participantId)
+    .eq('lyrics_hash', hash)
+    .is('lyrics', null);
+  if (error) warn('가사 올리기', error.message);
+}
+
+/**
  * 예전 곡에 가사를 뒤늦게 붙인다 — **지문이 맞을 때만.**
  *
  * ── 왜 필요한가
@@ -184,13 +227,11 @@ export async function backfillSongLyrics(participantId?: string): Promise<number
     const sections = song.session_id ? bySession.get(song.session_id) : null;
 
     // 곡을 만든 그 가사인지 지문으로 확인한다.
-    let same = false;
-    if (Array.isArray(sections)) {
-      const text = (sections as LyricSection[])
-        .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
-        .join('\n\n');
-      same = (await lyricsHash(text, song.style as string)) === song.lyrics_hash;
-    }
+    const same = await matchesHash(
+      Array.isArray(sections) ? (sections as LyricSection[]) : null,
+      song.style as string,
+      song.lyrics_hash,
+    );
 
     if (same && !song.lyrics) {
       const { error } = await c.sb.from('songs').update({ lyrics: sections }).eq('id', song.id);

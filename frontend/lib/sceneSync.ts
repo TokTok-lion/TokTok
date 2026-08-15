@@ -122,10 +122,17 @@ export async function syncPending(local: Scene[]): Promise<number> {
   return sent;
 }
 
-/** 서버에 있는 이 어르신의 그림들. 못 읽으면 빈 목록. */
-export async function listServerScenes(participantId?: string): Promise<Scene[]> {
+/**
+ * 서버에 있는 이 어르신의 그림들.
+ *
+ * null 은 "그림이 없다"가 아니라 **"못 읽었다"**다 — 서버를 안 쓰는 기기,
+ * 로그인 전, 통신 실패가 여기 들어온다. 빈 목록과 같게 그리면, 계정에 있는
+ * 그림을 없다고 말하고 복지사는 같은 그림을 한 번 더 그린다(그리기는 요금이
+ * 나가는 자리다). 곡 보관함이 같은 이유로 이렇게 되어 있다.
+ */
+export async function listServerScenes(participantId?: string): Promise<Scene[] | null> {
   const c = await ctx(participantId);
-  if (!c) return [];
+  if (!c) return null;
 
   const { data, error } = await c.sb
     .from('scenes')
@@ -134,7 +141,7 @@ export async function listServerScenes(participantId?: string): Promise<Scene[]>
     .order('created_at', { ascending: false });
   if (error || !data) {
     if (error) warn('목록 읽기', error.message);
-    return [];
+    return null;
   }
 
   const out: Scene[] = [];
