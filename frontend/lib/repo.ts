@@ -95,8 +95,18 @@ export async function readyToSync(): Promise<boolean> {
 
 export async function listParticipants(): Promise<ParticipantRow[]> {
   const sb = getSupabase();
-  const t = tenant();
-  if (!sb || !t) return [];
+  if (!sb) return [];
+  /*
+   * 확인이 끝나기를 기다린 뒤에 묻는다.
+   *
+   * tenant() 는 지금 이 순간의 답이라, 화면이 뜨자마자 부르면 아직 'loading'
+   * 이어서 빈 목록이 돌아온다. 기록의 「보는 어르신」 고르개가 그것 때문에
+   * 아예 안 떴다 — 어르신이 둘 있는데 목록이 비어서 스스로 숨었다.
+   * 곡 보관함이 같은 이유로 기관의 곡을 한 곡도 못 가져온 적이 있다.
+   */
+  const account = await accountReady();
+  const t = account.status === 'in' ? account.tenantId : null;
+  if (!t) return [];
   const { data, error } = await sb
     .from('participants')
     .select('*')
