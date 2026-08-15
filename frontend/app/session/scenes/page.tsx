@@ -239,6 +239,23 @@ export default function ScenesPage() {
         </ul>
       )}
 
+      {approved > 0 ? (
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <Link
+            href="/session/reel"
+            className="flex min-h-[60px] items-center justify-center rounded-[16px] bg-leaf-100 text-[1rem] font-bold text-leaf-800"
+          >
+            노래와 함께 보기
+          </Link>
+          <Link
+            href="/session/book"
+            className="flex min-h-[60px] items-center justify-center rounded-[16px] bg-surface-strong text-[1rem] font-bold text-ink-700"
+          >
+            책으로 보기
+          </Link>
+        </div>
+      ) : null}
+
       <p className="mt-4 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
         그림은 이 태블릿에 저장돼요. 「이 그림 쓰기」를 누른 것만 책과 인쇄물에
         들어갑니다 —{' '}
