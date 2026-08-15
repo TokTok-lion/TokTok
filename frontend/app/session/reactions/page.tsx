@@ -5,7 +5,10 @@ import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, Chevron, IconCircle, PrimaryButton } from '@/components/ui';
 import { IconEdit, IconInfo } from '@/components/icons';
-import { REACTIONS } from '@/lib/domain';
+import { REACTIONS, REACTION_AXIS_LABEL, type ReactionAxis } from '@/lib/domain';
+
+/** 자주성 → 공생성 → 나머지. 복지사가 보는 순서가 곧 기관 평가 축의 순서다. */
+const AXES: ReactionAxis[] = ['self', 'together', 'other'];
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
@@ -48,8 +51,21 @@ export default function ReactionsPage() {
           <IconInfo size={19} className="text-brand-600" />
         </legend>
 
-        <div className="mt-3 grid grid-cols-3 gap-3">
-          {REACTIONS.map((r) => {
+        {/*
+          축으로 묶어서 보여 준다.
+
+          기획팀장님이 목소리 톤·감정 분석을 물으셨는데 그건 만들지 않는다 —
+          이 서비스는 본 것만 적고 기분을 추론하지 않는다. 대신 관장님이 복지관
+          평가 축으로 드신 자주성·공생성을 셀 수 있게 묶는다. 묶어 놓으면
+          복지사가 "오늘 이분이 스스로 하신 것이 있었나"를 보고 체크하게 된다.
+        */}
+        {AXES.map((axis) => (
+          <div key={axis} className="mt-4">
+            <p className="text-[0.9375rem] font-bold text-ink-700">
+              {REACTION_AXIS_LABEL[axis]}
+            </p>
+            <div className="mt-2 grid grid-cols-3 gap-3">
+              {REACTIONS.filter((r) => r.axis === axis).map((r) => {
             const on = s.reactions.includes(r.id);
             return (
               <label
@@ -78,9 +94,11 @@ export default function ReactionsPage() {
                   {r.label}
                 </span>
               </label>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </fieldset>
 
       <div className="mt-4">

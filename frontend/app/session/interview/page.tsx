@@ -247,11 +247,15 @@ export default function InterviewPage() {
         {/* 이 질문이 왜 이 질문인지 한 줄로 보인다. 복지사가 화면을 믿으려면
             어디서 나온 문장인지 알 수 있어야 한다. */}
         <p className="mt-2 text-center text-[0.875rem] font-semibold text-ink-500">
-          {card
-            ? `기억 카드 · ${card.label}`
-            : s.topic
-              ? '오늘 주제'
-              : '주제 없이 여는 질문'}{' '}
+          {/* 강점 갈래는 카드도 주제도 안 본다. 그 자리에 카드 이름을 적으면
+              화면이 쓰지도 않은 근거를 대는 셈이 된다. */}
+          {s.track === 'strength'
+            ? '지금의 강점'
+            : card
+              ? `기억 카드 · ${card.label}`
+              : s.topic
+                ? '오늘 주제'
+                : '주제 없이 여는 질문'}{' '}
           · {PROMPT_KIND_LABEL[question.kind]} · {at + 1}번째 / 전체 {flow.length}
         </p>
 
@@ -305,7 +309,24 @@ export default function InterviewPage() {
             나오는 질문이다. 첫 회기에는 안 나온다(쌓인 것이 없으므로). */}
         <PersonalQuestions />
 
-        {!s.memoryCard ? (
+        {/*
+          강점 갈래에서는 기억 카드를 권하지 않는다.
+
+          이 갈래는 카드를 안 쓴다(lib/prompts · STRENGTH_FLOW). 그런데도
+          "카드를 고르시면 그 기억에 맞는 질문을 준비해 드려요"가 떠 있으면,
+          복지사는 카드를 고르러 갔다가 아무것도 안 바뀌는 것을 보게 된다.
+        */}
+        {s.track === 'strength' ? (
+          <p className="mt-3 text-center text-[0.875rem] leading-relaxed text-ink-500">
+            강점 갈래는 기억 카드를 쓰지 않아요. 지난 이야기를 여쭙고 싶으시면{' '}
+            <Link
+              href="/session/level"
+              className="font-bold text-brand-700 underline underline-offset-2"
+            >
+              갈래 바꾸기
+            </Link>
+          </p>
+        ) : !s.memoryCard ? (
           <p className="mt-3 text-center text-[0.875rem] leading-relaxed text-ink-500">
             {/* 주제가 없다고 여기서 멈추게 하지 않는다. 지금 나온 질문이
                 무엇인지 밝히고, 더 좋은 질문을 얻는 길을 같이 적는다. */}

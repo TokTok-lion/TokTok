@@ -9,6 +9,7 @@ import { IconCopy, IconExport } from '@/components/icons';
 import {
   CONSENT_FALLBACK,
   REACTIONS,
+  REACTION_AXIS_LABEL,
   hasConsent,
   lyricInputs,
 } from '@/lib/domain';
@@ -134,7 +135,16 @@ export default function LogPage() {
           topic: s.topic || undefined,
           // 확인된 이야기만 나간다. 미확인·제외 항목과 어르신 이름은 보내지 않는다.
           facts: lyricInputs(s.story).map((i) => i.text),
-          reactions: selected.map((r) => r.label),
+          /*
+           * 축까지 실어 보낸다.
+           *
+           * 복지관이 재는 것은 회기 수가 아니라 자주성과 공생성이다(관장님
+           * 면담). 초안이 그 말로 적히면 기관 보고서에 그대로 옮겨 적을 수
+           * 있다. 감정은 여전히 안 적는다 — 본 것만 적는다.
+           */
+          reactions: selected.map(
+            (r) => `${REACTION_AXIS_LABEL[r.axis].split(' —')[0]}: ${r.label}`,
+          ),
           note: s.reactionNote || undefined,
         }),
       });

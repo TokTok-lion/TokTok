@@ -263,15 +263,117 @@ export type ReactionId =
   | 'eyeContact'
   | 'singAlong'
   | 'clap'
-  | 'rest';
+  | 'rest'
+  // 아래 넷은 자주성·공생성을 보려고 나중에 더한 것이다 (설명은 REACTIONS 위).
+  | 'lead'
+  | 'choose'
+  | 'toOther'
+  | 'helpOther';
 
-export const REACTIONS: { id: ReactionId; label: string; art: string }[] = [
-  { id: 'speak', label: '자발적 답변', art: 'react_speak' },
-  { id: 'smile', label: '미소', art: 'react_smile' },
-  { id: 'eyeContact', label: '눈맞춤', art: 'react_eye_contact' },
-  { id: 'singAlong', label: '노래 따라부름', art: 'react_sing_along' },
-  { id: 'clap', label: '손동작 참여', art: 'react_clap' },
-  { id: 'rest', label: '쉬고 싶음', art: 'react_rest' },
+/**
+ * 이 반응이 무엇을 보여 주는가.
+ *
+ * ── 왜 축을 붙였나
+ *
+ * 기획팀장님이 "목소리 톤이나 감정을 분석해서 반영할 수 있는지" 물으셨다.
+ * 그건 만들지 않는다 — 이 서비스는 관찰된 행동만 기록하고 감정을 추론하지
+ * 않는다(원칙 4). 음성으로 기분을 판정하면 비의료인이 만든 심리 평가가 기관
+ * 공식 기록에 들어가고, 틀렸을 때 그 기록으로 사람이 판단하게 된다.
+ *
+ * 대신 셀 수 있는 것을 센다. 관장님이 복지관의 평가 축으로 드신 두 가지다.
+ *
+ *   자주성  스스로 하려는 힘. 먼저 말을 꺼내셨는가, 스스로 고르셨는가.
+ *   공생성  남과 더불어 살려는 마음. 다른 분 이야기에 반응하셨는가.
+ *
+ * 둘 다 추론이 아니라 **본 것**이다. 복지사가 그 자리에서 보고 체크한다.
+ * 점수·등급·순위는 만들지 않는다 — 개수만 남긴다.
+ */
+export type ReactionAxis = 'self' | 'together' | 'other';
+
+export const REACTION_AXIS_LABEL: Record<ReactionAxis, string> = {
+  self: '자주성 — 스스로 하려는 모습',
+  together: '공생성 — 남과 더불어 하는 모습',
+  other: '그 밖에 보인 모습',
+};
+
+export const REACTIONS: {
+  id: ReactionId;
+  label: string;
+  art: string;
+  axis: ReactionAxis;
+  /** 무엇을 보면 체크하는지. 복지사마다 다르게 세면 숫자가 뜻을 잃는다. */
+  when: string;
+}[] = [
+  {
+    id: 'lead',
+    label: '먼저 이야기 꺼냄',
+    art: 'react_speak',
+    axis: 'self',
+    when: '여쭙기 전에 어르신이 먼저 말씀을 시작하셨을 때',
+  },
+  {
+    id: 'speak',
+    label: '자발적 답변',
+    art: 'react_speak',
+    axis: 'self',
+    when: '한 마디로 끝내지 않고 이어서 말씀하셨을 때',
+  },
+  {
+    id: 'choose',
+    label: '스스로 고르심',
+    art: 'react_eye_contact',
+    axis: 'self',
+    when: '주제·노래 분위기 같은 것을 어르신이 정하셨을 때',
+  },
+  {
+    id: 'toOther',
+    label: '다른 분 이야기에 반응',
+    art: 'react_eye_contact',
+    axis: 'together',
+    when: '다른 어르신 말씀에 맞장구치거나 되물으셨을 때',
+  },
+  {
+    id: 'helpOther',
+    label: '다른 분을 거드심',
+    art: 'react_clap',
+    axis: 'together',
+    when: '말씀을 도와드리거나 손을 잡아 주시는 등 거드셨을 때',
+  },
+  {
+    id: 'singAlong',
+    label: '노래 따라부름',
+    art: 'react_sing_along',
+    axis: 'together',
+    when: '한 소절이라도 함께 부르셨을 때',
+  },
+  {
+    id: 'smile',
+    label: '미소',
+    art: 'react_smile',
+    axis: 'other',
+    when: '보고 웃으셨을 때 (기분을 짐작하지 않고 본 것만)',
+  },
+  {
+    id: 'eyeContact',
+    label: '눈맞춤',
+    art: 'react_eye_contact',
+    axis: 'other',
+    when: '눈을 마주치며 들으셨을 때',
+  },
+  {
+    id: 'clap',
+    label: '손동작 참여',
+    art: 'react_clap',
+    axis: 'other',
+    when: '손뼉·손짓으로 함께하셨을 때',
+  },
+  {
+    id: 'rest',
+    label: '쉬고 싶음',
+    art: 'react_rest',
+    axis: 'other',
+    when: '그만하고 싶다는 뜻을 보이셨을 때 — 그 자리에서 멈춥니다',
+  },
 ];
 
 /** 질문 단계 — 말문이 트이지 않을 때 선택형부터 시작한다. */
