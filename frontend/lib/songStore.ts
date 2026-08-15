@@ -513,6 +513,23 @@ export async function songMetaAt(key: string): Promise<SongMeta | null> {
   return meta ?? null;
 }
 
+/**
+ * 기기 표의 곡에 가사만 뒤늦게 적는다.
+ *
+ * 서버에서 채운 가사를 기기 사본에도 남긴다 — 다음에 보관함을 열 때 서버를
+ * 못 읽어도 「함께 부르기」가 뜬다.
+ */
+export async function saveSongLyrics(
+  key: string,
+  lyrics: LyricSection[],
+): Promise<void> {
+  const db = await openDb();
+  if (!db) return;
+  const meta = await idb<SongMeta>(db, METAS, 'readonly', (s) => s.get(key));
+  if (meta) await idb(db, METAS, 'readwrite', (s) => s.put({ ...meta, lyrics }));
+  db.close();
+}
+
 /** 목록에서 고른 곡 하나. */
 export async function loadSongAt(key: string): Promise<Blob | null> {
   const db = await openDb();

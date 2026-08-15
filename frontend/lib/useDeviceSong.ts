@@ -8,6 +8,7 @@ import {
   loadSong,
   loadSongAt,
   readSongShelf,
+  saveSongLyrics,
   songTag,
   type SongMeta,
 } from './songStore';
@@ -17,6 +18,7 @@ import {
   listServerSongs,
   lyricsHash,
 } from './songSync';
+import type { LyricSection } from './domain';
 import { currentSession } from './store';
 
 export type DeviceSong = {
@@ -314,6 +316,28 @@ export function useSongShelf(
          * 그걸 접으면 어르신의 노래 한 곡이 목록에서 사라진다. 잘못 접는 쪽이
          * 두 번 보이는 쪽보다 훨씬 나쁘다.
          */
+        /*
+         * 기기 사본에 가사가 없으면 서버 것에서 채운다.
+         *
+         * 화면이 그리는 것은 기기 사본이다. 서버 행에 가사를 뒤늦게 붙여도
+         * (backfillSongLyrics) 기기 쪽이 비어 있으면 「함께 부르기」가 안 뜬다 —
+         * 실제로 그랬다. 같은 곡인지는 가사 지문으로만 가른다.
+         *
+         * 기기 표에도 적어 둔다. 다음에 열 때 서버를 안 읽어도 버튼이 뜬다.
+         */
+        const byHash = new Map(
+          server
+            .filter((r) => r.hash && r.lyrics?.length)
+            .map((r) => [r.hash as string, r.lyrics as LyricSection[]]),
+        );
+        for (const m of mine) {
+          if (m.lyrics?.length || !m.hash) continue;
+          const found = byHash.get(m.hash);
+          if (!found) continue;
+          m.lyrics = found;
+          void saveSongLyrics(m.key, found);
+        }
+
         const here = new Set(
           mine.map((m) => m.hash).filter((h): h is string => typeof h === 'string' && h.length > 0),
         );
