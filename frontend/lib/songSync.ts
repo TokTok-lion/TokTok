@@ -128,6 +128,55 @@ function cleanTopic(v: string | null): string | null {
  * 전, 통신 실패가 여기 들어온다. 화면이 둘을 같게 그리면 있는 곡을 없다고
  * 말하게 되고, 그러면 복지사가 한 번 더 만든다. 그게 요금이다.
  */
+/**
+ * 예전 곡에 가사를 뒤늦게 붙인다.
+ *
+ * ── 왜 필요한가
+ *
+ * 가사 칸(0011)이 생기기 전에 만든 곡은 그 칸이 비어 있다. 그래서 보관함의
+ * 「함께 부르기」가 한 곡에도 안 뜬다 — 기능은 붙었는데 열 수 있는 곡이 없는
+ * 상태다.
+ *
+ * 그런데 그 가사는 이미 서버에 있다. 회기마다 가사를 남겨 두기 때문이다
+ * (lyrics 표 · 0007_workbench_sync). 곡 행에 회기 번호가 들어 있으니 그것으로
+ * 이으면 된다.
+ *
+ * ── 회기 번호가 없는 곡은 건드리지 않는다
+ *
+ * 곡의 임자는 어르신이라 회기 없이도 곡은 존재할 수 있다. 짐작으로 아무 가사나
+ * 붙이면 남의 회기 가사가 그 곡의 가사가 된다 — 노래방 화면이 다른 노래의
+ * 가사를 띄우게 된다. 못 잇는 곡은 그대로 둔다.
+ */
+export async function backfillSongLyrics(participantId?: string): Promise<number> {
+  const c = await ctx(participantId);
+  if (!c) return 0;
+
+  const { data: songs } = await c.sb
+    .from('songs')
+    .select('id, session_id')
+    .eq('participant_id', c.participantId)
+    .is('lyrics', null)
+    .not('session_id', 'is', null);
+  if (!songs?.length) return 0;
+
+  const ids = [...new Set(songs.map((r) => r.session_id).filter(Boolean))] as string[];
+  const { data: rows } = await c.sb
+    .from('lyrics')
+    .select('session_id, sections')
+    .in('session_id', ids);
+  if (!rows?.length) return 0;
+
+  const bySession = new Map(rows.map((r) => [r.session_id, r.sections]));
+  let filled = 0;
+  for (const song of songs) {
+    const sections = song.session_id ? bySession.get(song.session_id) : null;
+    if (!sections) continue;
+    const { error } = await c.sb.from('songs').update({ lyrics: sections }).eq('id', song.id);
+    if (!error) filled += 1;
+  }
+  return filled;
+}
+
 export async function listServerSongs(
   /** 누구의 곡을 볼 것인가. 없으면 지금 회기의 어르신. */
   participantId?: string,

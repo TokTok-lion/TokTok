@@ -11,7 +11,12 @@ import {
   songTag,
   type SongMeta,
 } from './songStore';
-import { downloadServerSong, listServerSongs, lyricsHash } from './songSync';
+import {
+  backfillSongLyrics,
+  downloadServerSong,
+  listServerSongs,
+  lyricsHash,
+} from './songSync';
 import { currentSession } from './store';
 
 export type DeviceSong = {
@@ -287,6 +292,12 @@ export function useSongShelf(
           shared: 'loading',
         });
 
+        /*
+         * 가사 칸이 생기기 전에 만든 곡에 가사를 뒤늦게 붙인다. 그 곡들은
+         * 「함께 부르기」가 안 떴다 — 기능은 있는데 열 수 있는 곡이 없었다.
+         * 한 번 채우면 다음부터는 채울 것이 없어 바로 지나간다.
+         */
+        await backfillSongLyrics(ownerId).catch(() => 0);
         const server = await listServerSongs(ownerId).catch(() => null);
         if (!alive) return;
         if (!server) {
