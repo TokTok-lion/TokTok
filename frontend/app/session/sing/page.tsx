@@ -127,6 +127,8 @@ export default function SingPage() {
   const align = useSongAlign(
     useMemo(() => lyricLineTexts(lyrics), [lyrics]),
     player.total,
+    // 보관함에서 연 곡이면 그 곡을 맞춘다. 없으면 이번 회기의 곡.
+    pastKey,
   );
   const cue = useLyricCue(lyrics, player, align.cues);
 

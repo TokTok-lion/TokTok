@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { currentSongMeta, loadSong, saveCues } from './songStore';
+import { currentSongMeta, loadSong, loadSongAt, saveCues, songMetaAt } from './songStore';
 import { getSupabase } from './supabase';
 
 /**
@@ -80,8 +80,13 @@ type AlignReply = {
  */
 const MAX_BYTES = 4 * 1024 * 1024;
 
-async function measure(lines: string[], duration: number): Promise<number[] | null> {
-  const blob = await loadSong();
+async function measure(
+  lines: string[],
+  duration: number,
+  /** 보관함에서 연 지난 곡의 칸 이름. 없으면 이번 회기의 곡. */
+  key?: string | null,
+): Promise<number[] | null> {
+  const blob = key ? await loadSongAt(key) : await loadSong();
   if (!blob || blob.size > MAX_BYTES) return null;
   const auth = await authHeader();
 
@@ -119,22 +124,38 @@ async function measure(lines: string[], duration: number): Promise<number[] | nu
   return out.starts;
 }
 
-export function useSongAlign(lines: string[], duration: number): SongAlign {
+export function useSongAlign(
+  lines: string[],
+  duration: number,
+  /**
+   * 어느 곡을 맞출 것인가. 없으면 이번 회기의 곡.
+   *
+   * ── 왜 필요한가
+   *
+   * 보관함에서 지난 곡을 열면 화면은 그 곡을 재생하는데, 맞추기는 **이번
+   * 회기의 곡**을 보고 있었다. 지난 곡의 가사를 이번 회기 곡에 맞추고, 그
+   * 결과를 이번 회기 곡에 적었다 — 두 곡이 다 망가지는 길이다.
+   *
+   * 실제로 확인했다. 지난 곡을 노래방으로 여니 "글자 수로 어림잡은 자리"가
+   * 떴고, 줄이 노래와 안 맞았다.
+   */
+  key?: string | null,
+): SongAlign {
   const [state, setState] = useState<AlignState>('checking');
   const [cues, setCues] = useState<number[] | null>(null);
   /** 이 가사로 이미 한 번 걸었는가. 같은 곡에 요금을 두 번 쓰지 않는다. */
   const tried = useRef<string>('');
-  const key = hashOf(lines);
+  const hash = hashOf(lines);
 
   const load = useCallback(async () => {
-    const meta = await currentSongMeta().catch(() => null);
+    const meta = await (key ? songMetaAt(key) : currentSongMeta()).catch(() => null);
     if (!meta) return { meta: null, cues: null };
     const ok =
       Array.isArray(meta.cues) &&
       meta.cues.length === lines.length &&
-      meta.cueHash === key;
+      meta.cueHash === hash;
     return { meta, cues: ok ? (meta.cues as number[]) : null };
-  }, [key, lines.length]);
+  }, [key, hash, lines.length]);
 
   const run = useCallback(async () => {
     const { meta } = await load();
@@ -143,15 +164,15 @@ export function useSongAlign(lines: string[], duration: number): SongAlign {
       return;
     }
     setState('running');
-    const starts = await measure(lines, duration);
+    const starts = await measure(lines, duration, key);
     if (!starts) {
       setState('none');
       return;
     }
-    void saveCues(meta.key, starts, key);
+    void saveCues(meta.key, starts, hash);
     setCues(starts);
     setState('ready');
-  }, [load, lines, duration, key]);
+  }, [load, lines, duration, key, hash]);
 
   useEffect(() => {
     let alive = true;
@@ -178,17 +199,17 @@ export function useSongAlign(lines: string[], duration: number): SongAlign {
         setState('ready');
         return;
       }
-      if (tried.current === key) {
+      if (tried.current === hash) {
         setState('none');
         return;
       }
-      tried.current = key;
+      tried.current = hash;
       await run();
     })();
     return () => {
       alive = false;
     };
-  }, [key, lines.length, duration, load, run]);
+  }, [hash, key, lines.length, duration, load, run]);
 
   return {
     state,
