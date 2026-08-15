@@ -10,6 +10,7 @@ import { IconPeople } from '@/components/icons';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
 import { useSession } from '@/lib/store';
 import { avoidTerms } from '@/lib/avoidTopics';
+import { iGa } from '@/lib/korean';
 
 /** 배우자 이야기와 맞닿는 말들. 하나라도 겹치면 카드를 고른 자리에서 짚는다. */
 const SPOUSE_WORDS = ['배우자', '남편', '아내', '사별', '이혼', '혼자', '헤어짐'];
@@ -99,7 +100,9 @@ export default function MemoryCardsPage() {
           className="mt-4 rounded-[16px] border-2 border-brand-300 bg-brand-50 p-4"
         >
           <p className="text-[1rem] font-extrabold text-ink-900">
-            이 어르신 기록에 「{avoidHit.join(', ')}」가 적혀 있어요
+            {/* 조사를 글자로 박아 두면 「사별」가 가 된다. 값에 맞춰 붙인다. */}
+            이 어르신 기록에 「{avoidHit.join(', ')}」{iGa(avoidHit.join(', '))} 적혀
+            있어요
           </p>
           <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
             배우자 이야기를 여쭈면 그 대목이 나올 수 있습니다. 오늘 여쭐지는
