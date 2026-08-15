@@ -11,7 +11,7 @@ import { QUESTION_LEVELS, hasConsent, type QuestionLevel } from '@/lib/domain';
 import { PersonalQuestions } from '@/components/PersonalQuestions';
 import { useGroupConsents } from '@/lib/useGroupConsents';
 import { mmssOrUnknown, releaseRecording, useMicLevel, useRecorder } from '@/lib/recorder';
-import { PROMPT_KIND_LABEL, interviewFlow } from '@/lib/prompts';
+import { PROMPT_KIND_LABEL, STRENGTH_OPENER, interviewFlow } from '@/lib/prompts';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
 import { currentSession, setSessionField, useSession } from '@/lib/store';
 import { useTranscribeStatus } from '@/lib/transcribeJob';
@@ -52,6 +52,11 @@ const CARD_QUESTIONS: Record<string, Record<QuestionLevel, string>> = {
     1: '어릴 때는 뛰노는 놀이가 좋으셨어요, 조용한 놀이가 좋으셨어요?',
     2: '어릴 때 가장 자주 하시던 놀이는 무엇이었나요?',
     3: '그 놀이를 하며 지낸 하루를 이야기해 주세요.',
+  },
+  spouse: {
+    1: '두 분은 한동네에서 만나셨어요, 먼 데서 만나셨어요?',
+    2: '두 분은 어디서 처음 만나셨어요?',
+    3: '두 분이 처음 만나신 날 이야기를 들려주세요.',
   },
   holiday: {
     1: '명절에는 집에 계셨어요, 다른 집에 다녀오셨어요?',
@@ -125,7 +130,13 @@ export default function InterviewPage() {
    * 어르신도 멈추신다. lib/prompts.ts 에 장면·사람·감각·사건·마음 순서로
    * 엮은 흐름을 두고, 여는 질문만 고른 난이도를 따른다.
    */
-  const flow = interviewFlow(levels[0].text, s.memoryCard, s.questionLevel);
+  /*
+   * 강점 갈래는 카드도 주제도 안 본다. 강점은 사람에게 붙어 있어서
+   * '명절 강점' 같은 것이 없다(lib/prompts · STRENGTH_FLOW).
+   */
+  const opener =
+    s.track === 'strength' ? STRENGTH_OPENER[s.questionLevel] : levels[0].text;
+  const flow = interviewFlow(opener, s.memoryCard, s.questionLevel, s.track);
   const at = Math.min(asked, flow.length - 1);
   const question = { ...flow[at], level: levels[0].level };
   const nextUp = flow.slice(at + 1, at + 4);

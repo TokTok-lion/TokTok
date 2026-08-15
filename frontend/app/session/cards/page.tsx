@@ -1,5 +1,7 @@
 'use client';
 
+import { useMemo } from 'react';
+
 import Link from 'next/link';
 import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
@@ -7,11 +9,26 @@ import { Card, Chevron, IconCircle, PrimaryButton } from '@/components/ui';
 import { IconPeople } from '@/components/icons';
 import { SEED_MEMORY_CARDS } from '@/lib/seed';
 import { useSession } from '@/lib/store';
+import { avoidTerms } from '@/lib/avoidTopics';
+
+/** 배우자 이야기와 맞닿는 말들. 하나라도 겹치면 카드를 고른 자리에서 짚는다. */
+const SPOUSE_WORDS = ['배우자', '남편', '아내', '사별', '이혼', '혼자', '헤어짐'];
 import type { ArtKey } from '@/lib/art';
 
 /** 기억 카드 선택 (deck p.11) */
 export default function MemoryCardsPage() {
   const { s, set } = useSession();
+
+  /*
+   * 배우자 카드와 겹치는 「피하고 싶은 주제」.
+   *
+   * 낱말을 자르는 규칙은 개인화 질문·가사와 같은 것을 쓴다(lib/avoidTopics).
+   * 같은 목록으로 걸러야 화면이 짚는 것과 실제로 걸러지는 것이 같아진다.
+   */
+  const avoidHit = useMemo(() => {
+    const terms = avoidTerms(s.elder.avoidTopics);
+    return terms.filter((t) => SPOUSE_WORDS.some((w) => t.includes(w) || w.includes(t)));
+  }, [s.elder.avoidTopics]);
 
   return (
     <Screen
@@ -68,12 +85,44 @@ export default function MemoryCardsPage() {
         </Link>
       </Card>
 
+      {/*
+        배우자 카드는 무게가 다르다.
+
+        사별하신 분이 많고, 그 이야기는 꺼내는 순간 되돌릴 수 없다. 어르신
+        기록의 「피하고 싶은 주제」에 겹치는 말이 있으면 카드를 고른 자리에서
+        먼저 짚는다 — 막지는 않는다. 그 자리에 계신 분이 복지사이고, 오늘
+        여쭐 수 있는지는 그분만 안다.
+      */}
+      {s.memoryCard === 'spouse' && avoidHit.length ? (
+        <div
+          role="alert"
+          className="mt-4 rounded-[16px] border-2 border-brand-300 bg-brand-50 p-4"
+        >
+          <p className="text-[1rem] font-extrabold text-ink-900">
+            이 어르신 기록에 「{avoidHit.join(', ')}」가 적혀 있어요
+          </p>
+          <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-700">
+            배우자 이야기를 여쭈면 그 대목이 나올 수 있습니다. 오늘 여쭐지는
+            복지사님이 정해 주세요 — 어르신이 먼저 꺼내시면 그때 따라가셔도
+            됩니다.
+          </p>
+        </div>
+      ) : null}
+
       <fieldset className="mt-4">
         <legend className="sr-only">기억 카드 선택</legend>
         <div className="grid grid-cols-2 gap-3">
           {SEED_MEMORY_CARDS.map((c, i) => {
             const on = s.memoryCard === c.id;
-            const wide = i === SEED_MEMORY_CARDS.length - 1;
+            /*
+             * 마지막 한 장은 홀수로 남을 때만 넓게 그린다.
+             *
+             * 예전에는 "마지막이면 무조건 넓게"였다. 카드가 다섯일 때는 맞는
+             * 규칙이었는데, 배우자 카드가 들어와 여섯이 되면서 마지막 줄이
+             * 한 장 + 넓은 한 장으로 어긋났다.
+             */
+            const wide =
+              i === SEED_MEMORY_CARDS.length - 1 && SEED_MEMORY_CARDS.length % 2 === 1;
             return (
               <label
                 key={c.id}

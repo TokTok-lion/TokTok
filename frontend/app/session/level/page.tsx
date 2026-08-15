@@ -4,7 +4,7 @@ import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Chevron, NoteBar, PrimaryButton } from '@/components/ui';
 import { IconLeaf } from '@/components/icons';
-import { QUESTION_LEVELS, type QuestionLevel } from '@/lib/domain';
+import { INTERVIEW_TRACKS, QUESTION_LEVELS, type QuestionLevel } from '@/lib/domain';
 import { useSession } from '@/lib/store';
 import type { ArtKey } from '@/lib/art';
 
@@ -38,9 +38,63 @@ export default function QuestionLevelPage() {
         </PrimaryButton>
       }
     >
+      {/*
+        무엇을 여쭐 것인가 — 단계보다 앞에 놓는다.
+
+        단계는 '어떻게' 묻느냐이고 갈래는 '무엇을' 묻느냐다. 복지사가 먼저
+        정해야 하는 것은 뒤쪽이다. 장수복지관 관장님 지적에서 나온 축이다 —
+        지난 이야기만 물으면 남는 것이 추억이고, 그분이 오늘 무엇을 하실 수
+        있는 분인지는 아무 데도 안 남는다.
+      */}
+      <fieldset className="mb-6">
+        <legend className="text-[1.0625rem] font-extrabold text-ink-900">
+          오늘 무엇을 여쭐까요
+        </legend>
+        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+          {INTERVIEW_TRACKS.map((t) => {
+            const on = s.track === t.id;
+            return (
+              <li key={t.id}>
+                <label
+                  className={`flex min-h-[112px] cursor-pointer flex-col justify-center rounded-[18px] border-2 p-4 ${
+                    on ? 'border-brand-500 bg-brand-50' : 'border-hairline bg-surface'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="track"
+                    className="sr-only"
+                    checked={on}
+                    onChange={() => set('track', t.id)}
+                  />
+                  <span className="text-[1.125rem] font-extrabold text-ink-900">
+                    {t.name}
+                  </span>
+                  <span className="mt-1 text-[0.875rem] leading-relaxed text-ink-700">
+                    {t.what}
+                  </span>
+                  <span className="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-500">
+                    예) {t.example}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+        {s.track === 'strength' ? (
+          <p className="mt-2.5 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
+            강점 갈래는 기억 카드를 쓰지 않아요. 지금도 잘하시는 것 → 그 요령 →
+            하고 싶으신 것 → 누군가에게 힘이 된 일 순으로 여쭙고, 마지막에
+            부탁과 감사로 마칩니다.
+          </p>
+        ) : null}
+      </fieldset>
+
       <fieldset>
-        <legend className="sr-only">질문 단계 선택</legend>
-        <ul className="space-y-3.5">
+        <legend className="text-[1.0625rem] font-extrabold text-ink-900">
+          어떻게 여쭐까요
+        </legend>
+        <ul className="mt-3 space-y-3.5">
           {QUESTION_LEVELS.map((q) => {
             const on = s.questionLevel === q.level;
             return (

@@ -277,6 +277,39 @@ export const REACTIONS: { id: ReactionId; label: string; art: string }[] = [
 /** 질문 단계 — 말문이 트이지 않을 때 선택형부터 시작한다. */
 export type QuestionLevel = 1 | 2 | 3;
 
+/**
+ * 오늘 무엇을 여쭐 것인가.
+ *
+ * 회상만 있던 자리에 강점이 생겼다. 장수복지관 관장님 면담에서 나온 지적이다 —
+ * "AI로 노래 만들기가 아니라 어르신들에게 삶의 자신감을 부여해 줘야 한다".
+ * 복지관이 재는 것도 회기 수가 아니라 자주성과 공생성이라, 지난 이야기만
+ * 물어서는 그 축에 닿지 않는다.
+ *
+ * 단계(선택형·단답형·회상형)와는 다른 축이다. 단계는 **어떻게** 묻느냐,
+ * 갈래는 **무엇을** 묻느냐다. 둘은 곱해진다.
+ */
+export type InterviewTrack = 'recall' | 'strength';
+
+export const INTERVIEW_TRACKS: {
+  id: InterviewTrack;
+  name: string;
+  what: string;
+  example: string;
+}[] = [
+  {
+    id: 'recall',
+    name: '지난 이야기',
+    what: '살아오신 이야기를 여쭙고 노래로 남깁니다',
+    example: '그 시절에 제일 기억에 남는 날이 언제세요?',
+  },
+  {
+    id: 'strength',
+    name: '지금의 강점',
+    what: '지금도 잘하시는 것과 하고 싶으신 것을 여쭙습니다',
+    example: '지금도 남들보다 잘하신다 싶은 게 있으세요?',
+  },
+];
+
 export const QUESTION_LEVELS: {
   level: QuestionLevel;
   name: string;

@@ -284,6 +284,15 @@ export const SEED_SCHEDULE = [
 export const SEED_MEMORY_CARDS = [
   { id: 'friends', label: '친구', art: 'card_friends' },
   { id: 'family', label: '가족', art: 'card_family' },
+  /*
+   * 배우자는 관장님이 직접 더해 달라고 하신 주제다.
+   *
+   * 다만 이 카드는 다른 카드와 무게가 다르다 — 사별하신 분이 많고, 그
+   * 이야기는 꺼내는 순간 돌이킬 수 없다. 그래서 카드를 고를 때 그 어르신
+   * 기록의 「피하고 싶은 주제」와 겹치면 화면이 먼저 짚어 준다
+   * (app/session/cards). 질문 자체도 살아 계신지 아닌지를 넘겨짚지 않는다.
+   */
+  { id: 'spouse', label: '배우자', art: 'cover_wedding' },
   { id: 'school', label: '학교', art: 'card_school' },
   { id: 'play', label: '놀이', art: 'card_play' },
   { id: 'holiday', label: '명절', art: 'card_holiday' },

@@ -14,6 +14,7 @@ import {
   type Elder,
   type FamilyContribution,
   type FamilyMissionKind,
+  type InterviewTrack,
   type LyricSection,
   type MusicStyleId,
   type QuestionLevel,
@@ -157,6 +158,13 @@ export type SessionState = {
    * 않은 86분이 기관 서식에 찍혔다.
    */
   interviewStartedAt: string | null;
+  /**
+   * 오늘 무엇을 여쭐 것인가 — 지난 이야기 / 지금의 강점.
+   *
+   * 단계(questionLevel)와 곱해진다. 판올림 전 저장본에는 이 칸이 없으므로
+   * 없으면 지난 이야기다 — 예전 동작 그대로.
+   */
+  track: InterviewTrack;
   story: StoryItem[];
   /**
    * 뽑기는 했는데 어느 대목에서 나왔는지 못 맞춰 버린 문장 수(api/facts).
@@ -360,6 +368,7 @@ function seedState(): SessionState {
     transcribedFrom: null,
     interviewStartedAt: null,
     story: SEED_STORY,
+    track: 'recall' as InterviewTrack,
     factsDropped: 0,
     storyConfirmed: false,
     lyrics: SEED_LYRICS,
@@ -452,6 +461,8 @@ function load(): SessionState {
           : {},
       // 이 칸도 나중에 생겼다. 모양이 다르면 빈 목록으로 — 아래와 같은 이유.
       lyricsKept: Array.isArray(saved.lyricsKept) ? saved.lyricsKept : [],
+      // 이 칸도 나중에 생겼다. 없으면 지난 이야기.
+      track: saved.track === 'strength' ? 'strength' : 'recall',
       // 이 칸은 나중에 생겼다. 예전 저장본에는 아예 없고, 저장이 중간에 깨진
       // 기기에는 배열이 아닌 것이 들어 있을 수 있다. 그대로 두면 목록을
       // 그리는 화면이 매번 터지므로 모양이 다르면 빈 목록으로 시작한다.
@@ -733,6 +744,7 @@ export function beginSession(next: {
           transcribedFrom: null,
           interviewStartedAt: null,
           story: [],
+          track: 'recall' as InterviewTrack,
           factsDropped: 0,
           storyConfirmed: false,
           lyrics: [],

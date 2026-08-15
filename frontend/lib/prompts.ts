@@ -1,4 +1,4 @@
-import type { QuestionLevel } from './domain';
+import type { InterviewTrack, QuestionLevel } from './domain';
 
 /**
  * 회상 인터뷰 질문지.
@@ -31,6 +31,7 @@ import type { QuestionLevel } from './domain';
  */
 
 export type PromptKind =
+  // 지난 이야기 갈래
   | 'scene'
   | 'people'
   | 'sense'
@@ -39,7 +40,17 @@ export type PromptKind =
   | 'feel'
   | 'after'
   | 'now'
-  | 'leave';
+  | 'leave'
+  // 강점 갈래 (아래 설명)
+  | 'shine'
+  | 'praise'
+  | 'able'
+  | 'how'
+  | 'wish'
+  | 'give'
+  | 'ask'
+  | 'cheer'
+  | 'thanks';
 
 export type Prompt = { text: string; kind: PromptKind };
 
@@ -53,6 +64,16 @@ export const PROMPT_KIND_LABEL: Record<PromptKind, string> = {
   after: '그 뒤로',
   now: '지금 생각하면',
   leave: '남기고 싶은 말',
+
+  shine: '잘하시던 일',
+  praise: '남들이 하던 말',
+  able: '지금도 하시는 것',
+  how: '그 요령',
+  wish: '하고 싶으신 것',
+  give: '누군가에게 힘이 된 일',
+  ask: '여쭤보기',
+  cheer: '부탁드리기',
+  thanks: '감사',
 };
 
 /**
@@ -299,6 +320,110 @@ export const CARD_FLOW: Record<string, Flow> = {
       { text: '명절 하면 꼭 남기고 싶은 이야기가 있으세요?', kind: 'leave' },
     ],
   },
+  spouse: {
+    1: [
+      { text: '두 분은 한동네에서 만나셨어요, 먼 데서 만나셨어요?', kind: 'scene' },
+      { text: '중매로 만나셨어요, 서로 알고 지내다 만나셨어요?', kind: 'people' },
+      { text: '그분은 목소리가 크셨어요, 조용하셨어요?', kind: 'sense' },
+      { text: '집안일은 나눠 하셨어요, 한 분이 주로 하셨어요?', kind: 'doing' },
+      { text: '둘이 나다니는 걸 좋아하셨어요, 집에서 지내는 걸 좋아하셨어요?', kind: 'event' },
+      { text: '처음부터 마음에 드셨어요, 지내면서 정이 드셨어요?', kind: 'feel' },
+      { text: '살면서 티격태격도 하셨어요, 조용히 지내셨어요?', kind: 'after' },
+      { text: '요즘도 그분 생각이 자주 나세요, 가끔 나세요?', kind: 'now' },
+      { text: '그분께 고맙다고 하고 싶으세요, 보고 싶었다고 하고 싶으세요?', kind: 'leave' },
+    ],
+    2: [
+      { text: '두 분은 어디서 처음 만나셨어요?', kind: 'scene' },
+      { text: '누가 두 분을 이어 주셨어요?', kind: 'people' },
+      { text: '그분 하면 제일 먼저 떠오르는 게 뭐예요?', kind: 'sense' },
+      { text: '그분이 제일 잘하시던 게 뭐였어요?', kind: 'doing' },
+      { text: '혼례는 몇 살 때 하셨어요?', kind: 'event' },
+      { text: '그분을 한마디로 하면 어떤 분이셨어요?', kind: 'feel' },
+      { text: '두 분이 함께 지내신 게 몇 해나 되세요?', kind: 'after' },
+      { text: '요즘도 그분 이야기를 누구와 하세요?', kind: 'now' },
+      { text: '그분께 한마디 남기신다면 뭐라고 하시겠어요?', kind: 'leave' },
+    ],
+    3: [
+      { text: '두 분이 처음 만나신 날 이야기를 들려주세요.', kind: 'scene' },
+      { text: '그때 두 분 곁에는 누가 있었어요?', kind: 'people' },
+      { text: '그분 목소리나 손길 하면 떠오르는 게 있으세요?', kind: 'sense' },
+      { text: '두 분이 함께 하시던 일이 뭐였어요?', kind: 'doing' },
+      { text: '함께 지내시면서 제일 기억에 남는 날이 언제세요?', kind: 'event' },
+      { text: '그날은 마음이 어떠셨어요?', kind: 'feel' },
+      { text: '살면서 두 분 사이가 어떻게 달라지셨어요?', kind: 'after' },
+      { text: '지금 그분을 떠올리면 어떤 마음이 드세요?', kind: 'now' },
+      { text: '그분 이야기 중에 꼭 남기고 싶은 게 있으세요?', kind: 'leave' },
+    ],
+  },
+};
+
+/**
+ * 강점 흐름 — 지난 이야기가 아니라 **지금 하실 수 있는 것**을 여쭙는다.
+ *
+ * ── 왜 이 갈래가 생겼나
+ *
+ * 장수복지관 관장님 면담에서 나온 지적이다. 질문 백예순 개가 전부 "예전에
+ * 어떠셨어요" 쪽이었다. 회상만으로는 남는 것이 추억이고, 그분이 오늘 무엇을
+ * 하실 수 있는 분인지는 아무 데도 안 남는다.
+ *
+ *   "AI로 노래 만들기가 아니라, 어르신들에게 삶의 자신감을 부여해 줘야 한다"
+ *
+ * 그리고 복지관이 실제로 재는 것은 회기 수가 아니라 **자주성**(스스로 하려는
+ * 힘)과 **공생성**(남과 더불어 살려는 마음)이다. 이 흐름의 아홉 갈래가 그
+ * 두 가지를 향해 놓여 있다.
+ *
+ * ── 순서에 이유가 있다 (관장님의 다섯 단계)
+ *
+ *   1. 잘하시던 일      찬란했던 시절부터. 자랑이 먼저 나와야 말문이 트인다.
+ *   2. 남들이 하던 말    본인 입으로 자랑하기 어려우신 분은 남의 말로 답하신다.
+ *   3. 지금도 하시는 것  과거형에서 현재형으로 넘어오는 자리. 여기가 핵심이다.
+ *   4. 그 요령          "저도 배우고 싶어요" — 가르치는 자리에 서시게 한다.
+ *   5. 하고 싶으신 것    과거에도 하고 싶었고 지금도 하고 싶은 것 (의지)
+ *   6. 누군가에게 힘이 된 일  공생성. 길가의 꽃에 물을 주면 그 꽃은 그분 덕에 산다.
+ *   7. 여쭤보기         프로그램을 어떻게 할지 당사자께 여쭌다 (자주성)
+ *   8. 부탁드리기       다음에도 들려 달라고 청한다. 부탁은 존중의 표현이다.
+ *   9. 감사            고맙다고 말하고 끝낸다.
+ *
+ * ── 이 흐름은 카드를 안 가린다
+ *
+ * 강점은 주제에 붙어 있지 않고 사람에게 붙어 있다. 그래서 기억 카드와 무관하게
+ * 한 벌만 둔다. 단계(선택형·단답형·회상형)는 그대로 셋이다 — 말문이 잘 안
+ * 트이시는 날에도 강점을 여쭐 수 있어야 한다.
+ */
+export const STRENGTH_FLOW: Flow = {
+  1: [
+    { text: '젊으실 때 손으로 하는 일을 잘하셨어요, 사람 만나는 일을 잘하셨어요?', kind: 'shine' },
+    { text: '남들이 부지런하다고 하셨어요, 마음이 넓다고 하셨어요?', kind: 'praise' },
+    { text: '지금도 몸 쓰는 일이 편하세요, 앉아서 하는 일이 편하세요?', kind: 'able' },
+    { text: '무슨 일이든 서둘러 하시는 편이세요, 천천히 하시는 편이세요?', kind: 'how' },
+    { text: '앞으로 새로 배우고 싶으세요, 하시던 걸 더 하고 싶으세요?', kind: 'wish' },
+    { text: '누구 도와드리는 게 좋으세요, 혼자 하시는 게 편하세요?', kind: 'give' },
+    { text: '이런 자리는 여럿이 함께가 좋으세요, 둘이 조용히가 좋으세요?', kind: 'ask' },
+    { text: '다음에도 이야기 들려주실 수 있으세요, 오늘로 충분하세요?', kind: 'cheer' },
+    { text: '오늘 말씀하고 나니 시원하세요, 아쉬우세요?', kind: 'thanks' },
+  ],
+  2: [
+    { text: '젊으실 때 제일 잘하시던 일이 뭐였어요?', kind: 'shine' },
+    { text: '남들이 어르신더러 뭘 잘한다고 하셨어요?', kind: 'praise' },
+    { text: '지금도 손에 익어서 하실 수 있는 게 뭐예요?', kind: 'able' },
+    { text: '그건 어떻게 하면 잘되는 거예요?', kind: 'how' },
+    { text: '요즘 해 보고 싶으신 게 뭐예요?', kind: 'wish' },
+    { text: '누구한테 도움이 되신 일이 있으세요?', kind: 'give' },
+    { text: '이 시간에 뭘 더 해 보고 싶으세요?', kind: 'ask' },
+    { text: '다음에 여쭤보면 좋을 이야기가 뭐가 있을까요?', kind: 'cheer' },
+    { text: '오늘 이야기 중에 제일 마음에 남는 게 뭐예요?', kind: 'thanks' },
+  ],
+  3: [
+    { text: '젊으실 때 제일 잘하시던 일 이야기를 들려주세요.', kind: 'shine' },
+    { text: '주위에서는 어르신을 어떤 분이라고들 하셨어요?', kind: 'praise' },
+    { text: '지금도 남들보다 잘하신다 싶은 게 있으세요?', kind: 'able' },
+    { text: '그걸 잘하시는 요령이 있으세요? 저도 배우고 싶어요.', kind: 'how' },
+    { text: '지금도 하고 싶은 일이 있으시다면 어떤 거예요?', kind: 'wish' },
+    { text: '누군가에게 힘이 되어 주신 일이 있으면 들려주세요.', kind: 'give' },
+    { text: '이런 모임을 어떻게 하면 더 좋을지 여쭤봐도 될까요?', kind: 'ask' },
+    { text: '그 이야기를 다른 분들께도 들려주실 수 있을까요?', kind: 'cheer' },
+    { text: '오늘 들려주셔서 고맙습니다. 마지막으로 남기고 싶은 말씀이 있으세요?', kind: 'thanks' },
+  ],
 };
 
 /**
@@ -311,7 +436,17 @@ export function interviewFlow(
   opener: string,
   card: string | null,
   level: QuestionLevel,
+  /**
+   * 무엇을 여쭐 것인가. 없으면 지난 이야기 — 예전 동작 그대로다.
+   *
+   * 강점 갈래는 카드를 가리지 않는다. 강점은 주제가 아니라 사람에게 붙어
+   * 있어서, '명절 강점' 같은 것은 없다.
+   */
+  track: InterviewTrack = 'recall',
 ): Prompt[] {
+  if (track === 'strength') {
+    return [{ text: opener, kind: 'shine' }, ...STRENGTH_FLOW[level]];
+  }
   // 카드도 단계도 흐름을 고른다. 카드가 없으면 주제를 가리지 않는 쪽으로.
   const flow = (card ? CARD_FLOW[card] : undefined) ?? OPEN_FLOW;
   const rest = flow[level];
@@ -320,3 +455,14 @@ export function interviewFlow(
   const kind: PromptKind = level === 3 ? 'event' : 'scene';
   return [{ text: opener, kind }, ...rest];
 }
+
+/**
+ * 강점 갈래의 여는 질문 — 단계별로 하나씩.
+ *
+ * 카드가 여는 질문을 대던 자리를 이쪽에서는 여기가 맡는다.
+ */
+export const STRENGTH_OPENER: Record<QuestionLevel, string> = {
+  1: '오늘은 어르신이 잘하시는 이야기를 여쭙고 싶어요. 손으로 하는 일이 편하세요, 사람 만나는 일이 편하세요?',
+  2: '오늘은 어르신이 잘하시는 것을 여쭙고 싶어요. 남들이 어르신더러 뭘 잘한다고 하셨어요?',
+  3: '오늘은 어르신이 잘하시는 이야기를 듣고 싶어요. 제일 자신 있으셨던 일을 들려주시겠어요?',
+};

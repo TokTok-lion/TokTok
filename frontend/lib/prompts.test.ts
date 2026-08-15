@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CARD_FLOW, OPEN_FLOW, PROMPT_KIND_LABEL, interviewFlow } from './prompts.ts';
+import {
+  CARD_FLOW,
+  OPEN_FLOW,
+  PROMPT_KIND_LABEL,
+  STRENGTH_FLOW,
+  interviewFlow,
+} from './prompts.ts';
 import { SEED_MEMORY_CARDS } from './seed.ts';
 import type { QuestionLevel } from './domain.ts';
 
@@ -50,10 +56,29 @@ test('선택형은 고를 것을 두 가지 내민다', () => {
   }
 });
 
+/*
+ * 지난 이야기 갈래의 뼈대.
+ *
+ * 예전에는 PROMPT_KIND_LABEL 의 열쇠를 그대로 썼는데, 강점 갈래가 들어오면서
+ * 그 표에 아홉 개가 더 붙었다. 표를 세는 대신 뼈대를 여기 적어 둔다 —
+ * 지난 이야기의 순서가 이 아홉이라는 것이 이 시험의 내용이다.
+ */
+const RECALL_ARC = [
+  'scene',
+  'people',
+  'sense',
+  'doing',
+  'event',
+  'feel',
+  'after',
+  'now',
+  'leave',
+];
+
 test('아홉 갈래를 순서대로 지난다', () => {
   // 회상은 큰 것부터 물으면 안 나온다. 장면·사람·감각처럼 구체적인 것부터
   // 묻는 순서가 이 질문지의 뼈대이고, 단계가 달라도 그 뼈대는 같아야 한다.
-  const arc = Object.keys(PROMPT_KIND_LABEL);
+  const arc = RECALL_ARC;
   for (const [id, flow] of Object.entries({ open: OPEN_FLOW, ...CARD_FLOW })) {
     for (const level of LEVELS) {
       const kinds = flow[level].map((p) => p.kind);
@@ -79,4 +104,75 @@ test('모르는 카드는 주제를 가리지 않는 흐름으로 간다', () =>
     flow.slice(1).map((p) => p.text),
     OPEN_FLOW[3].map((p) => p.text),
   );
+});
+
+/* ---- 강점 갈래 (장수복지관 관장님 면담에서 나온 축) ---- */
+
+test('강점 갈래는 단계마다 아홉 갈래를 다 갖춘다', () => {
+  const kinds = ['shine', 'praise', 'able', 'how', 'wish', 'give', 'ask', 'cheer', 'thanks'];
+  for (const level of [1, 2, 3] as const) {
+    assert.deepEqual(
+      STRENGTH_FLOW[level].map((p) => p.kind),
+      kinds,
+      `${level}단계 순서가 어긋났다`,
+    );
+  }
+});
+
+test('강점 갈래는 카드를 가리지 않는다 — 강점은 사람에게 붙어 있다', () => {
+  const a = interviewFlow('여는 질문', 'family', 2, 'strength');
+  const b = interviewFlow('여는 질문', 'spouse', 2, 'strength');
+  const c = interviewFlow('여는 질문', null, 2, 'strength');
+  assert.deepEqual(a, b);
+  assert.deepEqual(a, c);
+});
+
+test('갈래를 안 주면 예전 그대로 지난 이야기다', () => {
+  assert.deepEqual(
+    interviewFlow('여는 질문', 'family', 3),
+    interviewFlow('여는 질문', 'family', 3, 'recall'),
+  );
+});
+
+test('강점 질문은 과거형으로 묻지 않는다 — 그러면 이 갈래의 뜻이 없다', () => {
+  /*
+   * 지금도 하시는 것·그 요령·하고 싶으신 것. 이 셋은 오늘을 묻는 자리다.
+   * '…하셨어요?'로 물으면 회상 질문이 되고, 그러면 강점 갈래를 만든 이유가
+   * 사라진다 — 그분이 오늘 무엇을 하실 수 있는 분인지가 안 남는다.
+   */
+  for (const level of [1, 2, 3] as const) {
+    for (const kind of ['able', 'how', 'wish'] as const) {
+      const q = STRENGTH_FLOW[level].find((p) => p.kind === kind)!;
+      assert.ok(
+        !/셨어요|셨나요|였어요|이셨/.test(q.text),
+        `${level}단계 ${kind} 가 과거형이다: ${q.text}`,
+      );
+    }
+  }
+});
+
+/* ---- 배우자 카드 ---- */
+
+test('배우자 카드도 단계마다 아홉 개다', () => {
+  for (const level of [1, 2, 3] as const) {
+    assert.equal(CARD_FLOW.spouse[level].length, 9);
+  }
+});
+
+test('배우자 질문은 살아 계신지 아닌지를 넘겨짚지 않는다', () => {
+  const all = [1, 2, 3].flatMap((l) => CARD_FLOW.spouse[l as 1].map((p) => p.text));
+  for (const t of all) {
+    assert.ok(!/돌아가|사별|먼저 가신|하늘/.test(t), `넘겨짚는 문장: ${t}`);
+  }
+});
+
+test('갈래마다 화면에 붙일 이름이 있다', () => {
+  // 이름이 없으면 인터뷰 화면의 꼬리표 자리가 빈다. 갈래를 더할 때 여기서 걸린다.
+  const used = new Set<string>();
+  for (const flow of [OPEN_FLOW, STRENGTH_FLOW, ...Object.values(CARD_FLOW)]) {
+    for (const level of LEVELS) for (const p of flow[level]) used.add(p.kind);
+  }
+  for (const kind of used) {
+    assert.ok(PROMPT_KIND_LABEL[kind as keyof typeof PROMPT_KIND_LABEL], `${kind} 이름 없음`);
+  }
 });
