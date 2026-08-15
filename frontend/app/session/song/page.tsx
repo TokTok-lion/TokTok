@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { ArtBox } from '@/components/Art';
+import { Art, ArtBox } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
-import { Card, PrimaryButton } from '@/components/ui';
+import { Card, Chevron, IconCircle, PrimaryButton } from '@/components/ui';
 import { IconBook, IconDoc, IconPause, IconPlay, IconRefresh } from '@/components/icons';
 import { MUSIC_STYLES, formatDuration } from '@/lib/domain';
 import { sceneFor, songTitleForTopic } from '@/lib/scenes';
@@ -149,6 +149,32 @@ export default function SongPage() {
       </div>
 
       <StaleLyricsNote where="song" />
+
+      {/*
+        노래 다음 — 그림과 책.
+
+        관장님이 "노래만 만들지 말고 사연이 담긴 그림까지" 라고 하신 자리다.
+        곡이 있을 때만 띄운다. 노래가 없는 화면에서 "노래 다음"은 말이 안 된다.
+      */}
+      {player.ready ? (
+        <Link
+          href="/session/scenes"
+          className="mt-4 flex min-h-[76px] items-center gap-3.5 rounded-[18px] bg-leaf-50 px-4"
+        >
+          <IconCircle tone="leaf" size={46}>
+            <Art name="ui_image" size={22} alt="" />
+          </IconCircle>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[1.0625rem] font-extrabold text-ink-900">
+              사연 그림 만들기
+            </span>
+            <span className="block text-[0.875rem] leading-snug text-ink-500">
+              확인된 이야기 한 문장을 그림 한 장으로 · 책으로도 만들 수 있어요
+            </span>
+          </span>
+          <Chevron />
+        </Link>
+      ) : null}
 
       {/*
         이 노래가 무엇으로 만들어졌는지.
