@@ -325,6 +325,23 @@ export function useSongShelf(
          *
          * 기기 표에도 적어 둔다. 다음에 열 때 서버를 안 읽어도 버튼이 뜬다.
          */
+        /*
+         * 기기 사본의 가사도 지문으로 확인한다.
+         *
+         * 앞선 판이 회기 번호만 보고 붙인 가사가 서버에 있었고, 그것이 여기로
+         * 복사됐다. 실제로 어르신 앞에서 다른 노래의 글자가 흘렀다. 지문이
+         * 다르면 떼어 낸다 — 안 뜨는 것이 틀린 가사가 뜨는 것보다 낫다.
+         */
+        for (const m of mine) {
+          if (!m.lyrics?.length || !m.hash || !m.style) continue;
+          const text = m.lyrics
+            .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
+            .join('\n\n');
+          if ((await lyricsHash(text, m.style)) === m.hash) continue;
+          m.lyrics = null;
+          void saveSongLyrics(m.key, null);
+        }
+
         const byHash = new Map(
           server
             .filter((r) => r.hash && r.lyrics?.length)

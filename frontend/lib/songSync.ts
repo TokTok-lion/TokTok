@@ -129,23 +129,31 @@ function cleanTopic(v: string | null): string | null {
  * 말하게 되고, 그러면 복지사가 한 번 더 만든다. 그게 요금이다.
  */
 /**
- * 예전 곡에 가사를 뒤늦게 붙인다.
+ * 예전 곡에 가사를 뒤늦게 붙인다 — **지문이 맞을 때만.**
  *
  * ── 왜 필요한가
  *
- * 가사 칸(0011)이 생기기 전에 만든 곡은 그 칸이 비어 있다. 그래서 보관함의
- * 「함께 부르기」가 한 곡에도 안 뜬다 — 기능은 붙었는데 열 수 있는 곡이 없는
- * 상태다.
+ * 가사 칸(0011)이 생기기 전에 만든 곡은 그 칸이 비어 있어서 보관함의
+ * 「함께 부르기」가 안 뜬다. 그 가사는 회기 기록에 남아 있으니 이어 붙이면 된다.
  *
- * 그런데 그 가사는 이미 서버에 있다. 회기마다 가사를 남겨 두기 때문이다
- * (lyrics 표 · 0007_workbench_sync). 곡 행에 회기 번호가 들어 있으니 그것으로
- * 이으면 된다.
+ * ── 회기 번호만 보고 이으면 안 된다
  *
- * ── 회기 번호가 없는 곡은 건드리지 않는다
+ * 처음에는 곡 행의 회기 번호로 lyrics 표를 찾아 그대로 붙였다. 실제로 열어
+ * 보니 **다른 노래의 가사가 떴다.**
  *
- * 곡의 임자는 어르신이라 회기 없이도 곡은 존재할 수 있다. 짐작으로 아무 가사나
- * 붙이면 남의 회기 가사가 그 곡의 가사가 된다 — 노래방 화면이 다른 노래의
- * 가사를 띄우게 된다. 못 잇는 곡은 그대로 둔다.
+ * lyrics 표는 회기마다 한 줄이고 고칠 때마다 덮인다. 곡을 만든 뒤에 복지사가
+ * 가사를 손보거나 다시 만들면, 그 회기의 마지막 가사는 곡을 만든 가사와
+ * 다르다. 그걸 붙이면 어르신 앞에서 다른 노래의 글자가 흐른다 — 이 서비스에서
+ * 가장 나쁜 종류의 오류다.
+ *
+ * ── 그래서 지문으로 대조한다
+ *
+ * 곡 행에는 그 곡을 만든 가사의 지문이 있다(lyrics_hash). 회기 가사로 같은
+ * 지문을 다시 계산해 보고, 한 글자라도 다르면 붙이지 않는다. 못 붙인 곡은
+ * 「함께 부르기」가 안 뜰 뿐이다 — 안 뜨는 것이 틀린 가사가 뜨는 것보다 낫다.
+ *
+ * 이미 잘못 붙은 가사도 여기서 지운다. 한 번 잘못 붙으면 다음부터는 비어
+ * 있지 않으니 아무도 다시 보지 않는다.
  */
 export async function backfillSongLyrics(participantId?: string): Promise<number> {
   const c = await ctx(participantId);
@@ -153,13 +161,16 @@ export async function backfillSongLyrics(participantId?: string): Promise<number
 
   const { data: songs } = await c.sb
     .from('songs')
-    .select('id, session_id')
+    .select('id, session_id, style, lyrics_hash, lyrics')
     .eq('participant_id', c.participantId)
-    .is('lyrics', null)
     .not('session_id', 'is', null);
   if (!songs?.length) return 0;
 
-  const ids = [...new Set(songs.map((r) => r.session_id).filter(Boolean))] as string[];
+  // 지문이 없으면 대조할 방법이 없다. 그런 곡은 손대지 않는다.
+  const todo = songs.filter((r) => r.lyrics_hash && r.style);
+  if (!todo.length) return 0;
+
+  const ids = [...new Set(todo.map((r) => r.session_id).filter(Boolean))] as string[];
   const { data: rows } = await c.sb
     .from('lyrics')
     .select('session_id, sections')
@@ -168,11 +179,30 @@ export async function backfillSongLyrics(participantId?: string): Promise<number
 
   const bySession = new Map(rows.map((r) => [r.session_id, r.sections]));
   let filled = 0;
-  for (const song of songs) {
+
+  for (const song of todo) {
     const sections = song.session_id ? bySession.get(song.session_id) : null;
-    if (!sections) continue;
-    const { error } = await c.sb.from('songs').update({ lyrics: sections }).eq('id', song.id);
-    if (!error) filled += 1;
+
+    // 곡을 만든 그 가사인지 지문으로 확인한다.
+    let same = false;
+    if (Array.isArray(sections)) {
+      const text = (sections as LyricSection[])
+        .map((sec) => `[${sec.label}]\n${sec.lines.join('\n')}`)
+        .join('\n\n');
+      same = (await lyricsHash(text, song.style as string)) === song.lyrics_hash;
+    }
+
+    if (same && !song.lyrics) {
+      const { error } = await c.sb.from('songs').update({ lyrics: sections }).eq('id', song.id);
+      if (!error) filled += 1;
+    } else if (!same && song.lyrics) {
+      /*
+       * 앞선 판이 회기 번호만 보고 붙인 가사다. 지문이 다르면 남의 가사이므로
+       * 지운다. 화면은 「함께 부르기」를 감추고, 그게 맞는 상태다.
+       */
+      await c.sb.from('songs').update({ lyrics: null }).eq('id', song.id);
+      warn('가사 대조', `지문이 달라 떼어 냈습니다 (${song.id.slice(0, 8)})`);
+    }
   }
   return filled;
 }

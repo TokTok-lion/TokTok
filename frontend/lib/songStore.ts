@@ -521,7 +521,8 @@ export async function songMetaAt(key: string): Promise<SongMeta | null> {
  */
 export async function saveSongLyrics(
   key: string,
-  lyrics: LyricSection[],
+  /** null 이면 떼어 낸다 — 지문이 안 맞는 가사를 지울 때 쓴다. */
+  lyrics: LyricSection[] | null,
 ): Promise<void> {
   const db = await openDb();
   if (!db) return;
