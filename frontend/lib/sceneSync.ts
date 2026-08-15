@@ -91,6 +91,36 @@ export async function uploadScene(scene: Scene): Promise<boolean> {
   return true;
 }
 
+/**
+ * 확정해 놓고 아직 안 올라간 그림을 마저 올린다.
+ *
+ * ── 왜 필요한가
+ *
+ * 올리기는 「이 그림 쓰기」를 누르는 순간에 걸린다. 그런데 그 기능이 생기기
+ * 전에 확정해 둔 그림, 그리고 통신이 끊겼을 때 확정한 그림은 기기에만 남는다.
+ * 복지사는 확정했으니 올라간 줄 알고, 다른 태블릿에서 안 보이면 고장으로 읽는다.
+ *
+ * 보관함을 열 때 한 번 훑는다. 이미 있는 것은 건너뛰므로 여러 번 열어도
+ * 같은 그림이 두 번 올라가지 않는다.
+ */
+export async function syncPending(local: Scene[]): Promise<number> {
+  const c = await ctx();
+  if (!c) return 0;
+
+  const { data } = await c.sb
+    .from('scenes')
+    .select('fact_id')
+    .eq('participant_id', c.participantId);
+  const there = new Set((data ?? []).map((r) => r.fact_id));
+
+  let sent = 0;
+  for (const sc of local) {
+    if (!sc.approved || there.has(sc.factId)) continue;
+    if (await uploadScene(sc)) sent += 1;
+  }
+  return sent;
+}
+
 /** 서버에 있는 이 어르신의 그림들. 못 읽으면 빈 목록. */
 export async function listServerScenes(): Promise<Scene[]> {
   const c = await ctx();

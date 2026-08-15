@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card } from '@/components/ui';
 import { readElderScenes, type Scene } from '@/lib/sceneStore';
-import { listServerScenes } from '@/lib/sceneSync';
+import { listServerScenes, syncPending } from '@/lib/sceneSync';
 import { useSession } from '@/lib/store';
 
 /**
@@ -44,6 +44,13 @@ export default function SceneShelfPage() {
       const mine = await readElderScenes();
       if (!alive) return;
       setScenes(mine);
+
+      /*
+       * 확정해 놓고 못 올라간 그림을 먼저 마저 올린다. 그러고 나서 서버를
+       * 읽어야, 방금 올린 것이 목록에 두 번 뜨지 않는다.
+       */
+      await syncPending(mine);
+      if (!alive) return;
 
       const remote = await listServerScenes();
       if (!alive || !remote.length) return;
