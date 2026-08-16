@@ -19,6 +19,7 @@ import {
   matchesHash,
   pushSongLyrics,
 } from './songSync';
+import { downloadBlob, safeFileName } from './export';
 import { currentSession } from './store';
 
 export type DeviceSong = {
@@ -426,6 +427,57 @@ export function useSongShelf(
  */
 export function shelfSongTitle(m: SongMeta): string {
   return m.topic ? songTitleForTopic(m.topic) : '주제가 남지 않은 노래';
+}
+
+/* ------------------------------------------------------------------ *
+ * 노래 파일 받기
+ *
+ * 곡은 어르신께 드리는 결과물이다. 앱 안에서만 들을 수 있으면 드린 것이
+ * 아니다 — 가족께 보내 드리고, 기관 일지에 첨부하고, 종강 잔치에서 트는
+ * 자리가 전부 앱 밖이다.
+ * ------------------------------------------------------------------ */
+
+/** 파일 확장자. 실제로 받은 소리 형식을 따른다 — 이름만 mp3 로 적지 않는다. */
+function audioExt(type: string): string {
+  if (type.includes('mp4') || type.includes('m4a') || type.includes('aac')) return 'm4a';
+  if (type.includes('wav')) return 'wav';
+  if (type.includes('ogg')) return 'ogg';
+  return 'mp3';
+}
+
+/**
+ * 이 곡의 파일 이름.
+ *
+ * 어르신 표기는 화면에 쓰는 그대로 넣는다(박○○). 파일은 앱 밖으로 나가므로
+ * 여기서 이름이 늘어나면 안 된다 — 가려 적는 자리가 무너진다.
+ *
+ * 날짜를 모르면 날짜를 빼고 적는다. 오늘 날짜를 붙이면, 3년 전 노래가 오늘
+ * 만든 것처럼 보이는 파일이 기관 폴더에 남는다.
+ */
+export function songFileName(elder: string, m: SongMeta, type: string): string {
+  const date = m.madeAt === null ? null : new Date(m.madeAt);
+  const stamp =
+    date && !Number.isNaN(date.getTime())
+      ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+          date.getDate(),
+        ).padStart(2, '0')}`
+      : null;
+  const parts = [elder, shelfSongTitle(m), stamp].filter(Boolean).join(' ');
+  return `${safeFileName(parts)}.${audioExt(type)}`;
+}
+
+/**
+ * 곡 파일을 기기에 내려받는다.
+ *
+ * 기기에 사본이 있으면 그것으로, 없으면 계정 저장소에서 받아서 준다. 복지사
+ * 입장에서는 둘이 같은 버튼이어야 한다 — 어느 태블릿에서 만든 곡인지는 파일을
+ * 드리는 일과 상관이 없다.
+ */
+export async function downloadShelfSong(elder: string, m: ShelfItem): Promise<boolean> {
+  const blob = m.path ? await downloadServerSong(m.path) : await loadSongAt(m.key);
+  if (!blob) return false;
+  downloadBlob(songFileName(elder, m, blob.type), blob);
+  return true;
 }
 
 /** '2026년 8월 10일'. 만든 시각을 모르면 null — 날짜를 지어내지 않는다. */

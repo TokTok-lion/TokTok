@@ -27,14 +27,24 @@ export function printLog() {
  * 파일은 멀쩡한데 열어 보면 못 쓰는 상태가 되어 원인을 찾기 어렵다.
  */
 export function downloadCsv(filename: string, rows: LogRow[]) {
-  if (typeof window === 'undefined') return;
-
   const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
   const body = [['항목', '내용'], ...rows.map((r) => [r.label, r.value])]
     .map((cols) => cols.map(esc).join(','))
     .join('\r\n');
 
-  const blob = new Blob(['﻿' + body], { type: 'text/csv;charset=utf-8;' });
+  downloadBlob(filename, new Blob(['﻿' + body], { type: 'text/csv;charset=utf-8;' }));
+}
+
+/**
+ * 파일 하나를 기기에 내려받는다.
+ *
+ * 노래와 표가 같은 자리를 쓰게 한다. 사파리에서 주소를 곧바로 해제하면 저장이
+ * 취소되는 일이 있어 한 박자 두고 지운다 — 이 한 줄이 없으면 아이패드에서만
+ * 저장이 안 된다.
+ */
+export function downloadBlob(filename: string, blob: Blob) {
+  if (typeof window === 'undefined') return;
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -42,7 +52,6 @@ export function downloadCsv(filename: string, rows: LogRow[]) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  // 곧바로 해제하면 사파리에서 저장이 취소되는 일이 있어 한 박자 둔다.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -51,4 +60,20 @@ export function todayStamp(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/**
+ * 파일 이름으로 쓸 수 있게 다듬는다.
+ *
+ * 윈도와 맥이 파일 이름에 못 쓰는 글자가 있고, 들어가면 저장이 통째로
+ * 실패한다. 노래 제목에는 어르신 말씀이 그대로 들어가 있어서 물음표와
+ * 따옴표가 드물지 않다.
+ */
+export function safeFileName(v: string): string {
+  const cleaned = v
+    .replace(/[\\/:*?"<>|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+  return cleaned || '노래';
 }

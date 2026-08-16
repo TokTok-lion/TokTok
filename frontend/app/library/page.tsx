@@ -21,6 +21,7 @@ import {
   deleteSongAt,
 } from '@/lib/songStore';
 import {
+  downloadShelfSong,
   shelfSongDate,
   shelfSongTitle,
   useSongShelf,
@@ -63,6 +64,25 @@ export default function LibraryPage() {
   /** 지우기는 두 번 여쭙는다. 어르신 노래는 되돌릴 수 없다. */
   const [asking, setAsking] = useState<string | null>(null);
   const [wiping, setWiping] = useState(false);
+  /** 파일을 받는 중인 곡. 기관 저장소에서 받아 오는 곡은 몇 초가 걸린다. */
+  const [saving, setSaving] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+
+  /*
+   * 파일 이름에 적을 어르신 표기.
+   *
+   * 화면에 쓰는 그대로 쓴다(박○○). 파일은 앱 밖으로 나가는 물건이라, 여기서
+   * 이름을 늘려 적으면 앱 안에서 가려 온 것이 파일 이름으로 새어 나간다.
+   */
+  const elderLabel = view.id ? view.name : s.elder.honorific;
+
+  const saveOne = async (m: ShelfItem) => {
+    setSaveErr(null);
+    setSaving(m.key);
+    const ok = await downloadShelfSong(elderLabel, m).catch(() => false);
+    setSaving(null);
+    if (!ok) setSaveErr(m.key);
+  };
 
   const removeOne = async (m: ShelfItem) => {
     // 지우려는 곡이 흐르고 있을 수 있다. 파일이 사라진 뒤에도 소리가 계속
@@ -309,6 +329,29 @@ export default function LibraryPage() {
                     {remote
                       ? '이 노래를 받아 오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 보시겠어요?'
                       : '이 노래를 열지 못했어요. 다시 눌러 보시겠어요?'}
+                  </p>
+                ) : null}
+
+                {/*
+                  * 노래 파일 받기.
+                  *
+                  * 곡은 어르신께 드리는 결과물인데, 앱 안에서만 들리면 드린 것이
+                  * 아니다 — 가족께 보내 드리고, 기관 일지에 첨부하고, 잔치에서
+                  * 트는 자리가 전부 앱 밖이다. 기관 저장소에만 있는 곡도 같은
+                  * 버튼이다. 어느 태블릿에서 만들었는지는 파일을 드리는 일과
+                  * 상관이 없다.
+                  */}
+                <button
+                  type="button"
+                  disabled={saving === m.key}
+                  onClick={() => void saveOne(m)}
+                  className="mt-2.5 min-h-[48px] w-full rounded-[12px] border border-brand-300 bg-surface text-[0.9375rem] font-bold text-brand-700 disabled:opacity-60"
+                >
+                  {saving === m.key ? '파일을 준비하고 있어요…' : '노래 파일 받기'}
+                </button>
+                {saveErr === m.key ? (
+                  <p role="alert" className="mt-1.5 text-[0.875rem] font-bold text-danger-600">
+                    파일을 받지 못했어요. 인터넷 연결을 확인하고 다시 눌러 보시겠어요?
                   </p>
                 ) : null}
 
