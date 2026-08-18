@@ -206,10 +206,21 @@ export function useReel(
    */
   useEffect(() => {
     if (!playing) return;
+    /*
+     * 시각은 더하지 않고 잰다.
+     *
+     * 예전에는 한 번 돌 때마다 0.05초씩 더했다. 그런데 브라우저는 화면이
+     * 안 보이면 시계를 늦춘다 — 초당 스무 번 돌 것이 한 번만 돈다. 그러면
+     * 더하기가 스무 배 느려져서, 소리는 제대로 흐르는데 그림만 기어간다.
+     *
+     * 시작한 때를 적어 두고 지금과의 차이를 재면, 시계가 늦어져도 그림이
+     * 늦어지지는 않는다. 건너뛸 뿐이다.
+     */
+    const from = performance.now() - atRef.current * 1000;
     const id = setInterval(() => {
       const a = audioRef.current;
       if (a && !a.paused && a.currentTime > 0) atRef.current = a.currentTime;
-      else atRef.current += 0.05;
+      else atRef.current = (performance.now() - from) / 1000;
       setAt(atRef.current);
       // 정한 길이에 닿으면 담기를 끊는다. 복지사가 멈춤을 누르지 않아도
       // 파일이 나온다 — 백 초짜리 곡 앞에 서 있게 하지 않는다.
