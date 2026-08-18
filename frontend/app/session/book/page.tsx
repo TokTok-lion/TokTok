@@ -147,9 +147,21 @@ export default function BookPage() {
                 </div>
               ) : (
                 <>
+                  {/*
+                    그림 높이를 화면에 맞춰 자른다.
+
+                    390px 태블릿에서 그림이 제 크기로 들어가면 글과 넘김 단추가
+                    화면 밖으로 밀려서, 한 쪽을 보려면 스크롤을 해야 했다. 책은
+                    한 쪽이 한 화면에 들어와야 한다 — 어르신과 마주 앉아 넘기는
+                    물건이라 단추가 늘 같은 자리에 보여야 한다.
+                  */}
                   {/* eslint-disable-next-line @next/next/no-img-element -- data: URI */}
-                  <img src={now.image} alt={`그림 — ${now.text}`} className="block w-full" />
-                  <p className="px-5 py-6 text-center text-[1.375rem] font-bold leading-relaxed text-ink-900">
+                  <img
+                    src={now.image}
+                    alt={`그림 — ${now.text}`}
+                    className="block max-h-[42vh] w-full object-cover"
+                  />
+                  <p className="px-5 py-4 text-center text-[1.25rem] font-bold leading-relaxed text-ink-900">
                     {now.text}
                   </p>
                 </>
