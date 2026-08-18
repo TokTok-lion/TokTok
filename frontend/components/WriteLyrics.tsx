@@ -22,6 +22,8 @@ type Note = {
   withheld: number;
   /** 그래도 가사에 남은 낱말. */
   avoidHit: string[];
+  /** 들은 말을 그대로 옮긴 줄. 뜻은 맞아도 노래가 아니라 녹취록이다. */
+  pasted: string[];
   /** 어르신 말씀 그대로 살린 표현 — 양쪽에서 확인된 것만. */
   kept: string[];
   /** 말투를 살릴 원문이 몇 줄 있었는가. */
@@ -96,6 +98,7 @@ export function WriteLyrics() {
         error?: string;
         withheld?: number;
         avoidHit?: string[];
+        pasted?: string[];
         kept?: string[];
         quotesUsed?: number;
       };
@@ -110,6 +113,7 @@ export function WriteLyrics() {
       setNote({
         withheld: json.withheld ?? 0,
         avoidHit: json.avoidHit ?? [],
+        pasted: json.pasted ?? [],
         kept: json.kept ?? [],
         quotesUsed: json.quotesUsed ?? 0,
       });
@@ -247,10 +251,25 @@ export function WriteLyrics() {
             </p>
           ) : null}
 
+          {note.pasted.length ? (
+            /*
+             * 받아 적은 말이 그대로 가사 줄이 된 것.
+             *
+             * 뜻은 어르신 것이 맞지만 그건 노래가 아니라 녹취록이고, 어르신
+             * 앞에서 부를 수 없는 글이다. 줄을 몰래 지우지는 않는다 — 어느
+             * 줄인지 짚어 주고, 고칠지는 복지사가 정한다.
+             */
+            <p className="mt-2 text-[0.9375rem] font-bold leading-relaxed text-brand-700">
+              「{note.pasted.join('」 「')}」{' '}
+              {note.pasted.length > 1 ? '줄들은' : '줄은'} 어르신이 하신 말씀을
+              그대로 옮긴 것에 가까워요. 노랫말로 고쳐 쓰시거나 다시 만들어 보세요.
+            </p>
+          ) : null}
+
           {note.kept.length ? (
             <>
-              <p className="text-[0.9375rem] font-bold text-ink-900">
-                어르신 말씀 그대로 살린 표현 {note.kept.length}개
+              <p className="mt-2 text-[0.9375rem] font-bold text-ink-900">
+                어르신이 쓰신 말 {note.kept.length}개
               </p>
               <p className="mt-1.5 flex flex-wrap gap-1.5">
                 {note.kept.map((k) => (
@@ -263,14 +282,14 @@ export function WriteLyrics() {
                 ))}
               </p>
               <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-500">
-                녹음에서 어르신이 실제로 쓰신 말이 가사에 그대로 들어갔는지
-                대조한 결과예요.
+                녹음에서 어르신이 실제로 쓰신 낱말이 가사에 들어갔는지 대조한
+                결과예요. 문장을 통째로 옮긴 것이 아니라 낱말이 남은 것입니다.
               </p>
             </>
           ) : note.quotesUsed > 0 ? (
             <p className="text-[0.875rem] leading-relaxed text-ink-500">
-              이번 가사에는 어르신 말씀을 그대로 옮긴 표현이 없었어요. 다시
-              만들면 살아나기도 합니다.
+              이번 가사에는 어르신이 쓰신 낱말이 그대로 남은 곳이 없었어요.
+              뜻은 어르신 이야기에서 나온 그대로입니다.
             </p>
           ) : (
             <p className="text-[0.875rem] leading-relaxed text-ink-500">

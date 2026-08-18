@@ -185,3 +185,38 @@ export function verbatimKept(
   }
   return out.slice(0, 5);
 }
+
+/* ------------------------------------------------------------------ *
+ * 베껴 온 줄 찾기
+ *
+ * 받아 적은 말이 그대로 가사가 되는 일이 실제로 있었다. 화면에는
+ * "내가 키가 작으니까 / 당황을 했어 / 그때 작았어 그래서 / 당황을 했어"가
+ * 떴다. 뜻은 어르신 것이 맞지만 그건 노래가 아니라 녹취록이고, 어르신
+ * 앞에서 부를 수 없는 글이다.
+ *
+ * 프롬프트에 "옮기지 마십시오"라고 적는 것만으로는 안 지켜진다는 것을
+ * 피하고 싶은 주제에서 이미 봤다. 그래서 여기서 직접 견준다 — 한 줄이
+ * 어느 원문이나 사실 문장과 통째로 겹치면 베껴 온 줄이다.
+ *
+ * 찾은 줄을 몰래 지우지는 않는다. 절이 무너진 가사를 사람이 모르고
+ * 확정하게 된다. 한 번 다시 부탁하고, 그래도 남으면 복지사에게 짚어 준다.
+ * ------------------------------------------------------------------ */
+
+/** 이 비율만큼 겹치면 통째로 옮긴 것으로 본다. */
+const PASTE_RATIO = 0.7;
+/** 짧은 줄은 우연히도 통째로 겹친다. 이보다 짧으면 견주지 않는다. */
+const PASTE_MIN = 7;
+
+export function pastedLines(lyricLines: string[], sources: string[]): string[] {
+  const bare = sources.map((v) => strip(v).bare).filter((v) => v.length >= PASTE_MIN);
+  if (!bare.length) return [];
+
+  const out: string[] = [];
+  for (const line of lyricLines) {
+    const l = strip(line).bare;
+    if (l.length < PASTE_MIN) continue;
+    const need = Math.max(PASTE_MIN, Math.ceil(l.length * PASTE_RATIO));
+    if (bare.some((src) => longestCommon(l, src).len >= need)) out.push(line);
+  }
+  return out;
+}

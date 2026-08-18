@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { quotesFor, verbatimKept } from './verbatim.ts';
+import { pastedLines, quotesFor, verbatimKept } from './verbatim.ts';
 
 const transcript = [
   { speaker: 'worker', at: 10, text: '식사는 어떠셨어요?' },
@@ -93,4 +93,33 @@ test('확인 안 된 대목의 말씀은 말씨 재료에서 뺀다', () => {
   assert.deepEqual(quotesFor(both, lines, notVerified), [
     '지금도 단추 다는 건 눈 감고도 해',
   ]);
+});
+
+test('받아 적은 말이 그대로 가사 줄이 되면 찾아낸다', () => {
+  const quotes = ['그런 학교가 지금 폐교돼 버리고 없어요', '내가 키가 작으니까 당황을 했어'];
+  const lines = [
+    '그런 학교가 지금',
+    '폐교돼 버리고 없어',
+    '우리 다니던 교정은 사라졌어도',
+    '아름답던 추억만은 머물러 있네',
+  ];
+  // 한 말씀이 두 줄로 잘려 들어가도 두 줄 다 베껴 온 줄이다.
+  const found = pastedLines(lines, quotes);
+  assert.deepEqual(found, ['그런 학교가 지금', '폐교돼 버리고 없어']);
+});
+
+test('낱말 하나가 겹치는 것은 베낀 것이 아니다', () => {
+  const quotes = ['밥이 목구녕으로 안 넘어갔어 그때는 참 힘들었지'];
+  const lines = ['목구녕으로 넘어가지 않던 그 시절'];
+  assert.deepEqual(pastedLines(lines, quotes), []);
+});
+
+test('다듬어진 사실 문장을 그대로 옮긴 줄도 찾아낸다', () => {
+  const facts = ['열아홉에 방직공장에 들어갔어요'];
+  const lines = ['열아홉에 방직공장에 들어갔어요', '실 냄새 가득하던 그 마당'];
+  assert.deepEqual(pastedLines(lines, facts), ['열아홉에 방직공장에 들어갔어요']);
+});
+
+test('견줄 원문이 없으면 아무것도 찾지 않는다', () => {
+  assert.deepEqual(pastedLines(['어느 줄이든 상관없다'], []), []);
 });
