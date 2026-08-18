@@ -154,14 +154,31 @@ export function useReel(
         // 파일이 나온다 — 백 초짜리 곡 앞에 서 있게 하지 않는다.
         if (a.currentTime >= endAtRef.current) finish();
       });
+      /*
+       * 길이를 알기 전에는 이 오디오를 시계로 삼지 않는다.
+       *
+       * 예전에는 파일을 받자마자 hasSong 을 켰다. 그런데 그 파일이 못 여는
+       * 것이면(반쯤 받다 만 곡, 이 브라우저가 모르는 형식) 아무 신호도 안
+       * 오고, 화면은 「이 기기의 노래와 함께」라고 적어 놓은 채 표지에서
+       * 멈춰 있었다. 재생을 눌러도 아무 일이 없다.
+       *
+       * 길이를 알려 준 뒤에야 시계를 넘긴다. 못 여는 파일이면 hasSong 이
+       * 꺼진 채로 남고, 우리 시계로 그림만 넘어간다 — 어르신 앞에서 화면이
+       * 멎는 것보다 소리 없이 넘어가는 편이 낫다.
+       */
       a.addEventListener('loadedmetadata', () => {
-        if (Number.isFinite(a.duration)) setTotal(a.duration);
+        if (!Number.isFinite(a.duration) || a.duration <= 0) return;
+        setTotal(a.duration);
+        audioRef.current = a;
+        setHasSong(true);
       });
       a.addEventListener('ended', () => setPlaying(false));
       a.addEventListener('play', () => setPlaying(true));
       a.addEventListener('pause', () => setPlaying(false));
-      audioRef.current = a;
-      setHasSong(true);
+      // 못 여는 파일이었다. 그림만 넘긴다.
+      a.addEventListener('error', () => setHasSong(false));
+      // preload='metadata' 만으로는 안 읽는 브라우저가 있다.
+      a.load();
     });
 
     return () => {
@@ -173,19 +190,6 @@ export function useReel(
   }, [ownerId, finish]);
 
   /*
-   * 곡이 없으면 시계를 우리가 돌린다.
-   */
-  useEffect(() => {
-    if (!playing || hasSong) return;
-    const id = setInterval(() => {
-      atRef.current += 0.05;
-      setAt(atRef.current);
-      if (atRef.current >= endAtRef.current) finish();
-    }, 50);
-    return () => clearInterval(id);
-  }, [playing, hasSong, finish]);
-
-  /*
    * 이 영상이 흐르는 길이.
    *
    * 짧게 담기를 켜면 삼십 초, 아니면 곡 길이다. 곡이 없으면 그림 수만큼.
@@ -193,6 +197,22 @@ export function useReel(
    */
   const full = total || scenes.length * HOLD + CARD * 2;
   const length = short ? Math.min(SHORT_LEN, full) : full;
+
+  /*
+   * 곡이 없으면 시계를 우리가 돌린다.
+   */
+  const limit = length;
+  useEffect(() => {
+    if (!playing || hasSong) return;
+    const id = setInterval(() => {
+      atRef.current += 0.05;
+      setAt(atRef.current);
+      if (atRef.current >= endAtRef.current) finish();
+      // 끝까지 갔으면 멈춘다. 곡이 없을 때는 멈춰 줄 사람이 없다.
+      else if (atRef.current >= limit) setPlaying(false);
+    }, 50);
+    return () => clearInterval(id);
+  }, [playing, hasSong, finish, limit]);
 
   /*
    * 지금 몇 번째 그림인가.
