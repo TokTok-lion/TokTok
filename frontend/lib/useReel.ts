@@ -147,37 +147,31 @@ export function useReel(
       url = URL.createObjectURL(blob);
       const a = new Audio(url);
       a.preload = 'metadata';
-      a.addEventListener('timeupdate', () => {
-        atRef.current = a.currentTime;
-        setAt(a.currentTime);
-        // 정한 길이에 닿으면 여기서 끊는다. 복지사가 멈춤을 누르지 않아도
-        // 파일이 나온다 — 백 초짜리 곡 앞에 서 있게 하지 않는다.
-        if (a.currentTime >= endAtRef.current) finish();
-      });
       /*
-       * 길이를 알기 전에는 이 오디오를 시계로 삼지 않는다.
+       * ── 시계를 하나만 믿지 않는다
        *
-       * 예전에는 파일을 받자마자 hasSong 을 켰다. 그런데 그 파일이 못 여는
-       * 것이면(반쯤 받다 만 곡, 이 브라우저가 모르는 형식) 아무 신호도 안
-       * 오고, 화면은 「이 기기의 노래와 함께」라고 적어 놓은 채 표지에서
+       * 처음에는 파일을 받자마자 이 오디오를 시계로 삼았다. 그런데 브라우저가
+       * 곡 길이를 늦게 읽거나 아예 안 읽는 경우가 있다. 그때는 아무 신호도
+       * 안 오고, 화면은 「이 기기의 노래와 함께」라고 적어 놓은 채 표지에서
        * 멈춰 있었다. 재생을 눌러도 아무 일이 없다.
        *
-       * 길이를 알려 준 뒤에야 시계를 넘긴다. 못 여는 파일이면 hasSong 이
-       * 꺼진 채로 남고, 우리 시계로 그림만 넘어간다 — 어르신 앞에서 화면이
-       * 멎는 것보다 소리 없이 넘어가는 편이 낫다.
+       * 그다음에는 길이를 알려 준 뒤에만 시계로 삼게 했다. 이번에는 반대로,
+       * 멀쩡한 곡인데도 브라우저가 길이를 늦게 주면 「곡이 없어요」가 됐다.
+       *
+       * 그래서 시계는 우리가 돌리고, 소리가 실제로 흐르고 있으면 그 시각을
+       * 따라간다(아래 시계 이펙트). 어느 쪽이 고장 나도 그림은 넘어간다 —
+       * 어르신 앞에서 화면이 멎는 일만은 없어야 한다.
        */
       a.addEventListener('loadedmetadata', () => {
-        if (!Number.isFinite(a.duration) || a.duration <= 0) return;
-        setTotal(a.duration);
-        audioRef.current = a;
-        setHasSong(true);
+        if (Number.isFinite(a.duration) && a.duration > 0) setTotal(a.duration);
       });
       a.addEventListener('ended', () => setPlaying(false));
       a.addEventListener('play', () => setPlaying(true));
       a.addEventListener('pause', () => setPlaying(false));
       // 못 여는 파일이었다. 그림만 넘긴다.
       a.addEventListener('error', () => setHasSong(false));
-      // preload='metadata' 만으로는 안 읽는 브라우저가 있다.
+      audioRef.current = a;
+      setHasSong(true);
       a.load();
     });
 
@@ -187,7 +181,7 @@ export function useReel(
       audioRef.current = null;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [ownerId, finish]);
+  }, [ownerId]);
 
   /*
    * 이 영상이 흐르는 길이.
@@ -202,17 +196,29 @@ export function useReel(
    * 곡이 없으면 시계를 우리가 돌린다.
    */
   const limit = length;
+
+  /*
+   * 시계.
+   *
+   * 소리가 실제로 흐르고 있으면 그 시각을 따르고, 아니면 우리가 민다. 곡이
+   * 없는 회기도 있고(아직 안 만들었거나 다른 태블릿에서 만들었거나), 곡이
+   * 있어도 이 브라우저가 못 여는 경우가 있다. 어느 쪽이든 그림은 넘어간다.
+   */
   useEffect(() => {
-    if (!playing || hasSong) return;
+    if (!playing) return;
     const id = setInterval(() => {
-      atRef.current += 0.05;
+      const a = audioRef.current;
+      if (a && !a.paused && a.currentTime > 0) atRef.current = a.currentTime;
+      else atRef.current += 0.05;
       setAt(atRef.current);
+      // 정한 길이에 닿으면 담기를 끊는다. 복지사가 멈춤을 누르지 않아도
+      // 파일이 나온다 — 백 초짜리 곡 앞에 서 있게 하지 않는다.
       if (atRef.current >= endAtRef.current) finish();
-      // 끝까지 갔으면 멈춘다. 곡이 없을 때는 멈춰 줄 사람이 없다.
+      // 끝까지 갔으면 멈춘다.
       else if (atRef.current >= limit) setPlaying(false);
     }, 50);
     return () => clearInterval(id);
-  }, [playing, hasSong, finish, limit]);
+  }, [playing, finish, limit]);
 
   /*
    * 지금 몇 번째 그림인가.
@@ -241,7 +247,17 @@ export function useReel(
     }
     if (a.paused) {
       if (a.ended || a.currentTime >= (a.duration || 0)) a.currentTime = 0;
-      void a.play().catch(() => setPlaying(false));
+      /*
+       * 못 트는 곡이면 소리는 포기하고 그림만 넘긴다. 여기서 멈춰 버리면
+       * 어르신 앞에서 눌러도 아무 일이 없는 단추가 된다.
+       */
+      void a.play().catch(() => {
+        setHasSong(false);
+        audioRef.current = null;
+        atRef.current = 0;
+        setAt(0);
+        setPlaying(true);
+      });
     } else {
       a.pause();
     }
