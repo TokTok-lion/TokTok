@@ -115,7 +115,8 @@ export default function ReelPage() {
     };
 
     let raf = 0;
-    const draw = () => {
+    /** 한 장면을 그린다. 화면이 살아 있으면 매 프레임, 아니면 시계가 부른다. */
+    const frame = () => {
       ctx.fillStyle = '#fdf6ec';
       ctx.fillRect(0, 0, W, H);
 
@@ -154,10 +155,29 @@ export default function ReelPage() {
         }
       }
 
+    };
+
+    const draw = () => {
+      frame();
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+
+    /*
+     * 화면이 꺼지거나 다른 앱으로 넘어가면 requestAnimationFrame 이 멈춘다.
+     * 담는 중이었다면 그 순간부터 영상이 얼어붙는다 — 소리는 흐르는데 그림만
+     * 멎은 파일이 남는다. 태블릿 화면이 잠깐 어두워지는 것만으로도 그렇게 된다.
+     *
+     * 그래서 안 보이는 동안에는 시계로 대신 그린다. 초당 열 장이면 충분하다.
+     */
+    const spare = setInterval(() => {
+      if (document.hidden) frame();
+    }, 100);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(spare);
+    };
   }, [scenes, reel.index, reel.fade, reel.at, reel.length, who]);
 
   const count = scenes.length;
