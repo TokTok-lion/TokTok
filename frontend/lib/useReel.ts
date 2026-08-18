@@ -61,6 +61,11 @@ export type ReelState = {
   stopRecording: () => void;
   /** 담긴 영상. 저장 버튼이 이걸 내려받는다. */
   video: { url: string; type: string } | null;
+  /**
+   * 담기가 안 된 이유. 눌러도 아무 일이 없는 단추를 두지 않기 위해서다 —
+   * 예전에는 여기서 난 오류를 조용히 삼켜서, 복지사에게는 고장 난 단추로 보였다.
+   */
+  problem: string | null;
   /** 짧게 담기 — 켜면 삼십 초에서 끊는다. */
   short: boolean;
   setShort: (v: boolean) => void;
@@ -88,6 +93,7 @@ export function useReel(
   const [total, setTotal] = useState(0);
   const [recording, setRecording] = useState(false);
   const [video, setVideo] = useState<{ url: string; type: string } | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
   const [short, setShort] = useState(true);
   const recRef = useRef<MediaRecorder | null>(null);
   /** 지금 흐른 시각. 담기를 끊을 때가 됐는지 재는 데 쓴다. */
@@ -296,6 +302,7 @@ export function useReel(
        */
       atRef.current = 0;
       setAt(0);
+      setProblem(null);
       const stream = canvas.captureStream(30);
 
       /*
@@ -362,8 +369,9 @@ export function useReel(
         setAt(0);
         setPlaying(true);
       }
-    } catch {
+    } catch (e) {
       setRecording(false);
+      setProblem(e instanceof Error ? `${e.name}: ${e.message}` : '알 수 없는 오류');
     }
   }, [canvas, canRecord, length]);
 
@@ -381,6 +389,7 @@ export function useReel(
     startRecording,
     stopRecording: finish,
     video,
+    problem,
     short,
     setShort,
   };

@@ -301,6 +301,13 @@ export default function ReelPage() {
                   )}
                 </div>
 
+                {reel.problem ? (
+                  <p role="alert" className="mt-2 text-[0.875rem] font-bold leading-relaxed text-danger-600">
+                    영상을 담지 못했어요. 다시 눌러 보시고, 계속 안 되면 아래 내용을
+                    알려 주세요 — {reel.problem}
+                  </p>
+                ) : null}
+
                 {reel.recording ? (
                   <p role="status" className="mt-2 text-[0.875rem] font-bold text-brand-700">
                     담는 중… {Math.round(reel.at)}초 / {secs}초
