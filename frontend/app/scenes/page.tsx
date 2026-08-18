@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card } from '@/components/ui';
-import { readElderScenes, type Scene } from '@/lib/sceneStore';
-import { listServerScenes, syncPending } from '@/lib/sceneSync';
+import type { Scene } from '@/lib/sceneStore';
+import { useElderScenes } from '@/lib/useElderScenes';
 import { useSession } from '@/lib/store';
 import { ViewElderPicker } from '@/components/ViewElderPicker';
 import { useViewElder } from '@/lib/viewElder';
@@ -30,72 +29,10 @@ export default function SceneShelfPage() {
   const { s } = useSession();
   const view = useViewElder();
   const owner = view.id ?? undefined;
-  const [scenes, setScenes] = useState<Scene[] | null>(null);
-  const [fromServer, setFromServer] = useState(false);
-  /** 계정 저장소를 읽었는가. 'off' 는 서버를 안 쓰거나 못 읽었다는 뜻이다. */
-  const [shared, setShared] = useState<'loading' | 'ok' | 'off'>('loading');
+  const { scenes, shared, fromServer } = useElderScenes(owner, { push: !owner });
 
-  /*
-   * 기기 먼저, 서버는 뒤이어.
-   *
-   * 두 번 그린다. 통신을 기다리느라 이미 손에 있는 그림을 못 보여 주는 일이
-   * 없어야 한다 — 곡 보관함이 그렇게 만들어져 있고, 여기도 같은 이유다.
-   *
-   * 합치는 계산은 이펙트 안에서 하지 않는다. 이펙트가 상태를 또 고치면 렌더가
-   * 연쇄로 돈다 — 한 번에 합쳐서 한 번만 넣는다.
-   */
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      const mine = await readElderScenes(owner);
-      if (!alive) return;
-      setScenes(mine);
-
-      /*
-       * 확정해 놓고 못 올라간 그림을 먼저 마저 올린다. 그러고 나서 서버를
-       * 읽어야, 방금 올린 것이 목록에 두 번 뜨지 않는다.
-       */
-      // 보는 어르신이 회기와 다르면 올리지 않는다 — 남의 기록을 대신 올리는
-      // 셈이 되고, 지금 회기에서 확정한 것도 아니다.
-      if (!owner) await syncPending(mine);
-      if (!alive) return;
-
-      const remote = await listServerScenes(owner);
-      if (!alive) return;
-      if (!remote) {
-        // 못 읽었다. 화면이 그 사실을 말한다 — 없는 것으로 그리지 않는다.
-        setShared('off');
-        return;
-      }
-      setShared('ok');
-      if (!remote.length) return;
-
-      /*
-       * 계정이 원본이다.
-       *
-       * 같은 그림이 양쪽에 있으면 서버 쪽 글과 확정 여부를 따른다. 예전에는
-       * 기기 것을 그대로 두고 없는 것만 보탰는데, 그러면 다른 태블릿에서
-       * 확정한 그림이 이 태블릿에서는 계속 초안으로 보인다 — 두 화면이 같은
-       * 그림을 두고 다른 말을 하는 셈이다.
-       *
-       * 그림 파일은 기기 것을 그대로 쓴다. 같은 그림이고, 바꿔 끼우면 화면이
-       * 한 번 더 깜빡인다.
-       */
-      const byFact = new Map(remote.map((r) => [r.factId, r]));
-      const merged = mine.map((m) => {
-        const r = byFact.get(m.factId);
-        return r ? { ...m, text: r.text, approved: r.approved, madeAt: r.madeAt } : m;
-      });
-
-      const seen = new Set(mine.map((x) => x.factId));
-      const add = remote.filter((r) => !seen.has(r.factId));
-      setScenes([...merged, ...add].sort((a, b) => b.madeAt - a.madeAt));
-      setFromServer(true);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [owner]);
+  // 확정한 그림 수. 책·숏츠는 확정한 것으로만 만든다(원칙 3).
+  const approved = (scenes ?? []).filter((x) => x.approved).length;
 
   const bySession = new Map<string, Scene[]>();
   for (const sc of scenes ?? []) {
@@ -169,6 +106,39 @@ export default function SceneShelfPage() {
               </ul>
             </section>
           ))}
+
+          {/*
+            책과 숏츠로 가는 입구.
+
+            예전에는 회기 안의 「사연 그림」 화면에서만 들어갈 수 있었다. 그
+            화면은 그림을 만드는 자리라, 지난 회기 그림으로 책을 보려면 갈 길이
+            없었다 — 기능은 있는데 아무도 못 찾는 상태였다.
+
+            여기 두는 것이 맞다. 보관함은 지난 그림이 모이는 자리이고, 책과
+            숏츠는 모인 그림으로 만드는 물건이다. 「보는 어르신」도 그대로
+            따라간다.
+          */}
+          {approved > 0 ? (
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <Link
+                href="/session/book"
+                className="flex min-h-[60px] items-center justify-center rounded-[16px] bg-brand-700 text-[1rem] font-bold text-white"
+              >
+                책으로 보기
+              </Link>
+              <Link
+                href="/session/reel"
+                className="flex min-h-[60px] items-center justify-center rounded-[16px] bg-leaf-100 text-[1rem] font-bold text-leaf-800"
+              >
+                노래와 함께 보기
+              </Link>
+            </div>
+          ) : (
+            <p className="mt-5 rounded-[14px] bg-surface-sunk p-3.5 text-[0.875rem] leading-relaxed text-ink-700">
+              「이 그림 쓰기」로 확정한 그림이 있어야 책과 숏츠를 만들 수 있어요.
+              사연 그림 화면에서 확정해 주세요.
+            </p>
+          )}
 
           <p className="mt-5 px-1 text-[0.8125rem] leading-relaxed text-ink-500">
             확정한 그림은 기관 저장소에도 올라가서 다른 태블릿에서도 보여요.

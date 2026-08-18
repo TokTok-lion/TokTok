@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadSong } from './songStore';
+import { loadSong, loadSongAt, readSongShelf } from './songStore';
 import type { Scene } from './sceneStore';
 
 /**
@@ -20,20 +20,37 @@ import type { Scene } from './sceneStore';
  *    갈린다. 안 되는 기기에서 버튼만 띄워 두면 복지사는 눌러 보고 아무 일도
  *    일어나지 않는 것을 겪는다 — 그래서 미리 재 보고, 안 되면 안 된다고 적는다.
  *
+ * ── 한 장이 얼마나 머무나
+ *
+ * 처음에는 곡 길이를 그림 수로 나눴다. 백 초짜리 곡에 그림 석 장이면 한 장이
+ * 삼십삼 초씩 서 있었다. 그건 숏츠가 아니라 정지화면이다.
+ *
+ * 그래서 한 장은 **다섯 초**로 못 박고, 곡이 남으면 그림을 처음부터 다시
+ * 돌린다. 같은 그림이 두 번 나오는 편이 한 장이 삼십 초 서 있는 것보다 낫다.
+ *
  * ── 소리까지 담는 이유
  *
  * 그림만 담긴 영상은 숏츠가 아니다. 노래 소리를 함께 담아야 하는데, 그러려면
  * 재생 중인 소리를 갈래 하나로 따로 뽑아야 한다(AudioContext). 그 과정에서
  * 스피커로 나가는 소리가 끊기지 않도록 원래 출력에도 그대로 이어 둔다.
+ *
+ * 그 갈래는 **오디오 하나에 한 번만** 만들 수 있다(createMediaElementSource).
+ * 예전 판은 담기 시작할 때마다 새로 만들어서, 두 번째 「영상 담기」는 예외가
+ * 나고 조용히 아무 일도 일어나지 않았다. 복지사에게는 버튼이 고장 난 것으로
+ * 보인다. 그래서 한 번 만들어 두고 계속 쓴다.
  */
 
 export type ReelState = {
   /** 지금 화면에 떠 있는 그림 번호. 그림이 없으면 -1 */
   index: number;
+  /** 다음 그림으로 넘어가는 중일 때 0→1. 겹쳐 그리는 데 쓴다. */
+  fade: number;
   playing: boolean;
   /** 곡 길이(초). 아직 모르면 0 */
   total: number;
   at: number;
+  /** 이 영상이 실제로 흐르는 길이(초). */
+  length: number;
   toggle: () => void;
   /** 곡이 이 기기에 없으면 false — 그림만 넘겨 볼 수 있다. */
   hasSong: boolean;
@@ -44,12 +61,26 @@ export type ReelState = {
   stopRecording: () => void;
   /** 담긴 영상. 저장 버튼이 이걸 내려받는다. */
   video: { url: string; type: string } | null;
+  /** 짧게 담기 — 켜면 삼십 초에서 끊는다. */
+  short: boolean;
+  setShort: (v: boolean) => void;
 };
 
-/** 그림 한 장이 화면에 머무는 최소 시간(초). 너무 빨리 넘기면 못 보신다. */
-const MIN_HOLD = 3;
+/** 그림 한 장이 화면에 머무는 시간(초). */
+export const HOLD = 5;
+/** 넘어가는 데 걸리는 시간(초). 뚝 바뀌면 눈이 놀란다. */
+export const FADE = 0.6;
+/** 짧게 담기를 켰을 때의 길이(초). */
+export const SHORT_LEN = 30;
+/** 앞뒤에 두는 표지·맺음 시간(초). */
+export const CARD = 3;
 
-export function useReel(scenes: Scene[], canvas: HTMLCanvasElement | null): ReelState {
+export function useReel(
+  scenes: Scene[],
+  canvas: HTMLCanvasElement | null,
+  /** 누구의 노래를 걸 것인가. 회기 곡이 없으면 이분의 최근 곡을 찾는다. */
+  ownerId?: string,
+): ReelState {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [hasSong, setHasSong] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -57,13 +88,34 @@ export function useReel(scenes: Scene[], canvas: HTMLCanvasElement | null): Reel
   const [total, setTotal] = useState(0);
   const [recording, setRecording] = useState(false);
   const [video, setVideo] = useState<{ url: string; type: string } | null>(null);
+  const [short, setShort] = useState(true);
   const recRef = useRef<MediaRecorder | null>(null);
+  /** 지금 흐른 시각. 담기를 끊을 때가 됐는지 재는 데 쓴다. */
+  const atRef = useRef(0);
+  /** 여기 닿으면 담기를 끝낸다. 담는 중이 아니면 끝이 없다. */
+  const endAtRef = useRef(Infinity);
+
+  /*
+   * 담기를 끝낸다.
+   *
+   * 이펙트에서 시각을 지켜보다 멈추면 렌더가 연쇄로 돈다. 그래서 소리 쪽이
+   * 알려 주는 신호(timeupdate)에서 부른다 — 바깥 장치가 알려 줄 때 받는 것이
+   * 이펙트가 할 일이다.
+   */
+  const finish = useCallback(() => {
+    endAtRef.current = Infinity;
+    if (recRef.current?.state === 'recording') recRef.current.stop();
+    audioRef.current?.pause();
+    setPlaying(false);
+  }, []);
+
+  /*
+   * 소리 갈래는 한 번만 만든다. 오디오 하나에 두 번 부르면 예외가 난다.
+   */
+  const tapRef = useRef<{ ctx: AudioContext; stream: MediaStream } | null>(null);
 
   /**
    * 이 기기가 화면과 소리를 담을 수 있는가. 눌러 보기 전에 잰다.
-   *
-   * 첫 그림을 그릴 때 재고 그대로 둔다. 이펙트에서 setState 하면 렌더가 한 번
-   * 더 도는데, 이 값은 기기가 정해 놓은 것이라 바뀌지 않는다.
    */
   const [canRecord] = useState(
     () =>
@@ -72,16 +124,36 @@ export function useReel(scenes: Scene[], canvas: HTMLCanvasElement | null): Reel
       typeof HTMLCanvasElement.prototype.captureStream === 'function',
   );
 
-  // 곡을 이 기기에서 읽는다. 없으면 그림만 넘긴다.
+  /*
+   * 곡을 읽는다.
+   *
+   * 이번 회기 곡이 먼저다. 없으면 이 어르신의 가장 최근 곡을 건다 — 지난
+   * 회기 그림으로 숏츠를 만드는 자리에서는 회기 곡이 아예 없다.
+   */
   useEffect(() => {
     let url: string | null = null;
     let alive = true;
-    void loadSong().then((blob) => {
+
+    const pick = async (): Promise<Blob | null> => {
+      const here = await loadSong().catch(() => null);
+      if (here) return here;
+      const shelf = await readSongShelf(ownerId).catch(() => null);
+      const newest = shelf?.songs.find((m) => m.madeAt !== null) ?? shelf?.songs[0];
+      return newest ? await loadSongAt(newest.key).catch(() => null) : null;
+    };
+
+    void pick().then((blob) => {
       if (!alive || !blob) return;
       url = URL.createObjectURL(blob);
       const a = new Audio(url);
       a.preload = 'metadata';
-      a.addEventListener('timeupdate', () => setAt(a.currentTime));
+      a.addEventListener('timeupdate', () => {
+        atRef.current = a.currentTime;
+        setAt(a.currentTime);
+        // 정한 길이에 닿으면 여기서 끊는다. 복지사가 멈춤을 누르지 않아도
+        // 파일이 나온다 — 백 초짜리 곡 앞에 서 있게 하지 않는다.
+        if (a.currentTime >= endAtRef.current) finish();
+      });
       a.addEventListener('loadedmetadata', () => {
         if (Number.isFinite(a.duration)) setTotal(a.duration);
       });
@@ -91,35 +163,58 @@ export function useReel(scenes: Scene[], canvas: HTMLCanvasElement | null): Reel
       audioRef.current = a;
       setHasSong(true);
     });
+
     return () => {
       alive = false;
       audioRef.current?.pause();
       audioRef.current = null;
       if (url) URL.revokeObjectURL(url);
     };
-  }, []);
+  }, [ownerId, finish]);
 
   /*
    * 곡이 없으면 시계를 우리가 돌린다.
-   *
-   * 그림만 넘겨 보는 회기도 있다 — 곡을 아직 안 만들었거나, 다른 태블릿에서
-   * 만든 곡이 이 기기에 없을 때다. 그때도 넘어가긴 해야 한다.
    */
   useEffect(() => {
     if (!playing || hasSong) return;
-    const id = setInterval(() => setAt((v) => v + 0.25), 250);
+    const id = setInterval(() => {
+      atRef.current += 0.05;
+      setAt(atRef.current);
+      if (atRef.current >= endAtRef.current) finish();
+    }, 50);
     return () => clearInterval(id);
-  }, [playing, hasSong]);
+  }, [playing, hasSong, finish]);
 
-  const span = Math.max(MIN_HOLD, (total || scenes.length * 6) / Math.max(1, scenes.length));
-  const index = scenes.length ? Math.min(scenes.length - 1, Math.floor(at / span)) : -1;
+  /*
+   * 이 영상이 흐르는 길이.
+   *
+   * 짧게 담기를 켜면 삼십 초, 아니면 곡 길이다. 곡이 없으면 그림 수만큼.
+   * 표지와 맺음이 앞뒤에 붙는다.
+   */
+  const full = total || scenes.length * HOLD + CARD * 2;
+  const length = short ? Math.min(SHORT_LEN, full) : full;
+
+  /*
+   * 지금 몇 번째 그림인가.
+   *
+   * 표지가 끝난 뒤부터 다섯 초씩. 그림이 모자라면 처음부터 다시 돈다 —
+   * 한 장을 삼십 초 세워 두지 않기 위해서다.
+   */
+  const shown = Math.max(0, at - CARD);
+  const step = Math.floor(shown / HOLD);
+  const index = scenes.length ? step % scenes.length : -1;
+  // 넘어가는 순간 0 에서 1 로. 그리는 쪽이 이 값으로 겹쳐 그린다.
+  const into = shown - step * HOLD;
+  const fade = at < CARD || !scenes.length ? 1 : Math.min(1, into / FADE);
 
   const toggle = useCallback(() => {
     const a = audioRef.current;
     if (!a) {
-      // 곡이 없으면 우리 시계만 돌린다. 끝까지 가면 처음으로.
       setPlaying((v) => {
-        if (!v && index >= scenes.length - 1) setAt(0);
+        if (!v && at >= length) {
+          atRef.current = 0;
+          setAt(0);
+        }
         return !v;
       });
       return;
@@ -130,7 +225,7 @@ export function useReel(scenes: Scene[], canvas: HTMLCanvasElement | null): Reel
     } else {
       a.pause();
     }
-  }, [index, scenes.length]);
+  }, [at, length]);
 
   const startRecording = useCallback(() => {
     if (!canvas || !canRecord) return;
@@ -138,23 +233,30 @@ export function useReel(scenes: Scene[], canvas: HTMLCanvasElement | null): Reel
       const stream = canvas.captureStream(30);
 
       /*
-       * 소리를 갈래로 뽑아 영상에 붙인다.
-       *
-       * 스피커 출력도 그대로 살려 둔다(destination 에도 잇는다) — 안 그러면
-       * 녹화하는 동안 어르신 앞에서 소리가 사라진다.
+       * 소리를 갈래로 뽑아 영상에 붙인다. 한 번 만든 갈래를 계속 쓴다.
+       * 스피커 출력도 그대로 살려 둔다 — 안 그러면 담는 동안 어르신 앞에서
+       * 소리가 사라진다.
        */
       const a = audioRef.current;
       if (a) {
-        const Ctx =
-          window.AudioContext ??
-          (window as unknown as { webkitAudioContext?: typeof AudioContext })
-            .webkitAudioContext;
-        if (Ctx) {
-          const ctx = new Ctx();
-          const src = ctx.createMediaElementSource(a);
-          const tap = ctx.createMediaStreamDestination();
-          src.connect(tap);
-          src.connect(ctx.destination);
+        if (!tapRef.current) {
+          const Ctx =
+            window.AudioContext ??
+            (window as unknown as { webkitAudioContext?: typeof AudioContext })
+              .webkitAudioContext;
+          if (Ctx) {
+            const ctx = new Ctx();
+            const src = ctx.createMediaElementSource(a);
+            const tap = ctx.createMediaStreamDestination();
+            src.connect(tap);
+            src.connect(ctx.destination);
+            tapRef.current = { ctx, stream: tap.stream };
+          }
+        }
+        const tap = tapRef.current;
+        if (tap) {
+          // 담기 사이에 잠들어 있으면 소리가 안 실린다.
+          void tap.ctx.resume().catch(() => undefined);
           for (const t of tap.stream.getAudioTracks()) stream.addTrack(t);
         }
       }
@@ -174,6 +276,13 @@ export function useReel(scenes: Scene[], canvas: HTMLCanvasElement | null): Reel
         setRecording(false);
       };
       recRef.current = rec;
+      // 담을 길이를 여기서 못 박는다. 담는 도중에 값이 바뀌어도 끝은 안 옮긴다.
+      endAtRef.current = length;
+      // 앞의 영상은 여기서 놓는다. 두 번 담고 나면 첫 번째는 아무도 안 쓴다.
+      setVideo((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return null;
+      });
       rec.start();
       setRecording(true);
 
@@ -183,47 +292,30 @@ export function useReel(scenes: Scene[], canvas: HTMLCanvasElement | null): Reel
         audio.currentTime = 0;
         void audio.play().catch(() => undefined);
       } else {
+        atRef.current = 0;
         setAt(0);
         setPlaying(true);
       }
     } catch {
       setRecording(false);
     }
-  }, [canvas, canRecord]);
-
-  const stopRecording = useCallback(() => {
-    recRef.current?.stop();
-    audioRef.current?.pause();
-    setPlaying(false);
-  }, []);
-
-  /*
-   * 곡이 끝나면 녹화도 끝낸다. 복지사가 멈춤을 누르지 않아도 파일이 나온다.
-   *
-   * 시각을 보고 판단하지 않고 소리가 끝났다는 신호를 듣는다 — 이펙트 안에서
-   * 매 프레임 재고 멈추면 렌더가 연쇄로 돈다.
-   */
-  useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    const end = () => {
-      if (recRef.current?.state === 'recording') recRef.current.stop();
-    };
-    a.addEventListener('ended', end);
-    return () => a.removeEventListener('ended', end);
-  }, [hasSong]);
+  }, [canvas, canRecord, length]);
 
   return {
     index,
+    fade,
     playing,
     total,
     at,
+    length,
     toggle,
     hasSong,
     canRecord,
     recording,
     startRecording,
-    stopRecording,
+    stopRecording: finish,
     video,
+    short,
+    setShort,
   };
 }
