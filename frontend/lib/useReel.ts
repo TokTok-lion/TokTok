@@ -257,7 +257,13 @@ export function useReel(
       return;
     }
     if (a.paused) {
-      if (a.ended || a.currentTime >= (a.duration || 0)) a.currentTime = 0;
+      // 끝까지 갔으면 처음으로. 우리 시계도 같이 되감는다 — 소리가 안 흐르는
+      // 기기에서는 이 시계가 그림을 민다.
+      if (a.ended || a.currentTime >= (a.duration || 0) || at >= length) {
+        a.currentTime = 0;
+        atRef.current = 0;
+        setAt(0);
+      }
       /*
        * 못 트는 곡이면 소리는 포기하고 그림만 넘긴다. 여기서 멈춰 버리면
        * 어르신 앞에서 눌러도 아무 일이 없는 단추가 된다.
@@ -277,6 +283,19 @@ export function useReel(
   const startRecording = useCallback(() => {
     if (!canvas || !canRecord) return;
     try {
+      /*
+       * 시각을 먼저 되감는다.
+       *
+       * 두 번째 담기가 900바이트짜리 빈 파일로 나왔다. 앞 담기가 끝나면 시각이
+       * 끝(21초)에 머물러 있는데, 다시 담기를 누르면 끝 시각을 21초로 정해 놓고
+       * 시작한다 — 첫 박자에 이미 끝을 지나 있으니 곧바로 멈춘다.
+       *
+       * 소리가 잘 흐르는 기기에서는 currentTime 을 되감는 것으로 따라왔지만,
+       * 소리가 안 흐르는 경우에는 우리 시계가 그대로 21초에 있었다. 어느
+       * 쪽이든 여기서 한 번 되감는다.
+       */
+      atRef.current = 0;
+      setAt(0);
       const stream = canvas.captureStream(30);
 
       /*
