@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeader } from '@/lib/authHeader';
 import Link from 'next/link';
 import { useState } from 'react';
 import { ConsentGate, missingConsents } from './ConsentGate';
@@ -72,7 +73,7 @@ export function WriteLyrics() {
     try {
       const res = await fetch('/api/lyrics', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           topic: s.topic,
           facts: basis.map((i) => i.text),

@@ -37,7 +37,16 @@ export async function requireUser(req: Request): Promise<AuthCheck> {
 
   const header = req.headers.get('authorization') ?? '';
   const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
-  if (!token) return { ok: false, error: '로그인이 필요합니다.' };
+  // 시연 자리에서 둘러보기만 하는 분이 여기 닿는다. '로그인이 필요합니다'
+  // 한 줄이면 고장으로 읽힌다 — 왜 막았는지까지 적는다.
+  if (!token) {
+    return {
+      ok: false,
+      error:
+        '둘러보기에서는 쓸 수 없는 기능이에요. 요금이 나가는 자리라 기관 계정으로 ' +
+        '로그인하신 분만 쓰실 수 있습니다.',
+    };
+  }
 
   try {
     // 요청마다 새로 만든다. 토큰이 섞이면 남의 회기로 판정될 수 있다.

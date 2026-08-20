@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeader } from './authHeader';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -204,7 +205,7 @@ export function useSpeak() {
         try {
           const res = await fetch('/api/tts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
             // 보내는 것은 원문이다. key 에는 판 번호가 붙어 있어서, 그대로
             // 보내면 어르신께 "브이투 레이트 공팔오 콜론"까지 읽어 드린다.
             body: JSON.stringify({ text: said }),

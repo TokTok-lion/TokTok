@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireUser } from '@/lib/apiAuth';
 import { music } from '@/lib/providers';
 
 /**
@@ -74,6 +75,20 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  /*
+   * 로그인 없이는 부르지 못한다.
+   *
+   * 시연 자리에 다른 분들이 함께 들어온다. 둘러보기만으로도 화면은 다
+   * 돌아가는데, 그 상태에서 이 주소를 부르면 우리 계정에서 요금이 나갔다.
+   * 기관 한도(song_quota)는 로그인한 계정에만 걸려서, 로그인 안 한 쪽에는
+   * 한도가 아예 없었다.
+   *
+   * 기관·복지사 로그인은 그대로다. 막는 것은 계정 없는 호출뿐이다.
+   */
+  // 곡 한 곡에 크레딧이 나간다. 이 저장소에서 가장 비싼 자리다.
+  const who = await requireUser(req);
+  if (!who.ok) return NextResponse.json({ error: who.error }, { status: 401 });
+
   let style: string;
   let lyrics: string;
   let title: string;

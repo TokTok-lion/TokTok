@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { claimSound, releaseSound } from '@/components/SamplePlayer';
 import { hasConsent, type LyricSection } from './domain';
+import { authHeader, needsLogin } from './authHeader';
 import { consentGaps } from './groupConsent';
 import { settled } from './longJob';
 import {
@@ -265,8 +266,30 @@ export function useMusic() {
       }
     }
 
-    // 여기서부터 진짜로 크레딧이 나간다. 그 전에 이번 달 한도를 본다 —
-    // 만든 뒤에 막으면 이미 늦다. 서버를 안 쓰면 null 이고 한도도 없다.
+    /*
+     * 여기서부터 진짜로 크레딧이 나간다.
+     *
+     * 로그인부터 본다. 시연 자리에 다른 분들이 함께 들어오는데, 둘러보기만
+     * 해도 화면은 다 돌아가서 이 단추까지 닿을 수 있었다. 그리고 기관
+     * 한도(song_quota)는 로그인한 계정에만 걸린다 — 로그인 안 한 쪽에는
+     * 한도가 아예 없었다.
+     *
+     * 라우트에서도 막지만(app/api/music) 여기서 한 번 더 본다. 어르신 앞에서
+     * 몇 분 기다렸다가 "로그인이 필요합니다"를 보는 것과, 누르기 전에
+     * 그렇게 적혀 있는 것은 다른 일이다.
+     */
+    if (await needsLogin()) {
+      setState({
+        kind: 'error',
+        message:
+          '둘러보기에서는 노래를 만들 수 없어요. 기관 계정으로 로그인하시면 ' +
+          '만드실 수 있습니다. 가사와 이야기는 그대로 남아 있어요.',
+      });
+      set('songStatus', 'draft');
+      return;
+    }
+
+    // 이번 달 한도를 본다 — 만든 뒤에 막으면 이미 늦다.
     const left = await songQuotaLeft();
     if (left !== null && left <= 0) {
       setState({
@@ -282,10 +305,11 @@ export function useMusic() {
     try {
       // 곡 만들기는 1~3분이 걸린다. 서버가 작업 번호를 주면 끝날 때까지
       // 대신 물어봐 준다 — 화면은 그동안 진행률만 보여 준다.
+      const auth = await authHeader();
       const res = await settled(
         await fetch('/api/music', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...auth },
           body: JSON.stringify({
             style: now.style ?? 'ballad',
             lyrics: forSuno,
@@ -293,6 +317,9 @@ export function useMusic() {
           }),
         }),
         (job) => `/api/music?job=${encodeURIComponent(job)}`,
+        // 다시 물을 때도 토큰을 실어야 한다. 처음만 달고 가면 폴링이 401 로
+        // 떨어져서, 곡은 만들어졌는데 못 받아 오는 상태가 된다.
+        { headers: auth },
       );
 
       if (!res.ok) {

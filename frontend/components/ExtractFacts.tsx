@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeader } from '@/lib/authHeader';
 import { useState } from 'react';
 import { Card } from './ui';
 import { ConsentGate, missingConsents } from './ConsentGate';
@@ -43,7 +44,7 @@ export function ExtractFacts() {
     try {
       const res = await fetch('/api/facts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({ segments: s.transcript, topic: s.topic }),
       });
       const json = (await res.json()) as {

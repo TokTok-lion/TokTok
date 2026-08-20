@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeader } from '@/lib/authHeader';
 import { useState, useSyncExternalStore } from 'react';
 import { Art } from '@/components/Art';
 import { ServerSaveNote } from '@/components/ServerSaveNote';
@@ -127,7 +128,7 @@ export default function LogPage() {
     try {
       const res = await fetch('/api/log-draft', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           // 주제가 없는 회기가 있다(lib/useElders.ts). 빈 문자열을 보내면
           // 프롬프트에 '회기 주제: ' 만 남아 무엇이 빠진 건지 모델도 모른다 —

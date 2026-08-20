@@ -1,5 +1,6 @@
 'use client';
 
+import { authHeader } from './authHeader';
 import { useEffect, useState } from 'react';
 import { membersMissing } from './groupConsent';
 import { readParticipantRecord } from './repo';
@@ -123,7 +124,7 @@ export function usePersonalQuestions(): PersonalQuestions {
 
       const res = await fetch('/api/questions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           facts,
           card: card ?? undefined,
