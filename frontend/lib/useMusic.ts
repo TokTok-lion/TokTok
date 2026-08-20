@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { claimSound, releaseSound } from '@/components/SamplePlayer';
 import { hasConsent, type LyricSection } from './domain';
-import { membersMissing } from './groupConsent';
+import { consentGaps } from './groupConsent';
 import { settled } from './longJob';
 import {
   cacheServerSong,
@@ -151,12 +151,31 @@ export function useMusic() {
      * 그룹 회기의 가사는 그 방에서 나온 이야기로 만들어진다. 기준 어르신만
      * 보고 내보내면 나머지 분들의 말씀이 동의 없이 외부 사업자에게 나간다.
      */
-    const noConsent = await membersMissing('externalAi');
-    if (noConsent.length > 0) {
-      const names = noConsent.map((m) => m.displayName).join(' · ');
+    const gaps = await consentGaps('externalAi');
+    if (gaps.missing.length > 0) {
+      const names = gaps.missing.map((m) => m.displayName).join(' · ');
       setState({
         kind: 'error',
         message: `${names} 어르신이 외부 AI 전송에 동의하지 않으셔서 곡은 만들지 않아요.`,
+      });
+      return;
+    }
+    /*
+     * 못 읽은 것은 미동의가 아니다.
+     *
+     * 앱이 뜬 직후에는 로그인 확인이 끝나기 전이라 동의 기록을 못 읽을 수
+     * 있고, 통신이 끊겨도 그렇다. 그때 "동의하지 않으셔서"라고 말하면 동의를
+     * 받아 둔 복지사가 화면이 아니라 자신을 의심한다 — 실제로 그렇게 물어 온
+     * 일이 있다. 보내지 않는 것은 같지만, 이쪽은 다시 시도하면 된다고
+     * 말해야 한다.
+     */
+    if (gaps.unread.length > 0) {
+      const names = gaps.unread.map((m) => m.displayName).join(' · ');
+      setState({
+        kind: 'error',
+        message:
+          `${names} 어르신의 외부 AI 전송 동의를 아직 확인하지 못했어요. ` +
+          '잠시 뒤 다시 시도해 주세요 — 확인 전에는 가사를 보내지 않아요.',
       });
       return;
     }

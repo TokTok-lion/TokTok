@@ -343,8 +343,21 @@ export async function readParticipantRecord(
   participantId: string,
 ): Promise<ParticipantRecord | null> {
   const sb = getSupabase();
-  const t = tenant();
-  if (!sb || !t) return null;
+  if (!sb) return null;
+
+  /*
+   * 로그인 확인이 끝나기를 기다린다.
+   *
+   * tenant() 는 지금 이 순간의 답이라, 앱이 막 뜬 직후에는 '확인 중'이어서
+   * null 이 나온다. 이 함수는 회기 화면이 뜨자마자 불리고(노래 만들기 ·
+   * 회기 준비의 동의 카드), 부르는 쪽은 null 을 미동의로 접는다(groupConsent).
+   * 그래서 새로고침 직후의 곡 만들기가 동의해 두신 어르신을 "동의하지
+   * 않으셨다"고 말했다 — 늦게 답하는 것보다 잘못 답하는 쪽이 훨씬 나쁜
+   * 자리다. listParticipants 가 같은 이유로 이미 기다린다.
+   */
+  const account = await accountReady();
+  const t = account.status === 'in' ? account.tenantId : null;
+  if (!t) return null;
 
   const [consentRes, participantRes] = await Promise.all([
     sb

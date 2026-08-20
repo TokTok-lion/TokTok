@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Art } from '@/components/Art';
 import { Ornaments, Screen } from '@/components/Shell';
 import { Card, IconCircle, OutlineButton, PrimaryButton } from '@/components/ui';
@@ -7,7 +8,11 @@ import { IconEdit, IconExport } from '@/components/icons';
 import { StaleLyricsNote } from '@/components/StaleLyricsNote';
 import { printLog } from '@/lib/export';
 import { songTitleForTopic } from '@/lib/scenes';
+import { songMetaAt } from '@/lib/songStore';
+import { matchesHash } from '@/lib/songSync';
 import { useSession } from '@/lib/store';
+import { useViewElder } from '@/lib/viewElder';
+import type { LyricSection } from '@/lib/domain';
 
 /**
  * 가사 카드 보기 (deck p.27)
@@ -21,16 +26,61 @@ import { useSession } from '@/lib/store';
  * 글씨로 읽어 드리는 화면이었다는 뜻이다. 회상요법 도구에서 이보다 나쁜
  * 오류는 없다. 제목도 본문도 이 회기의 값(s.topic · s.lyrics)에서만 나온다.
  */
+/**
+ * 보관함에서 고른 지난 곡의 가사도 여기서 연다.
+ *
+ * 복지사 피드백이다 — "가사 PDF도 나중에 추가로 다운받을 수 있게 할 수
+ * 있을까요. 중간 몇 어르신 PDF로 가사 다운을 못 해서". 이 화면이 회기
+ * 상태만 읽어서, 회기가 끝나면 그 가사를 종이로 뽑을 길이 없었다.
+ *
+ * 노래방(sing)과 같은 방식이다 — 주소에 ?song=<칸이름> 이 붙으면 그 곡에
+ * 붙어 있는 가사를 쓰고, 지문(matchesHash)이 맞을 때만 보여 준다. 회기
+ * 상태는 건드리지 않는다.
+ */
+function pastSongKey(): string | null {
+  if (typeof window === 'undefined') return null;
+  const v = new URLSearchParams(window.location.search).get('song');
+  return v && v.startsWith('s2:') ? v : null;
+}
+
 export default function LyricCardPage() {
   const { s, set } = useSession();
+  const view = useViewElder();
+
+  const [pastKey] = useState(pastSongKey);
+  const [past, setPast] = useState<{
+    topic: string | null;
+    lyrics: LyricSection[];
+  } | null>(null);
+  useEffect(() => {
+    if (!pastKey) return;
+    let alive = true;
+    void songMetaAt(pastKey)
+      .then(async (m) => {
+        const ok = await matchesHash(m?.lyrics, m?.style, m?.hash).catch(() => false);
+        if (!alive) return;
+        setPast({ topic: m?.topic ?? null, lyrics: ok && m?.lyrics ? m.lyrics : [] });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [pastKey]);
+
+  // 지난 곡이면 그 곡의 것만 쓴다. 회기 가사로 넘어가면 다른 노래의 글자가
+  // 종이에 찍힌다 — 노래방에서 실제로 났던 사고다.
+  const lyrics = pastKey ? (past?.lyrics ?? []) : s.lyrics;
+  const topic = pastKey ? (past?.topic ?? null) : s.topic;
+  // 종이에 적는 어르신 표기. 「보는 어르신」을 바꿨으면 그분이다.
+  const elderName = pastKey && view.id ? view.name : s.elder.displayName;
 
   // 제목은 옆 화면(/session/song)과 같은 규칙을 쓴다. 두 화면이 나란히
   // 이어지는데 제목이 서로 다르면 어르신 눈앞에서 바로 들킨다.
-  const title = songTitleForTopic(s.topic);
+  const title = topic ? songTitleForTopic(topic) : '주제가 남지 않은 노래';
 
   // 카드에 크게 싣는 대표 구절. 후렴이 있으면 후렴이다 — 여러 번 부르는
   // 대목이라 어르신도 가족도 그 줄을 기억하신다. 후렴이 없으면 첫 절.
-  const feature = s.lyrics.find((sec) => sec.tone === 'chorus') ?? s.lyrics[0] ?? null;
+  const feature = lyrics.find((sec) => sec.tone === 'chorus') ?? lyrics[0] ?? null;
 
   return (
     <Screen
@@ -49,7 +99,7 @@ export default function LyricCardPage() {
               </OutlineButton>
             </div>
           <PrimaryButton
-            href="/session/sing"
+            href={pastKey ? `/session/sing?song=${encodeURIComponent(pastKey)}` : '/session/sing'}
             leading={
               <IconCircle tone="neutral" size={30}>
                 <Art name="ui_music" size={17} alt="" />
@@ -59,7 +109,7 @@ export default function LyricCardPage() {
             함께 부르기
           </PrimaryButton>
           </>
-        ) : (
+        ) : pastKey ? null : (
           // 막다른 길을 두지 않는다. 가사가 없으면 다음 단계로 미는 대신
           // 만들러 갈 수 있는 곳을 준다.
           <PrimaryButton href="/session/lyrics" leading={<IconEdit size={22} />}>
@@ -121,10 +171,18 @@ export default function LyricCardPage() {
         </Card>
       ) : (
         <Card className="p-6 text-center">
-          <p className="text-[1.0625rem] font-bold text-ink-900">아직 가사가 없어요</p>
+          <p className="text-[1.0625rem] font-bold text-ink-900">
+            {pastKey ? '이 곡에 남아 있는 가사가 없어요' : '아직 가사가 없어요'}
+          </p>
           <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-500">
-            어르신이 확인해 주신 이야기로 가사를 만들면, 그 문장이 여기에 큰
-            글씨로 올라와요.
+            {pastKey
+              ? /*
+                 * 없어진 가사를 지어내지 않는다. 곡을 만든 그 가사가 확인될
+                 * 때만 종이로 나간다 — 다른 노래의 글자가 어르신 이름으로
+                 * 인쇄되는 것이 최악이다.
+                 */
+                '가사 칸이 생기기 전에 만든 곡이거나, 만들고 나서 가사를 고친 곡이에요. 노래는 보관함에서 그대로 들으실 수 있어요.'
+              : '어르신이 확인해 주신 이야기로 가사를 만들면, 그 문장이 여기에 큰 글씨로 올라와요.'}
           </p>
         </Card>
       )}
@@ -139,7 +197,7 @@ export default function LyricCardPage() {
           수는 없고(푸터의 '가사 만들러 가기'와 같은 곳으로 가는 버튼이 둘이
           되기도 했다), 읽어 드릴 문장이 한 줄도 없는 화면에서 "함께 크게 읽어
           드리고"는 하지 않은 일을 한 것처럼 말한다. */}
-      {feature ? (
+      {feature && !pastKey ? (
         <>
           <div className="mt-4">
             <OutlineButton href="/session/lyrics" leading={<IconEdit size={22} />}>
@@ -192,13 +250,13 @@ export default function LyricCardPage() {
           한 절씩 크게 보여 주지만 종이는 전곡이 한 장에 들어가야 한다. */}
       <div data-print className="hidden">
         <h1 style={{ fontSize: '22pt', fontWeight: 800, marginBottom: '2mm' }}>
-          {songTitleForTopic(s.topic)}
+          {title}
         </h1>
         <p style={{ fontSize: '10pt', color: '#555', marginBottom: '8mm' }}>
-          {s.elder.displayName} 어르신 · {new Date().getFullYear()}년{' '}
+          {elderName} 어르신 · {new Date().getFullYear()}년{' '}
           {new Date().getMonth() + 1}월 {new Date().getDate()}일
         </p>
-        {s.lyrics.map((sec, i) => (
+        {lyrics.map((sec, i) => (
           <div key={`${sec.label}-${i}`} style={{ marginBottom: '7mm' }}>
             <p style={{ fontSize: '11pt', fontWeight: 700, color: '#7a542e', marginBottom: '2mm' }}>
               {sec.label}

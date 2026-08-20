@@ -276,8 +276,13 @@ export default function LibraryPage() {
                   </div>
 
                   {/* 가사가 붙어 있는 곡만 노래방으로 열 수 있다. 이 칸이
-                      생기기 전에 만든 곡은 없는 것을 있는 척하지 않는다. */}
-                  {m.lyrics?.length ? (
+                      생기기 전에 만든 곡은 없는 것을 있는 척하지 않는다.
+
+                      서버에만 있는 곡(srv: 칸)은 아직 못 연다 — 노래방은 기기
+                      칸 이름으로 곡을 찾는데 그 칸이 아직 없다. 한 번 재생해
+                      내려받으면 기기 칸이 생기고 그때 단추가 뜬다. 안 되는
+                      단추를 두는 것보다 낫다. */}
+                  {m.lyrics?.length && !remote ? (
                     <Link
                       href={`/session/sing?song=${encodeURIComponent(m.key)}`}
                       aria-label={`${title} 함께 부르기`}
@@ -341,6 +346,23 @@ export default function LibraryPage() {
                   * 버튼이다. 어느 태블릿에서 만들었는지는 파일을 드리는 일과
                   * 상관이 없다.
                   */}
+                {/*
+                  가사 카드 — 지난 곡의 가사를 다시 인쇄한다.
+
+                  복지사 피드백이다: "가사 PDF도 나중에 추가로 다운받을 수
+                  있게 할 수 있을까요. 중간 몇 어르신 PDF로 가사 다운을 못
+                  해서". 가사 카드가 회기 상태만 읽어서, 회기가 끝나면 그
+                  가사를 종이로 뽑을 길이 없었다.
+                */}
+                {m.lyrics?.length && !remote ? (
+                  <Link
+                    href={`/session/lyric-card?song=${encodeURIComponent(m.key)}`}
+                    className="mt-2.5 flex min-h-[48px] w-full items-center justify-center rounded-[12px] border border-leaf-300 bg-surface text-[0.9375rem] font-bold text-leaf-800"
+                  >
+                    가사 카드 · 인쇄
+                  </Link>
+                ) : null}
+
                 <button
                   type="button"
                   disabled={saving === m.key}
