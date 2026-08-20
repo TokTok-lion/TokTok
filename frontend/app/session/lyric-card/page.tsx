@@ -72,7 +72,10 @@ export default function LyricCardPage() {
   const lyrics = pastKey ? (past?.lyrics ?? []) : s.lyrics;
   const topic = pastKey ? (past?.topic ?? null) : s.topic;
   // 종이에 적는 어르신 표기. 「보는 어르신」을 바꿨으면 그분이다.
-  const elderName = pastKey && view.id ? view.name : s.elder.displayName;
+  // 이름에 이미 '어르신'이 붙어 있으면 한 번만 적는다 — 「테스트 어르신
+  // 어르신」이 실제로 인쇄됐다.
+  const rawName = pastKey && view.id ? view.name : s.elder.displayName;
+  const elderName = rawName.endsWith('어르신') ? rawName : `${rawName} 어르신`;
 
   // 제목은 옆 화면(/session/song)과 같은 규칙을 쓴다. 두 화면이 나란히
   // 이어지는데 제목이 서로 다르면 어르신 눈앞에서 바로 들킨다.
@@ -253,7 +256,7 @@ export default function LyricCardPage() {
           {title}
         </h1>
         <p style={{ fontSize: '10pt', color: '#555', marginBottom: '8mm' }}>
-          {elderName} 어르신 · {new Date().getFullYear()}년{' '}
+          {elderName} · {new Date().getFullYear()}년{' '}
           {new Date().getMonth() + 1}월 {new Date().getDate()}일
         </p>
         {lyrics.map((sec, i) => (
